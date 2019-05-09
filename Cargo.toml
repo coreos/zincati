@@ -5,6 +5,19 @@ authors = ["Luca Bruno <luca.bruno@coreos.com>"]
 edition = "2018"
 
 [dependencies]
+actix = "^0.8.1"
+env_logger = "^0.6.1"
+failure = "^0.1.5"
+futures = "^0.1.26"
+chrono = "^0.4.6"
+glob = "^0.3.0"
+log = "^0.4.6"
+reqwest = "^0.9.15"
+serde = { version = "^1.0.90", features = ["derive"] }
+structopt = "^0.2.15"
+toml = "^0.5.0"
+url_serde = "^0.2.0"
+uuid = { version = "^0.7.4", features = [ "serde", "u128"] }
 
 [profile.release]
 lto = true
