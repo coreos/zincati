@@ -1,0 +1,10 @@
+[package]
+name = "zincati"
+version = "0.0.0-dev.0"
+authors = ["Luca Bruno <luca.bruno@coreos.com>"]
+edition = "2018"
+
+[dependencies]
+
+[profile.release]
+lto = true
