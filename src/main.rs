@@ -5,6 +5,10 @@
 
 /// Command-line options.
 mod cli;
+/// File-based configuration.
+mod config;
+/// Agent identity.
+mod identity;
 
 use failure::ResultExt;
 use log::{debug, info, trace};
@@ -36,6 +40,10 @@ fn run_agent() -> failure::Fallible<()> {
         crate_name!(),
         crate_version!()
     );
+
+    let settings =
+        config::Settings::assemble().context("failed to assemble configuration settings")?;
+    info!("node identity: {:?}", settings.identity);
 
     trace!("creating actor system");
     let sys = actix::System::new(crate_name!());
