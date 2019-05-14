@@ -43,7 +43,11 @@ fn run_agent() -> failure::Fallible<()> {
 
     let settings =
         config::Settings::assemble().context("failed to assemble configuration settings")?;
-    info!("node identity: {:?}", settings.identity);
+    info!(
+        "agent running on node '{}' in group '{}'",
+        settings.identity.node_uuid.lower_hex(),
+        settings.identity.group
+    );
 
     trace!("creating actor system");
     let sys = actix::System::new(crate_name!());

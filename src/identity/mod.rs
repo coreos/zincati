@@ -1,3 +1,4 @@
+use crate::config::inputs;
 use failure::{format_err, Fallible, ResultExt};
 use libsystemd::id128;
 use serde::Serialize;
@@ -30,8 +31,7 @@ pub(crate) struct Identity {
 }
 
 impl Identity {
-    /*
-    pub(crate) fn with_config(cfg: IdentityInput) -> Fallible<Self> {
+    pub(crate) fn with_config(cfg: inputs::IdentityInput) -> Fallible<Self> {
         let mut id = Self::try_default().context("failed to build default identity")?;
 
         if !cfg.group.is_empty() {
@@ -39,7 +39,8 @@ impl Identity {
         };
 
         if !cfg.node_uuid.is_empty() {
-            id.node_uuid = Uuid::parse_str(&cfg.node_uuid).context("failed to parse uuid")?;
+            id.node_uuid = id128::Id128::parse_str(&cfg.node_uuid)
+                .map_err(|e| format_err!("failed to parse node UUID: {}", e))?;
         }
 
         if let Some(tp) = cfg.throttle_permille {
@@ -48,7 +49,6 @@ impl Identity {
 
         Ok(id)
     }
-    */
 
     /// Try to build default agent identity.
     pub fn try_default() -> Fallible<Self> {
