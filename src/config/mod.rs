@@ -5,10 +5,16 @@
 //!  * Inputs: configuration fragments merged, but not yet validated.
 //!  * Settings: validated settings for the agent.
 
+/// TOML structures.
+mod fragments;
+
+/// Configuration fragments.
+pub(crate) mod inputs;
+
 use crate::identity::Identity;
 use failure::{Fallible, ResultExt};
-use log::debug;
 use serde::Serialize;
+use structopt::clap::crate_name;
 
 /// Runtime configuration for the agent.
 ///
@@ -21,24 +27,16 @@ pub(crate) struct Settings {
 impl Settings {
     /// Assemble runtime settings.
     pub(crate) fn assemble() -> Fallible<Self> {
-        /*
         let dirs = vec!["/usr/lib", "/run", "/etc"];
-        let cfg = ConfigInput::read_configs(&dirs, crate_name!())?;
-        */
-        Self::validate(())
+        let cfg = inputs::ConfigInput::read_configs(&dirs, crate_name!())?;
+        Self::validate(cfg)
     }
 
     /// Validate config and return a valid agent settings.
-    fn validate(_cfg: ()) -> Fallible<Self> {
-        /*
-        let identity = Identity::with_config(cfg.identity)?;
-         */
-        let identity =
-            Identity::try_default().context("failed to validate agent identity configuration")?;
+    fn validate(cfg: inputs::ConfigInput) -> Fallible<Self> {
+        let identity = Identity::with_config(cfg.identity)
+            .context("failed to validate agent identity configuration")?;
 
-        let settings = Self { identity };
-        debug!("runtime settings: {:?}", settings);
-
-        Ok(settings)
+        Ok(Self { identity })
     }
 }

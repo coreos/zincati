@@ -1,0 +1,23 @@
+[identity]
+# Node group: used for cluster-wide reboot orchestration (via remote strategy)
+group = "workers"
+
+# Node UUID: by default derived from "/etc/machine-id"
+#node_uuid = "27e3ac02-af39-46af-995c-9940e18b0cce"
+
+# Update throttling (min: 1, max: 1000): by default computed by the Cincinnati service
+#throttle_permille = "990"
+
+# Base URL to the Cincinnati service
+#cincinnati.base_url= "http://localhost:6789"
+
+[updates]
+# Valid strategies: immediate / periodic / remote_http
+strategy = "immediate"
+
+# Immediately check for, fetch and finalize updates
+[updates.immediate]
+# Whether to check for and fetch updates
+fetch_updates = "true"
+# Whether to finalize staged updates
+finalize_updates = "true"
