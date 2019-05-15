@@ -9,6 +9,8 @@ mod cli;
 mod config;
 /// Agent identity.
 mod identity;
+/// Update strategies.
+mod strategy;
 
 use failure::ResultExt;
 use log::{debug, info, trace};
