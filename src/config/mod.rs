@@ -12,6 +12,7 @@ mod fragments;
 pub(crate) mod inputs;
 
 use crate::identity::Identity;
+use crate::strategy::UpdateStrategy;
 use failure::{Fallible, ResultExt};
 use serde::Serialize;
 use structopt::clap::crate_name;
@@ -21,7 +22,10 @@ use structopt::clap::crate_name;
 /// It holds validated agent configuration.
 #[derive(Debug, Serialize)]
 pub(crate) struct Settings {
+    /// Agent configuration.
     pub(crate) identity: Identity,
+    /// Agent update strategy.
+    pub(crate) strategy: UpdateStrategy,
 }
 
 impl Settings {
@@ -36,7 +40,9 @@ impl Settings {
     fn validate(cfg: inputs::ConfigInput) -> Fallible<Self> {
         let identity = Identity::with_config(cfg.identity)
             .context("failed to validate agent identity configuration")?;
+        let strategy = UpdateStrategy::with_config(cfg.updates)
+            .context("failed to validate agent updates configuration")?;
 
-        Ok(Self { identity })
+        Ok(Self { identity, strategy })
     }
 }
