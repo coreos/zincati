@@ -11,7 +11,10 @@ mod config;
 mod identity;
 /// Update strategies.
 mod strategy;
+/// Update agent.
+mod update_agent;
 
+use actix::Actor;
 use failure::ResultExt;
 use log::{debug, info, trace};
 use structopt::clap::{crate_name, crate_version};
@@ -54,7 +57,10 @@ fn run_agent() -> failure::Fallible<()> {
     trace!("creating actor system");
     let sys = actix::System::new(crate_name!());
 
-    // TODO(lucab): parse configuration files and run agent.
+    trace!("creating update agent");
+    let agent = update_agent::UpdateAgent::with_config(settings)
+        .context("failed to assemble update-agent from configuration settings")?;
+    let _addr = agent.start();
 
     debug!("starting actor system");
     sys.run().context("agent failed")?;
