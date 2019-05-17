@@ -55,7 +55,10 @@ fn run_agent() -> failure::Fallible<()> {
     );
 
     trace!("creating actor system");
-    let sys = actix::System::new(crate_name!());
+    let sys = actix::System::builder()
+        .name(crate_name!())
+        .stop_on_panic(true)
+        .build();
 
     trace!("creating update agent");
     let agent = update_agent::UpdateAgent::with_config(settings)
