@@ -32,6 +32,7 @@ pub(crate) struct Identity {
 }
 
 impl Identity {
+    /// Create from configuration.
     pub(crate) fn with_config(cfg: inputs::IdentityInput) -> Fallible<Self> {
         let mut id = Self::try_default().context("failed to build default identity")?;
 

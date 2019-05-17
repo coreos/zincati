@@ -29,10 +29,11 @@ impl Handler<RefreshTick> for UpdateAgent {
         trace!("update agent tick, current state: {:?}", self.state);
         let prev_state = self.state.clone();
 
-        let state_action = match self.state {
+        let state_action = match &self.state {
             UpdateAgentState::StartState => self.initialize(),
             UpdateAgentState::Initialized => self.try_steady(),
             UpdateAgentState::Steady => self.try_check_updates(),
+            UpdateAgentState::UpdateAvailable(_release) => self.todo(),
             UpdateAgentState::_EndState => self.nop(),
         };
 
@@ -94,12 +95,14 @@ impl UpdateAgent {
         trace!("trying to check for updates");
 
         let can_check = self.strategy.can_check_and_fetch(&self.identity);
-        let state_change =
-            actix::fut::wrap_future::<_, Self>(can_check).map(|can_check, _actor, _ctx| {
-                if can_check {
-                    log::error!("UNIMPLEMENTED: check and fetch updates");
-                }
-            });
+        let state_change = actix::fut::wrap_future::<_, Self>(can_check)
+            .and_then(|can_check, actor, _ctx| {
+                actor
+                    .cincinnati
+                    .fetch_update_hint(&actor.identity, can_check)
+                    .into_actor(actor)
+            })
+            .map(|update, actor, _ctx| actor.state.update_available(update));
 
         Box::new(state_change)
     }
@@ -108,5 +111,11 @@ impl UpdateAgent {
     fn nop(&mut self) -> ResponseActFuture<Self, (), ()> {
         let nop = actix::fut::ok(());
         Box::new(nop)
+    }
+
+    /// Pending implementation.
+    fn todo(&mut self) -> ResponseActFuture<Self, (), ()> {
+        log::error!("pending implementation");
+        self.nop()
     }
 }
