@@ -9,7 +9,8 @@ group = "workers"
 #throttle_permille = "990"
 
 # Base URL to the Cincinnati service
-#cincinnati.base_url= "http://localhost:6789"
+[cincinnati]
+base_url= "http://example.com:80/"
 
 [updates]
 # Valid strategies: immediate / periodic / remote_http
