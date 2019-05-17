@@ -52,7 +52,10 @@ fn run_agent() -> failure::Fallible<()> {
     );
 
     trace!("creating actor system");
-    let sys = actix::System::new(crate_name!());
+    let sys = actix::System::builder()
+        .name(crate_name!())
+        .stop_on_panic(true)
+        .build();
 
     // TODO(lucab): parse configuration files and run agent.
 
