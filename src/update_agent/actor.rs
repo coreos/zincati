@@ -36,7 +36,7 @@ impl Handler<RefreshTick> for UpdateAgent {
             UpdateAgentState::_EndState => self.nop(),
         };
 
-        let update_machine = state_action.map(move |_r, actor, ctx| {
+        let update_machine = state_action.then(move |_r, actor, ctx| {
             if prev_state != actor.state {
                 let now = chrono::Utc::now();
                 actor.state_changed = now;
@@ -44,6 +44,7 @@ impl Handler<RefreshTick> for UpdateAgent {
             } else {
                 Self::tick_later(ctx, actor.refresh_period);
             }
+            actix::fut::ok(())
         });
 
         // Process state machine refresh ticks sequentially.
