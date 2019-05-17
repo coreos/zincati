@@ -79,7 +79,9 @@ mod tests {
         let cfg: ConfigFragment = toml::from_slice(&content).unwrap();
 
         let expected = ConfigFragment {
-            cincinnati: None,
+            cincinnati: Some(CincinnatiFragment {
+                base_url: Some("http://example.com:80/".to_string()),
+            }),
             identity: Some(IdentityFragment {
                 group: Some("workers".to_string()),
                 node_uuid: None,
