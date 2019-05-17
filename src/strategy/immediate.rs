@@ -67,3 +67,62 @@ impl Default for StrategyImmediate {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+    use tokio::runtime::current_thread as rt;
+
+    #[test]
+    fn default() {
+        let default = StrategyImmediate::default();
+        assert_eq!(default.check, true);
+        assert_eq!(default.finalize, true);
+    }
+
+    #[test]
+    fn report_steady() {
+        let default = StrategyImmediate::default();
+        let steady = rt::block_on_all(default.report_steady()).unwrap();
+        assert_eq!(steady, true);
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_config(check in any::<bool>(), finalize in any::<bool>()){
+            let input = StratImmediateInput {
+                fetch_updates: Some(check),
+                finalize_updates: Some(finalize),
+            };
+
+            let strat = StrategyImmediate::with_config(input).unwrap();
+            assert_eq!(strat.check, check);
+            assert_eq!(strat.finalize, finalize);
+        }
+
+        #[test]
+        fn proptest_can_check(check in any::<bool>(), finalize in any::<bool>()){
+            let input = StratImmediateInput {
+                fetch_updates: Some(check),
+                finalize_updates: Some(finalize),
+            };
+
+            let strat = StrategyImmediate::with_config(input).unwrap();
+            let can_check = rt::block_on_all(strat.can_check_and_fetch()).unwrap();
+            assert_eq!(can_check, check);
+        }
+
+        #[test]
+        fn proptest_can_finalize(check in any::<bool>(), finalize in any::<bool>()){
+            let input = StratImmediateInput {
+                fetch_updates: Some(check),
+                finalize_updates: Some(finalize),
+            };
+
+            let strat = StrategyImmediate::with_config(input).unwrap();
+            let can_finalize = rt::block_on_all(strat.can_finalize()).unwrap();
+            assert_eq!(can_finalize, finalize);
+        }
+    }
+}
