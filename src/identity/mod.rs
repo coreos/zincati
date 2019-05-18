@@ -87,6 +87,21 @@ impl Identity {
         vars.insert("stream".to_string(), self.stream.clone());
         vars
     }
+
+    /// Return Cincinnati client parameters.
+    pub fn cincinnati_params(&self) -> HashMap<String, String> {
+        let mut vars = HashMap::new();
+        vars.insert("basearch".to_string(), self.basearch.clone());
+        vars.insert("current_version".to_string(), self.current_version.clone());
+        vars.insert("group".to_string(), self.group.clone());
+        vars.insert("node_uuid".to_string(), self.node_uuid.lower_hex());
+        vars.insert("platform".to_string(), self.platform.clone());
+        vars.insert("stream".to_string(), self.stream.clone());
+        if let Some(val) = self.throttle_permille {
+            vars.insert("throttle_permille".to_string(), val.to_string());
+        }
+        vars
+    }
 }
 
 fn read_stream() -> Fallible<String> {
@@ -147,5 +162,21 @@ mod tests {
         assert!(!vars.contains_key("node_uuid"));
         assert!(!vars.contains_key("current_version"));
         assert!(!vars.contains_key("throttle_permille"));
+    }
+
+    #[test]
+    fn identity_cincinnati_params() {
+        let id = mock_default(Some(500));
+        let vars = id.cincinnati_params();
+
+        assert!(vars.contains_key("basearch"));
+        assert!(vars.contains_key("group"));
+        assert!(vars.contains_key("platform"));
+        assert!(vars.contains_key("stream"));
+        assert!(vars.contains_key("node_uuid"));
+        assert!(vars.contains_key("current_version"));
+
+        let throttle = vars.get("throttle_permille").unwrap();
+        assert_eq!(throttle, "500")
     }
 }
