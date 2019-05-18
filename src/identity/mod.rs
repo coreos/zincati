@@ -2,6 +2,7 @@ use crate::config::inputs;
 use failure::{format_err, Fallible, ResultExt};
 use libsystemd::id128;
 use serde::Serialize;
+use std::collections::HashMap;
 
 /// Default group for reboot management.
 static DEFAULT_GROUP: &str = "default";
@@ -74,6 +75,18 @@ impl Identity {
         };
         Ok(id)
     }
+
+    /// Return context variables for URL templates.
+    pub fn url_variables(&self) -> HashMap<String, String> {
+        // This explicitly does not include "current_version",
+        // "throttle_permille" and "node_uuid".
+        let mut vars = HashMap::new();
+        vars.insert("basearch".to_string(), self.basearch.clone());
+        vars.insert("group".to_string(), self.group.clone());
+        vars.insert("platform".to_string(), self.platform.clone());
+        vars.insert("stream".to_string(), self.stream.clone());
+        vars
+    }
 }
 
 fn read_stream() -> Fallible<String> {
@@ -104,4 +117,35 @@ fn compute_node_uuid(app_id: &id128::Id128) -> Fallible<id128::Id128> {
     let id = id128::get_machine_app_specific(app_id)
         .map_err(|e| format_err!("failed to get node ID: {}", e))?;
     Ok(id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mock_default(throttle_permille: Option<u16>) -> Identity {
+        Identity {
+            basearch: "mock-amd64".to_string(),
+            current_version: "0.0.0-mock".to_string(),
+            group: "mock-workers".to_string(),
+            node_uuid: id128::Id128::parse_str("e0f3745b108f471cbd4883c6fbed8cdd").unwrap(),
+            platform: "mock-azure".to_string(),
+            stream: "mock-stable".to_string(),
+            throttle_permille,
+        }
+    }
+
+    #[test]
+    fn identity_url_variables() {
+        let id = mock_default(Some(500));
+        let vars = id.url_variables();
+
+        assert!(vars.contains_key("basearch"));
+        assert!(vars.contains_key("group"));
+        assert!(vars.contains_key("platform"));
+        assert!(vars.contains_key("stream"));
+        assert!(!vars.contains_key("node_uuid"));
+        assert!(!vars.contains_key("current_version"));
+        assert!(!vars.contains_key("throttle_permille"));
+    }
 }
