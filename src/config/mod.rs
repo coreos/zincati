@@ -11,6 +11,7 @@ mod fragments;
 /// Configuration fragments.
 pub(crate) mod inputs;
 
+use crate::cincinnati::Cincinnati;
 use crate::identity::Identity;
 use crate::strategy::UpdateStrategy;
 use failure::{Fallible, ResultExt};
@@ -22,6 +23,8 @@ use structopt::clap::crate_name;
 /// It holds validated agent configuration.
 #[derive(Debug, Serialize)]
 pub(crate) struct Settings {
+    /// Cincinnati configuration.
+    pub(crate) cincinnati: Cincinnati,
     /// Agent configuration.
     pub(crate) identity: Identity,
     /// Agent update strategy.
@@ -41,8 +44,14 @@ impl Settings {
         let identity = Identity::with_config(cfg.identity)
             .context("failed to validate agent identity configuration")?;
         let strategy = UpdateStrategy::with_config(cfg.updates)
-            .context("failed to validate agent updates configuration")?;
+            .context("failed to validate update-strategy configuration")?;
+        let cincinnati = Cincinnati::with_config(cfg.cincinnati, &identity)
+            .context("failed to validate cincinnati configuration")?;
 
-        Ok(Self { identity, strategy })
+        Ok(Self {
+            cincinnati,
+            identity,
+            strategy,
+        })
     }
 }

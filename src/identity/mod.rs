@@ -32,6 +32,7 @@ pub(crate) struct Identity {
 }
 
 impl Identity {
+    /// Create from configuration.
     pub(crate) fn with_config(cfg: inputs::IdentityInput) -> Fallible<Self> {
         let mut id = Self::try_default().context("failed to build default identity")?;
 
@@ -102,6 +103,19 @@ impl Identity {
         }
         vars
     }
+
+    #[cfg(test)]
+    pub(crate) fn mock_default(throttle_permille: Option<u16>) -> Self {
+        Self {
+            basearch: "mock-amd64".to_string(),
+            current_version: "0.0.0-mock".to_string(),
+            group: "mock-workers".to_string(),
+            node_uuid: id128::Id128::parse_str("e0f3745b108f471cbd4883c6fbed8cdd").unwrap(),
+            platform: "mock-azure".to_string(),
+            stream: "mock-stable".to_string(),
+            throttle_permille,
+        }
+    }
 }
 
 fn read_stream() -> Fallible<String> {
@@ -138,21 +152,9 @@ fn compute_node_uuid(app_id: &id128::Id128) -> Fallible<id128::Id128> {
 mod tests {
     use super::*;
 
-    fn mock_default(throttle_permille: Option<u16>) -> Identity {
-        Identity {
-            basearch: "mock-amd64".to_string(),
-            current_version: "0.0.0-mock".to_string(),
-            group: "mock-workers".to_string(),
-            node_uuid: id128::Id128::parse_str("e0f3745b108f471cbd4883c6fbed8cdd").unwrap(),
-            platform: "mock-azure".to_string(),
-            stream: "mock-stable".to_string(),
-            throttle_permille,
-        }
-    }
-
     #[test]
     fn identity_url_variables() {
-        let id = mock_default(Some(500));
+        let id = Identity::mock_default(Some(500));
         let vars = id.url_variables();
 
         assert!(vars.contains_key("basearch"));
@@ -166,7 +168,7 @@ mod tests {
 
     #[test]
     fn identity_cincinnati_params() {
-        let id = mock_default(Some(500));
+        let id = Identity::mock_default(Some(500));
         let vars = id.cincinnati_params();
 
         assert!(vars.contains_key("basearch"));

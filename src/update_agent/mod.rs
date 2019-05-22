@@ -2,6 +2,7 @@
 
 mod actor;
 
+use crate::cincinnati::{Cincinnati, Node};
 use crate::config::Settings;
 use crate::identity::Identity;
 use crate::strategy::UpdateStrategy;
@@ -20,6 +21,8 @@ enum UpdateAgentState {
     Initialized,
     /// Agent ready to check for updates.
     Steady,
+    /// Update available from Cincinnati.
+    UpdateAvailable(Node),
     // TODO(lucab): add all the "update in progress" states.
     /// Final state upon actor end.
     _EndState,
@@ -49,11 +52,22 @@ impl UpdateAgentState {
             *self = UpdateAgentState::Steady;
         }
     }
+
+    fn update_available(&mut self, update: Option<Node>) {
+        // Allowed starting states.
+        assert!(*self == UpdateAgentState::Steady);
+
+        if let Some(release) = update {
+            *self = UpdateAgentState::UpdateAvailable(release)
+        };
+    }
 }
 
 /// Update agent.
 #[derive(Debug)]
 pub(crate) struct UpdateAgent {
+    /// Cincinnati service.
+    cincinnati: Cincinnati,
     /// Agent identity.
     identity: Identity,
     /// State machine tick/refresh period.
@@ -70,6 +84,7 @@ impl UpdateAgent {
     /// Build an update agent with the given config.
     pub(crate) fn with_config(cfg: Settings) -> failure::Fallible<Self> {
         let agent = UpdateAgent {
+            cincinnati: cfg.cincinnati,
             identity: cfg.identity,
             // TODO(lucab): consider tweaking this
             //   * maybe configurable, in minutes?
@@ -86,6 +101,8 @@ impl UpdateAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cincinnati::Node;
+    use std::collections::HashMap;
 
     #[test]
     fn default_state() {
@@ -102,6 +119,16 @@ mod tests {
 
         machine.steady(true);
         assert_eq!(machine, UpdateAgentState::Steady);
+
+        machine.update_available(None);
+        assert_eq!(machine, UpdateAgentState::Steady);
+
+        let update = Node {
+            version: "v1".to_string(),
+            payload: "ostree-checksum".to_string(),
+            metadata: HashMap::new(),
+        };
+        machine.update_available(Some(update));
 
         // TODO(lucab): complete the full path till reaching EndState.
         // assert_eq!(machine, UpdateAgentState::_EndState);
