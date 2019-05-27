@@ -1,6 +1,7 @@
 //! Update agent actor.
 
 use super::{UpdateAgent, UpdateAgentState};
+use crate::rpm_ostree::{self, Release};
 use actix::prelude::*;
 use failure::Error;
 use log::trace;
@@ -33,7 +34,11 @@ impl Handler<RefreshTick> for UpdateAgent {
             UpdateAgentState::StartState => self.initialize(),
             UpdateAgentState::Initialized => self.try_steady(),
             UpdateAgentState::Steady => self.try_check_updates(),
-            UpdateAgentState::UpdateAvailable(_release) => self.todo(),
+            UpdateAgentState::UpdateAvailable(release) => {
+                let update = release.clone();
+                self.try_stage_update(update)
+            }
+            UpdateAgentState::UpdateStaged(_release) => self.todo(),
             UpdateAgentState::_EndState => self.nop(),
         };
 
@@ -90,7 +95,7 @@ impl UpdateAgent {
         Box::new(state_change)
     }
 
-    /// Try to check for and stage updates.
+    /// Try to check for updates.
     fn try_check_updates(&mut self) -> ResponseActFuture<Self, (), ()> {
         trace!("trying to check for updates");
 
@@ -102,9 +107,45 @@ impl UpdateAgent {
                     .fetch_update_hint(&actor.identity, can_check)
                     .into_actor(actor)
             })
-            .map(|update, actor, _ctx| actor.state.update_available(update));
+            .map(|update, actor, _ctx| {
+                let release = update.map(Release::from_cincinnati);
+                actor.state.update_available(release)
+            });
 
         Box::new(state_change)
+    }
+
+    /// Try to stage an update.
+    fn try_stage_update(&mut self, release: Release) -> ResponseActFuture<Self, (), ()> {
+        trace!("trying to stage an update");
+
+        let can_fetch = self.strategy.can_check_and_fetch(&self.identity);
+        let state_change = actix::fut::wrap_future::<_, Self>(can_fetch)
+            .and_then(|can_fetch, actor, _ctx| actor.locked_upgrade(can_fetch, release))
+            .map(|release, actor, _ctx| actor.state.update_staged(release));
+
+        Box::new(state_change)
+    }
+
+    /// Fetch and stage an update, in finalization-locked mode.
+    fn locked_upgrade(
+        &mut self,
+        can_fetch: bool,
+        release: Release,
+    ) -> ResponseActFuture<Self, Release, ()> {
+        if !can_fetch {
+            return Box::new(actix::fut::err(()));
+        }
+
+        let msg = rpm_ostree::StageDeployment { release };
+        let upgrade = self
+            .rpm_ostree_actor
+            .send(msg)
+            .flatten()
+            .map_err(|e| log::error!("failed to stage update: {}", e))
+            .into_actor(self);
+
+        Box::new(upgrade)
     }
 
     /// Do nothing, without errors.
