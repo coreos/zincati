@@ -65,7 +65,7 @@ impl Client {
         let builder = self
             .hclient
             .request(method, url)
-            .header("content-type", "application/json")
+            .header("accept", "application/json")
             .query(&self.query_params);
         Ok(builder)
     }
