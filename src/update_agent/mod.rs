@@ -2,10 +2,12 @@
 
 mod actor;
 
-use crate::cincinnati::{Cincinnati, Node};
+use crate::cincinnati::Cincinnati;
 use crate::config::Settings;
 use crate::identity::Identity;
+use crate::rpm_ostree::{Release, RpmOstreeClient};
 use crate::strategy::UpdateStrategy;
+use actix::Addr;
 use chrono::prelude::*;
 use std::time::Duration;
 
@@ -22,7 +24,9 @@ enum UpdateAgentState {
     /// Agent ready to check for updates.
     Steady,
     /// Update available from Cincinnati.
-    UpdateAvailable(Node),
+    UpdateAvailable(Release),
+    /// Update staged by rpm-ostree.
+    UpdateStaged(Release),
     // TODO(lucab): add all the "update in progress" states.
     /// Final state upon actor end.
     _EndState,
@@ -53,13 +57,19 @@ impl UpdateAgentState {
         }
     }
 
-    fn update_available(&mut self, update: Option<Node>) {
+    /// Transition to the UpdateAvailable state.
+    fn update_available(&mut self, update: Option<Release>) {
         // Allowed starting states.
         assert!(*self == UpdateAgentState::Steady);
 
         if let Some(release) = update {
             *self = UpdateAgentState::UpdateAvailable(release)
         };
+    }
+
+    /// Transition to the UpdateStaged state.
+    fn update_staged(&mut self, update: Release) {
+        *self = UpdateAgentState::UpdateStaged(update);
     }
 }
 
@@ -72,6 +82,8 @@ pub(crate) struct UpdateAgent {
     identity: Identity,
     /// State machine tick/refresh period.
     refresh_period: Duration,
+    /// rpm-ostree client actor.
+    rpm_ostree_actor: Addr<RpmOstreeClient>,
     /// Update strategy.
     strategy: UpdateStrategy,
     /// Current status for agent state machine.
@@ -82,10 +94,14 @@ pub(crate) struct UpdateAgent {
 
 impl UpdateAgent {
     /// Build an update agent with the given config.
-    pub(crate) fn with_config(cfg: Settings) -> failure::Fallible<Self> {
+    pub(crate) fn with_config(
+        cfg: Settings,
+        rpm_ostree_addr: Addr<RpmOstreeClient>,
+    ) -> failure::Fallible<Self> {
         let agent = UpdateAgent {
             cincinnati: cfg.cincinnati,
             identity: cfg.identity,
+            rpm_ostree_actor: rpm_ostree_addr,
             // TODO(lucab): consider tweaking this
             //   * maybe configurable, in minutes?
             //   * maybe more granular, per-state?
@@ -101,8 +117,7 @@ impl UpdateAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cincinnati::Node;
-    use std::collections::HashMap;
+    use crate::rpm_ostree::Release;
 
     #[test]
     fn default_state() {
@@ -123,13 +138,13 @@ mod tests {
         machine.update_available(None);
         assert_eq!(machine, UpdateAgentState::Steady);
 
-        let update = Node {
+        let update = Release {
             version: "v1".to_string(),
-            payload: "ostree-checksum".to_string(),
-            metadata: HashMap::new(),
+            checksum: "ostree-checksum".to_string(),
         };
-        machine.update_available(Some(update));
+        machine.update_available(Some(update.clone()));
 
+        machine.update_staged(update);
         // TODO(lucab): complete the full path till reaching EndState.
         // assert_eq!(machine, UpdateAgentState::_EndState);
     }
