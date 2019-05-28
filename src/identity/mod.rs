@@ -1,3 +1,5 @@
+mod platform;
+
 use crate::config::inputs;
 use failure::{format_err, Fallible, ResultExt};
 use libsystemd::id128;
@@ -57,7 +59,7 @@ impl Identity {
         // TODO(lucab): populate these.
         let basearch = read_basearch()?;
         let stream = read_stream()?;
-        let platform = read_platform_id()?;
+        let platform = platform::read_id("/proc/cmdline")?;
         let node_uuid = {
             let app_id = id128::Id128::try_from_slice(APP_ID)
                 .map_err(|e| format_err!("failed to parse application ID: {}", e))?;
@@ -121,12 +123,6 @@ impl Identity {
 fn read_stream() -> Fallible<String> {
     // TODO(lucab): read this from os-release.
     let ver = "stable".to_string();
-    Ok(ver)
-}
-
-fn read_platform_id() -> Fallible<String> {
-    // TODO(lucab): read this from kernel command-line.
-    let ver = "metal-bios".to_string();
     Ok(ver)
 }
 
