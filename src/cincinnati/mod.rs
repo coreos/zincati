@@ -28,11 +28,16 @@ impl Cincinnati {
             bail!("empty Cincinnati base URL");
         }
 
-        // TODO(lucab): add envsubst
-        let _env = id.url_variables();
-        let c = Self {
-            base_url: cfg.base_url,
+        /// Substitute templated key with agent runtime values.
+        let base_url = if envsubst::is_templated(&cfg.base_url) {
+            let context = id.url_variables();
+            envsubst::validate_vars(&context)?;
+            envsubst::substitute(cfg.base_url, &context)?
+        } else {
+            cfg.base_url
         };
+
+        let c = Self { base_url };
         Ok(c)
     }
 
