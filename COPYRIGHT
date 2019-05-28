@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: zincati
+Source: https://www.github.com/coreos/zincati
+
+Files: *
+Copyright: 2019 Red Hat Inc.
+License: Apache-2.0
