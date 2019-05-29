@@ -27,9 +27,10 @@ enum UpdateAgentState {
     UpdateAvailable(Release),
     /// Update staged by rpm-ostree.
     UpdateStaged(Release),
-    // TODO(lucab): add all the "update in progress" states.
+    /// Update finalized by rpm-ostree.
+    UpdateFinalized(Release),
     /// Final state upon actor end.
-    _EndState,
+    EndState,
 }
 
 impl Default for UpdateAgentState {
@@ -70,6 +71,16 @@ impl UpdateAgentState {
     /// Transition to the UpdateStaged state.
     fn update_staged(&mut self, update: Release) {
         *self = UpdateAgentState::UpdateStaged(update);
+    }
+
+    /// Transition to the UpdateFinalized state.
+    fn update_finalized(&mut self, update: Release) {
+        *self = UpdateAgentState::UpdateFinalized(update);
+    }
+
+    /// Transition to the End state.
+    fn end(&mut self) {
+        *self = UpdateAgentState::EndState;
     }
 }
 
@@ -143,9 +154,15 @@ mod tests {
             checksum: "ostree-checksum".to_string(),
         };
         machine.update_available(Some(update.clone()));
+        assert_eq!(machine, UpdateAgentState::UpdateAvailable(update.clone()));
 
-        machine.update_staged(update);
-        // TODO(lucab): complete the full path till reaching EndState.
-        // assert_eq!(machine, UpdateAgentState::_EndState);
+        machine.update_staged(update.clone());
+        assert_eq!(machine, UpdateAgentState::UpdateStaged(update.clone()));
+
+        machine.update_finalized(update.clone());
+        assert_eq!(machine, UpdateAgentState::UpdateFinalized(update.clone()));
+
+        machine.end();
+        assert_eq!(machine, UpdateAgentState::EndState);
     }
 }
