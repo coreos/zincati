@@ -3,7 +3,7 @@ mod cli_finalize;
 mod cli_status;
 
 mod actor;
-pub use actor::{RpmOstreeClient, StageDeployment};
+pub use actor::{FinalizeDeployment, RpmOstreeClient, StageDeployment};
 
 use crate::cincinnati::Node;
 
