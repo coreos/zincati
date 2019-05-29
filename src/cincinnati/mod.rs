@@ -28,7 +28,7 @@ impl Cincinnati {
             bail!("empty Cincinnati base URL");
         }
 
-        /// Substitute templated key with agent runtime values.
+        // Substitute templated key with agent runtime values.
         let base_url = if envsubst::is_templated(&cfg.base_url) {
             let context = id.url_variables();
             envsubst::validate_vars(&context)?;
