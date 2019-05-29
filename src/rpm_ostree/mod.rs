@@ -1,4 +1,5 @@
 mod cli_deploy;
+mod cli_finalize;
 mod cli_status;
 
 mod actor;
