@@ -1,3 +1,4 @@
+mod basearch;
 mod platform;
 
 use crate::config::inputs;
@@ -57,7 +58,7 @@ impl Identity {
     /// Try to build default agent identity.
     pub fn try_default() -> Fallible<Self> {
         // TODO(lucab): populate these.
-        let basearch = read_basearch()?;
+        let basearch = basearch::read_basearch()?;
         let stream = read_stream()?;
         let platform = platform::read_id("/proc/cmdline")?;
         let node_uuid = {
@@ -123,12 +124,6 @@ impl Identity {
 fn read_stream() -> Fallible<String> {
     // TODO(lucab): read this from os-release.
     let ver = "stable".to_string();
-    Ok(ver)
-}
-
-fn read_basearch() -> Fallible<String> {
-    // TODO(lucab): read this from os-release.
-    let ver = "amd64".to_string();
     Ok(ver)
 }
 
