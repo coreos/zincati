@@ -38,8 +38,15 @@ impl Handler<RefreshTick> for UpdateAgent {
                 let update = release.clone();
                 self.try_stage_update(update)
             }
-            UpdateAgentState::UpdateStaged(_release) => self.todo(),
-            UpdateAgentState::_EndState => self.nop(),
+            UpdateAgentState::UpdateStaged(release) => {
+                let update = release.clone();
+                self.try_finalize_update(update)
+            }
+            UpdateAgentState::UpdateFinalized(release) => {
+                let update = release.clone();
+                self.end(update)
+            }
+            UpdateAgentState::EndState => self.nop(),
         };
 
         let update_machine = state_action.then(move |_r, actor, ctx| {
@@ -127,6 +134,26 @@ impl UpdateAgent {
         Box::new(state_change)
     }
 
+    /// Try to finalize an update.
+    fn try_finalize_update(&mut self, release: Release) -> ResponseActFuture<Self, (), ()> {
+        trace!("trying to finalize an update");
+
+        let can_finalize = self.strategy.can_finalize(&self.identity);
+        let state_change = actix::fut::wrap_future::<_, Self>(can_finalize)
+            .and_then(|can_finalize, actor, _ctx| actor.finalize_deployment(can_finalize, release))
+            .map(|release, actor, _ctx| actor.state.update_finalized(release));
+
+        Box::new(state_change)
+    }
+
+    /// Actor job is done.
+    fn end(&mut self, release: Release) -> ResponseActFuture<Self, (), ()> {
+        log::info!("update applied, waiting for reboot: {}", release.version);
+        let state_change = self.nop().map(|_r, actor, _ctx| actor.state.end());
+
+        Box::new(state_change)
+    }
+
     /// Fetch and stage an update, in finalization-locked mode.
     fn locked_upgrade(
         &mut self,
@@ -148,15 +175,30 @@ impl UpdateAgent {
         Box::new(upgrade)
     }
 
+    /// Finalize a deployment (unlock and reboot).
+    fn finalize_deployment(
+        &mut self,
+        can_finalize: bool,
+        release: Release,
+    ) -> ResponseActFuture<Self, Release, ()> {
+        if !can_finalize {
+            return Box::new(actix::fut::err(()));
+        }
+
+        let msg = rpm_ostree::FinalizeDeployment { release };
+        let upgrade = self
+            .rpm_ostree_actor
+            .send(msg)
+            .flatten()
+            .map_err(|e| log::error!("failed to finalize update: {}", e))
+            .into_actor(self);
+
+        Box::new(upgrade)
+    }
+
     /// Do nothing, without errors.
     fn nop(&mut self) -> ResponseActFuture<Self, (), ()> {
         let nop = actix::fut::ok(());
         Box::new(nop)
-    }
-
-    /// Pending implementation.
-    fn todo(&mut self) -> ResponseActFuture<Self, (), ()> {
-        log::error!("pending implementation");
-        self.nop()
     }
 }

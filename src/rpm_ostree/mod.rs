@@ -1,8 +1,9 @@
+mod cli_deploy;
+mod cli_finalize;
 mod cli_status;
-mod cli_upgrade;
 
 mod actor;
-pub use actor::{RpmOstreeClient, StageDeployment};
+pub use actor::{FinalizeDeployment, RpmOstreeClient, StageDeployment};
 
 use crate::cincinnati::Node;
 
@@ -22,10 +23,5 @@ impl Release {
             version: node.version,
             checksum: node.payload,
         }
-    }
-
-    /// Returns the reference ID for this release.
-    pub fn reference_id(&self) -> String {
-        format!("revision={}", self.checksum)
     }
 }
