@@ -2,6 +2,7 @@ mod basearch;
 mod platform;
 
 use crate::config::inputs;
+use crate::rpm_ostree;
 use failure::{format_err, Fallible, ResultExt};
 use libsystemd::id128;
 use serde::Serialize;
@@ -20,8 +21,8 @@ static APP_ID: &[u8] = &[
 pub(crate) struct Identity {
     /// OS base architecture.
     pub(crate) basearch: String,
-    /// Current OS version.
-    pub(crate) current_version: String,
+    /// Current OS (version and deployment base-checksum).
+    pub(crate) current_os: rpm_ostree::Release,
     /// Update groupd.
     pub(crate) group: String,
     /// Unique node identifier.
@@ -57,22 +58,22 @@ impl Identity {
 
     /// Try to build default agent identity.
     pub fn try_default() -> Fallible<Self> {
-        // TODO(lucab): populate these.
         let basearch = basearch::read_basearch()?;
-        let stream = read_stream()?;
-        let platform = platform::read_id("/proc/cmdline")?;
+        let current_os = rpm_ostree::booted().context("failed to introspect booted OS image")?;
         let node_uuid = {
             let app_id = id128::Id128::try_from_slice(APP_ID)
                 .map_err(|e| format_err!("failed to parse application ID: {}", e))?;
             compute_node_uuid(&app_id)?
         };
-        let current_version = read_os_version().context("failed to get current OS version")?;
+        let platform = platform::read_id("/proc/cmdline")?;
+        // TODO(lucab): populate this from node introspection.
+        let stream = read_stream()?;
 
         let id = Self {
             basearch,
             stream,
             platform,
-            current_version,
+            current_os,
             group: DEFAULT_GROUP.to_string(),
             node_uuid,
             throttle_permille: None,
@@ -96,7 +97,7 @@ impl Identity {
     pub fn cincinnati_params(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
         vars.insert("basearch".to_string(), self.basearch.clone());
-        vars.insert("current_version".to_string(), self.current_version.clone());
+        vars.insert("current_os".to_string(), self.current_os.checksum.clone());
         vars.insert("group".to_string(), self.group.clone());
         vars.insert("node_uuid".to_string(), self.node_uuid.lower_hex());
         vars.insert("platform".to_string(), self.platform.clone());
@@ -111,7 +112,10 @@ impl Identity {
     pub(crate) fn mock_default(throttle_permille: Option<u16>) -> Self {
         Self {
             basearch: "mock-amd64".to_string(),
-            current_version: "0.0.0-mock".to_string(),
+            current_os: rpm_ostree::Release {
+                version: "0.0.0-mock".to_string(),
+                checksum: "sha-mock".to_string(),
+            },
             group: "mock-workers".to_string(),
             node_uuid: id128::Id128::parse_str("e0f3745b108f471cbd4883c6fbed8cdd").unwrap(),
             platform: "mock-azure".to_string(),
@@ -124,12 +128,6 @@ impl Identity {
 fn read_stream() -> Fallible<String> {
     // TODO(lucab): read this from os-release.
     let ver = "stable".to_string();
-    Ok(ver)
-}
-
-fn read_os_version() -> Fallible<String> {
-    // TODO(lucab): read this from os-release.
-    let ver = "FCOS-01".to_string();
     Ok(ver)
 }
 
@@ -153,7 +151,7 @@ mod tests {
         assert!(vars.contains_key("platform"));
         assert!(vars.contains_key("stream"));
         assert!(!vars.contains_key("node_uuid"));
-        assert!(!vars.contains_key("current_version"));
+        assert!(!vars.contains_key("current_os"));
         assert!(!vars.contains_key("throttle_permille"));
     }
 
@@ -167,7 +165,7 @@ mod tests {
         assert!(vars.contains_key("platform"));
         assert!(vars.contains_key("stream"));
         assert!(vars.contains_key("node_uuid"));
-        assert!(vars.contains_key("current_version"));
+        assert!(vars.contains_key("current_os"));
 
         let throttle = vars.get("throttle_permille").unwrap();
         assert_eq!(throttle, "500")

@@ -1,18 +1,20 @@
 mod cli_deploy;
 mod cli_finalize;
 mod cli_status;
+pub use cli_status::booted;
 
 mod actor;
 pub use actor::{FinalizeDeployment, RpmOstreeClient, StageDeployment};
 
 use crate::cincinnati::Node;
+use serde::Serialize;
 
 /// An OS release.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Release {
     /// OS version.
     pub version: String,
-    /// Image checksum
+    /// Image base checksum.
     pub checksum: String,
 }
 

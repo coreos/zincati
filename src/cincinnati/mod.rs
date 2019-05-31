@@ -60,22 +60,22 @@ impl Cincinnati {
     /// Get the next update.
     fn next_update(&self, id: &Identity) -> Box<Future<Item = Option<Node>, Error = Error>> {
         let params = id.cincinnati_params();
-        let cur_version = id.current_version.clone();
+        let base_checksum = id.current_os.checksum.clone();
         let client = client::ClientBuilder::new(self.base_url.to_string())
             .query_params(Some(params))
             .build();
 
         let next = future::result(client)
             .and_then(|c| c.fetch_graph())
-            .and_then(|graph| find_update(graph, cur_version))
+            .and_then(|graph| find_update(graph, base_checksum))
             .map_err(|e| format_err!("failed to query Cincinnati: {}", e));
         Box::new(next)
     }
 }
 
-/// Walk the graph, looking for an update reachable from current version.
-fn find_update(graph: client::Graph, cur_version: String) -> Fallible<Option<Node>> {
-    let cur_position = match graph.nodes.iter().position(|n| n.version == cur_version) {
+/// Walk the graph, looking for an update reachable from the given digest.
+fn find_update(graph: client::Graph, digest: String) -> Fallible<Option<Node>> {
+    let cur_position = match graph.nodes.iter().position(|n| n.payload == digest) {
         Some(pos) => pos,
         None => return Ok(None),
     };
