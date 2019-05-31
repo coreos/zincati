@@ -36,6 +36,6 @@ impl Handler<StageDeployment> for RpmOstreeClient {
 
     fn handle(&mut self, msg: StageDeployment, _ctx: &mut Self::Context) -> Self::Result {
         trace!("request to stage release: {:?}", msg.release);
-        super::cli_upgrade::locked_upgrade(msg.release)
+        super::cli_deploy::deploy_locked(msg.release)
     }
 }

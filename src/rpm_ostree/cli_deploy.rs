@@ -1,14 +1,14 @@
-//! Interface to `rpm-ostree upgrade --lock-finalization`.
+//! Interface to `rpm-ostree deploy --lock-finalization`.
 
 use super::Release;
 use failure::{bail, format_err, Fallible, ResultExt};
 
-/// Upgrade and leave the new deployment locked.
-pub fn locked_upgrade(release: Release) -> Fallible<Release> {
+/// Deploy an upgrade (by checksum) and leave the new deployment locked.
+pub fn deploy_locked(release: Release) -> Fallible<Release> {
     let cmd = std::process::Command::new("rpm-ostree")
         .arg("deploy")
         .arg("--lock-finalization")
-        .arg(release.reference_id())
+        .arg(format!("revision={}", release.checksum))
         .output()
         .with_context(|e| format_err!("failed to run rpm-ostree: {}", e))?;
 

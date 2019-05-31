@@ -1,5 +1,5 @@
+mod cli_deploy;
 mod cli_status;
-mod cli_upgrade;
 
 mod actor;
 pub use actor::{RpmOstreeClient, StageDeployment};
@@ -22,10 +22,5 @@ impl Release {
             version: node.version,
             checksum: node.payload,
         }
-    }
-
-    /// Returns the reference ID for this release.
-    pub fn reference_id(&self) -> String {
-        format!("revision={}", self.checksum)
     }
 }
