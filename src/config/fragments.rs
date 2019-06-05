@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn basic_dist_config_sample() {
-        let fp = std::fs::File::open("dist/examples/00-config-sample.toml").unwrap();
+        let fp = std::fs::File::open("tests/fixtures/00-config-sample.toml").unwrap();
         let mut bufrd = std::io::BufReader::new(fp);
         let mut content = vec![];
         bufrd.read_to_end(&mut content).unwrap();
