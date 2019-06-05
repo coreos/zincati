@@ -1,0 +1,14 @@
+[Unit]
+Description=Zincati Update Agent
+Documentation=https://github.com/coreos/zincati
+
+[Service]
+User=zincati
+Group=zincati
+Environment=ZINCATI_VERBOSITY="-v"
+ExecStart=/usr/bin/zincati agent ${ZINCATI_VERBOSITY}
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target
