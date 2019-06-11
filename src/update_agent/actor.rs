@@ -114,10 +114,16 @@ impl UpdateAgent {
                     .fetch_update_hint(&actor.identity, can_check)
                     .into_actor(actor)
             })
-            .map(|update, actor, _ctx| {
-                let release = update.map(Release::from_cincinnati);
-                actor.state.update_available(release)
-            });
+            .map(|update, _actor, _ctx| {
+                if let Some(u) = update {
+                    match Release::from_cincinnati(u) {
+                        Ok(rel) => return Some(rel),
+                        Err(e) => log::error!("{}", e),
+                    }
+                };
+                None
+            })
+            .map(|release, actor, _ctx| actor.state.update_available(release));
 
         Box::new(state_change)
     }
