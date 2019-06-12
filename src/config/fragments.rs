@@ -35,21 +35,9 @@ pub(crate) struct CincinnatiFragment {
 pub(crate) struct UpdateFragment {
     /// Update strategy (default: immediate)
     pub(crate) strategy: Option<String>,
-    /// `immediate` strategy config.
-    pub(crate) immediate: Option<UpImmediateFragment>,
-    /// `periodic` strategy config.
     pub(crate) periodic: Option<UpPeriodicFragment>,
     /// `remote_http` strategy config.
     pub(crate) remote_http: Option<UpHttpFragment>,
-}
-
-/// Config fragment for `immediate` update strategy.
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-pub(crate) struct UpImmediateFragment {
-    /// Whether to check for and fetch updates.
-    pub(crate) fetch_updates: Option<String>,
-    /// Whether to finalize staged updates.
-    pub(crate) finalize_updates: Option<String>,
 }
 
 /// Config fragment for `remote_http` update strategy.
@@ -89,10 +77,6 @@ mod tests {
             }),
             updates: Some(UpdateFragment {
                 strategy: Some("immediate".to_string()),
-                immediate: Some(UpImmediateFragment {
-                    fetch_updates: Some("true".to_string()),
-                    finalize_updates: Some("true".to_string()),
-                }),
                 periodic: None,
                 remote_http: None,
             }),

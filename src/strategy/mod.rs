@@ -21,7 +21,7 @@ impl UpdateStrategy {
     /// Try to parse config inputs into a valid strategy.
     pub(crate) fn with_config(cfg: inputs::UpdateInput) -> Fallible<Self> {
         let strategy = match cfg.strategy.as_ref() {
-            "immediate" => UpdateStrategy::try_immediate(cfg.immediate)?,
+            "immediate" => UpdateStrategy::new_immediate()?,
             "" => UpdateStrategy::default(),
             x => bail!("unsupported strategy '{}'", x),
         };
@@ -64,8 +64,8 @@ impl UpdateStrategy {
         Box::new(can_check)
     }
 
-    fn try_immediate(cfg: inputs::StratImmediateInput) -> Fallible<Self> {
-        let immediate = StrategyImmediate::with_config(cfg)?;
+    fn new_immediate() -> Fallible<Self> {
+        let immediate = StrategyImmediate::default();
         Ok(UpdateStrategy::Immediate(immediate))
     }
 }

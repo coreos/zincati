@@ -1,8 +1,5 @@
 //! Strategy for immediate updates.
 
-#![allow(unused)]
-
-use crate::config::inputs::StratImmediateInput;
 use failure::{Error, Fallible};
 use futures::future;
 use futures::prelude::*;
@@ -19,20 +16,6 @@ pub(crate) struct StrategyImmediate {
 }
 
 impl StrategyImmediate {
-    /// Try to parse strategy configuration.
-    pub(crate) fn with_config(cfg: StratImmediateInput) -> Fallible<Self> {
-        let mut immediate = Self::default();
-
-        if let Some(check) = cfg.fetch_updates {
-            immediate.check = check;
-        }
-        if let Some(finalize) = cfg.finalize_updates {
-            immediate.finalize = finalize;
-        }
-
-        Ok(immediate)
-    }
-
     /// Check if finalization is allowed.
     pub(crate) fn can_finalize(&self) -> impl Future<Item = bool, Error = Error> {
         trace!(
@@ -91,36 +74,33 @@ mod tests {
     proptest! {
         #[test]
         fn proptest_config(check in any::<bool>(), finalize in any::<bool>()){
-            let input = StratImmediateInput {
-                fetch_updates: Some(check),
-                finalize_updates: Some(finalize),
+            let strat = StrategyImmediate{
+                check,
+                finalize
             };
 
-            let strat = StrategyImmediate::with_config(input).unwrap();
             assert_eq!(strat.check, check);
             assert_eq!(strat.finalize, finalize);
         }
 
         #[test]
         fn proptest_can_check(check in any::<bool>(), finalize in any::<bool>()){
-            let input = StratImmediateInput {
-                fetch_updates: Some(check),
-                finalize_updates: Some(finalize),
+            let strat = StrategyImmediate{
+                check,
+                finalize
             };
 
-            let strat = StrategyImmediate::with_config(input).unwrap();
             let can_check = rt::block_on_all(strat.can_check_and_fetch()).unwrap();
             assert_eq!(can_check, check);
         }
 
         #[test]
         fn proptest_can_finalize(check in any::<bool>(), finalize in any::<bool>()){
-            let input = StratImmediateInput {
-                fetch_updates: Some(check),
-                finalize_updates: Some(finalize),
+            let strat = StrategyImmediate{
+                check,
+                finalize
             };
 
-            let strat = StrategyImmediate::with_config(input).unwrap();
             let can_finalize = rt::block_on_all(strat.can_finalize()).unwrap();
             assert_eq!(can_finalize, finalize);
         }
