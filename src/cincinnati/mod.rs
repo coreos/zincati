@@ -14,6 +14,12 @@ use futures::future;
 use futures::prelude::*;
 use serde::Serialize;
 
+/// Metadata key for payload scheme.
+pub static SCHEME_KEY: &str = "org.fedoraproject.coreos.scheme";
+
+/// Metadata value for "checksum" payload scheme.
+pub static CHECKSUM_SCHEME: &str = "checksum";
+
 /// Cincinnati configuration.
 #[derive(Debug, Serialize)]
 pub struct Cincinnati {
@@ -75,7 +81,11 @@ impl Cincinnati {
 
 /// Walk the graph, looking for an update reachable from the given digest.
 fn find_update(graph: client::Graph, digest: String) -> Fallible<Option<Node>> {
-    let cur_position = match graph.nodes.iter().position(|n| n.payload == digest) {
+    let cur_position = match graph
+        .nodes
+        .iter()
+        .position(|n| is_same_checksum(n, &digest))
+    {
         Some(pos) => pos,
         None => return Ok(None),
     };
@@ -104,5 +114,43 @@ fn find_update(graph: client::Graph, digest: String) -> Fallible<Option<Node>> {
         0 => Ok(None),
         // TODO(lucab): stable pick next update
         _ => Ok(Some(updates.swap_remove(0))),
+    }
+}
+
+/// Check whether input node matches current checksum.
+fn is_same_checksum(node: &Node, checksum: &str) -> bool {
+    let payload_is_checksum = node
+        .metadata
+        .get(SCHEME_KEY)
+        .map(|v| v == CHECKSUM_SCHEME)
+        .unwrap_or(false);
+
+    payload_is_checksum && node.payload == checksum
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn source_node_comparison() {
+        let current = "current-sha";
+
+        let mut metadata = HashMap::new();
+        metadata.insert(SCHEME_KEY.to_string(), CHECKSUM_SCHEME.to_string());
+        let matching = Node {
+            version: "v0".to_string(),
+            payload: current.to_string(),
+            metadata,
+        };
+        assert!(is_same_checksum(&matching, current));
+
+        let mismatch = Node {
+            version: "v0".to_string(),
+            payload: "mismatch".to_string(),
+            metadata: HashMap::new(),
+        };
+        assert!(!is_same_checksum(&mismatch, current));
     }
 }
