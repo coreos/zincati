@@ -12,13 +12,7 @@ group = "workers"
 [cincinnati]
 base_url= "http://example.com:80/"
 
-[updates]
 # Valid strategies: immediate / periodic / remote_http
-strategy = "immediate"
-
+[updates]
 # Immediately check for, fetch and finalize updates
-[updates.immediate]
-# Whether to check for and fetch updates
-fetch_updates = "true"
-# Whether to finalize staged updates
-finalize_updates = "true"
+strategy = "immediate"

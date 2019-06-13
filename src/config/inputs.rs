@@ -127,8 +127,6 @@ impl IdentityInput {
 #[derive(Debug, Serialize)]
 pub(crate) struct UpdateInput {
     pub(crate) strategy: String,
-    /// `immediate` strategy config.
-    pub(crate) immediate: StratImmediateInput,
     /// `remote_http` strategy config.
     pub(crate) remote_http: StratHttpInput,
     /// `periodic` strategy config.
@@ -138,10 +136,6 @@ pub(crate) struct UpdateInput {
 impl UpdateInput {
     fn from_fragments(fragments: Vec<fragments::UpdateFragment>) -> Self {
         let mut strategy = String::new();
-        let mut immediate = StratImmediateInput {
-            fetch_updates: None,
-            finalize_updates: None,
-        };
         let mut remote_http = StratHttpInput {
             base_url: String::new(),
         };
@@ -156,19 +150,10 @@ impl UpdateInput {
                     remote_http.base_url = b;
                 }
             }
-            if let Some(i) = snip.immediate {
-                if let Some(check) = i.fetch_updates {
-                    immediate.fetch_updates = Some(check.parse().unwrap());
-                }
-                if let Some(finalize) = i.finalize_updates {
-                    immediate.finalize_updates = Some(finalize.parse().unwrap());
-                }
-            }
         }
 
         Self {
             strategy,
-            immediate,
             remote_http,
             periodic,
         }
@@ -185,10 +170,3 @@ pub(crate) struct StratHttpInput {
 /// Config snippet for `periodic` strategy.
 #[derive(Debug, Serialize)]
 pub(crate) struct StratPeriodicInput {}
-
-/// Config snippet for `immediate` strategy.
-#[derive(Debug, Serialize)]
-pub(crate) struct StratImmediateInput {
-    pub(crate) fetch_updates: Option<bool>,
-    pub(crate) finalize_updates: Option<bool>,
-}
