@@ -12,6 +12,7 @@ use crate::identity::Identity;
 use failure::{bail, format_err, Error, Fallible};
 use futures::future;
 use futures::prelude::*;
+use prometheus::IntGauge;
 use serde::Serialize;
 
 /// Metadata key for payload scheme.
@@ -19,6 +20,13 @@ pub static SCHEME_KEY: &str = "org.fedoraproject.coreos.scheme";
 
 /// Metadata value for "checksum" payload scheme.
 pub static CHECKSUM_SCHEME: &str = "checksum";
+
+lazy_static::lazy_static! {
+    static ref GRAPH_NODES: IntGauge = register_int_gauge!(opts!(
+        "zincati_cincinnati_graph_nodes_count",
+        "Number of nodes in Cincinnati update graph."
+    )).unwrap();
+}
 
 /// Cincinnati configuration.
 #[derive(Debug, Serialize)]
@@ -81,6 +89,8 @@ impl Cincinnati {
 
 /// Walk the graph, looking for an update reachable from the given digest.
 fn find_update(graph: client::Graph, digest: String) -> Fallible<Option<Node>> {
+    GRAPH_NODES.set(graph.nodes.len() as i64);
+
     let cur_position = match graph
         .nodes
         .iter()

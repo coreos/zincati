@@ -3,6 +3,9 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
+#[macro_use]
+extern crate prometheus;
+
 // Cincinnati client.
 mod cincinnati;
 /// Command-line options.
