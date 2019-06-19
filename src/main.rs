@@ -14,6 +14,8 @@ mod cli;
 mod config;
 /// Agent identity.
 mod identity;
+/// Metrics service.
+mod metrics;
 /// rpm-ostree client.
 mod rpm_ostree;
 /// Update strategies.
@@ -66,6 +68,9 @@ fn run_agent() -> failure::Fallible<()> {
         .name(crate_name!())
         .stop_on_panic(true)
         .build();
+
+    trace!("creating metrics service");
+    let _metrics_addr = metrics::MetricsService::bind_socket()?.start();
 
     trace!("creating rpm-ostree client");
     let rpm_ostree_addr = rpm_ostree::RpmOstreeClient::start(1);
