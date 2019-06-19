@@ -5,6 +5,14 @@ use crate::rpm_ostree::{self, Release};
 use actix::prelude::*;
 use failure::Error;
 use log::trace;
+use prometheus::IntGauge;
+
+lazy_static::lazy_static! {
+    static ref LAST_REFRESH: IntGauge = register_int_gauge!(opts!(
+        "zincati_update_agent_last_refresh_timestamp",
+        "UTC timestamp of update-agent last refresh tick."
+    )).unwrap();
+}
 
 impl Actor for UpdateAgent {
     type Context = Context<Self>;
@@ -27,6 +35,9 @@ impl Handler<RefreshTick> for UpdateAgent {
     type Result = ResponseActFuture<Self, (), Error>;
 
     fn handle(&mut self, _msg: RefreshTick, ctx: &mut Self::Context) -> Self::Result {
+        let tick_timestamp = chrono::Utc::now();
+        LAST_REFRESH.set(tick_timestamp.timestamp());
+
         trace!("update agent tick, current state: {:?}", self.state);
         let prev_state = self.state.clone();
 
@@ -51,8 +62,8 @@ impl Handler<RefreshTick> for UpdateAgent {
 
         let update_machine = state_action.then(move |_r, actor, ctx| {
             if prev_state != actor.state {
-                let now = chrono::Utc::now();
-                actor.state_changed = now;
+                let update_timestamp = chrono::Utc::now();
+                actor.state_changed = update_timestamp;
                 Self::tick_now(ctx);
             } else {
                 Self::tick_later(ctx, actor.refresh_period);
