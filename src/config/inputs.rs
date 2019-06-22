@@ -1,6 +1,6 @@
 use crate::config::fragments;
 use failure::{Fallible, ResultExt};
-use log::{debug, trace};
+use log::trace;
 use serde::Serialize;
 
 /// Runtime configuration holding environmental inputs.
@@ -13,31 +13,30 @@ pub(crate) struct ConfigInput {
 
 impl ConfigInput {
     /// Read config fragments and merge them into a single config.
-    pub(crate) fn read_configs(dirs: &[&str], app_name: &str) -> Fallible<Self> {
+    pub(crate) fn read_configs(
+        dirs: Vec<String>,
+        common_path: &str,
+        extensions: Vec<String>,
+    ) -> Fallible<Self> {
         use std::io::Read;
 
+        let scanner = liboverdrop::FragmentScanner::new(dirs, common_path, true, extensions);
+
         let mut fragments = Vec::new();
-        for prefix in dirs {
-            let dir = format!("{}/{}/config.d", prefix, app_name);
-            debug!("scanning configuration directory '{}'", dir);
+        for (_, fpath) in scanner.scan() {
+            trace!("reading config fragment '{}'", fpath.display());
 
-            let wildcard = format!("{}/*.toml", dir);
-            let toml_files = glob::glob(&wildcard)?;
-            for fpath in toml_files.filter_map(Result::ok) {
-                trace!("reading config fragment '{}'", fpath.display());
+            let fp = std::fs::File::open(&fpath)
+                .context(format!("failed to open file '{}'", fpath.display()))?;
+            let mut bufrd = std::io::BufReader::new(fp);
+            let mut content = vec![];
+            bufrd
+                .read_to_end(&mut content)
+                .context(format!("failed to read content of '{}'", fpath.display()))?;
+            let frag: fragments::ConfigFragment =
+                toml::from_slice(&content).context("failed to parse TOML")?;
 
-                let fp = std::fs::File::open(&fpath)
-                    .context(format!("failed to open file '{}'", fpath.display()))?;
-                let mut bufrd = std::io::BufReader::new(fp);
-                let mut content = vec![];
-                bufrd
-                    .read_to_end(&mut content)
-                    .context(format!("failed to read content of '{}'", fpath.display()))?;
-                let frag: fragments::ConfigFragment =
-                    toml::from_slice(&content).context("failed to parse TOML")?;
-
-                fragments.push(frag);
-            }
+            fragments.push(frag);
         }
 
         let cfg = Self::merge_fragments(fragments);
