@@ -34,8 +34,14 @@ pub(crate) struct Settings {
 impl Settings {
     /// Assemble runtime settings.
     pub(crate) fn assemble() -> Fallible<Self> {
-        let dirs = vec!["/usr/lib", "/run", "/etc"];
-        let cfg = inputs::ConfigInput::read_configs(&dirs, crate_name!())?;
+        let prefixes = vec![
+            "/usr/lib/".to_string(),
+            "/run/".to_string(),
+            "/etc/".to_string(),
+        ];
+        let common_path = format!("{}/config.d/", crate_name!());
+        let extensions = vec!["toml".to_string()];
+        let cfg = inputs::ConfigInput::read_configs(prefixes, &common_path, extensions)?;
         Self::validate(cfg)
     }
 
