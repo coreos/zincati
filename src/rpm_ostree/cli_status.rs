@@ -18,8 +18,17 @@ pub struct DeploymentJSON {
     booted: bool,
     #[serde(rename = "base-checksum")]
     base_checksum: Option<String>,
+    #[serde(rename = "base-commit-meta")]
+    base_metadata: BaseCommitMetaJSON,
     checksum: String,
     version: String,
+}
+
+/// Metadata from base commit (only fields relevant to zincati).
+#[derive(Debug, Deserialize)]
+struct BaseCommitMetaJSON {
+    #[serde(rename = "coreos-assembler.basearch")]
+    basearch: String,
 }
 
 impl DeploymentJSON {
@@ -39,23 +48,22 @@ impl DeploymentJSON {
     }
 }
 
+/// Return base architecture for booted deployment.
+pub fn basearch() -> Fallible<String> {
+    let status = status_json(true)?;
+    let json = booted_json(status)?;
+    Ok(json.base_metadata.basearch)
+}
+
 /// Find the booted deployment.
 pub fn booted() -> Fallible<Release> {
-    let cmd = std::process::Command::new("rpm-ostree")
-        .arg("status")
-        .arg("--json")
-        .arg("--booted")
-        .output()
-        .with_context(|e| format_err!("failed to run rpm-ostree: {}", e))?;
+    let status = status_json(true)?;
+    let json = booted_json(status)?;
+    Ok(json.into_release())
+}
 
-    if !cmd.status.success() {
-        bail!(
-            "rpm-ostree status failed:\n{}",
-            String::from_utf8_lossy(&cmd.stderr)
-        );
-    }
-    let status: StatusJSON = serde_json::from_slice(&cmd.stdout)?;
-
+/// Return JSON object for booted deployment.
+fn booted_json(status: StatusJSON) -> Fallible<DeploymentJSON> {
     let booted = status
         .deployments
         .into_iter()
@@ -64,5 +72,50 @@ pub fn booted() -> Fallible<Release> {
 
     ensure!(!booted.base_revision().is_empty(), "empty base revision");
     ensure!(!booted.version.is_empty(), "empty version");
-    Ok(booted.into_release())
+    ensure!(!booted.base_metadata.basearch.is_empty(), "empty basearch");
+    Ok(booted)
+}
+
+/// Introspect deployments (rpm-ostree status).
+fn status_json(booted_only: bool) -> Fallible<StatusJSON> {
+    let mut cmd = std::process::Command::new("rpm-ostree");
+    cmd.arg("status");
+
+    // Try to request the minimum scope we need.
+    if booted_only {
+        cmd.arg("--booted");
+    }
+
+    let cmdrun = cmd
+        .arg("--json")
+        .output()
+        .with_context(|e| format_err!("failed to run rpm-ostree: {}", e))?;
+
+    if !cmdrun.status.success() {
+        bail!(
+            "rpm-ostree status failed:\n{}",
+            String::from_utf8_lossy(&cmdrun.stderr)
+        );
+    }
+    let status: StatusJSON = serde_json::from_slice(&cmdrun.stdout)?;
+    Ok(status)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mock_status() -> Fallible<StatusJSON> {
+        let fp = std::fs::File::open("tests/fixtures/rpm-ostree-status.json").unwrap();
+        let mut bufrd = std::io::BufReader::new(fp);
+        let status: StatusJSON = serde_json::from_reader(bufrd)?;
+        Ok(status)
+    }
+
+    #[test]
+    fn mock_booted_basearch() {
+        let status = mock_status().unwrap();
+        let booted = booted_json(status).unwrap();
+        assert_eq!(booted.base_metadata.basearch, "x86_64");
+    }
 }

@@ -1,0 +1,60 @@
+{
+  "deployments" : [
+    {
+      "unlocked" : "none",
+      "requested-local-packages" : [
+      ],
+      "base-commit-meta" : {
+        "coreos-assembler.config-dirty" : "true",
+        "coreos-assembler.config-gitrev" : "e5ffda727170e124c7f7d8782e256b0462bf9869",
+        "coreos-assembler.basearch" : "x86_64",
+        "rpmostree.inputhash" : "0e2ba98bac847c8a8cc5ffd42822a41d53ef6719ccaf6a0094559768aa24da33",
+        "version" : "30.1",
+        "rpmostree.rpmmd-repos" : [
+          {
+            "id" : "fedora-coreos-pool",
+            "timestamp" : 7435743550895030272
+          },
+          {
+            "id" : "fedora",
+            "timestamp" : -7689964138319052800
+          },
+          {
+            "id" : "fedora-updates",
+            "timestamp" : -1292510703390818304
+          },
+          {
+            "id" : "coreos-assembler-local-overrides",
+            "timestamp" : 1402332922660257792
+          }
+        ]
+      },
+      "base-removals" : [
+      ],
+      "gpg-enabled" : false,
+      "origin" : "fedora/x86_64/coreos/testing-devel",
+      "osname" : "fedora-coreos",
+      "pinned" : false,
+      "requested-base-local-replacements" : [
+      ],
+      "checksum" : "ce718b90ce19c2cac07fa45efdce91aad208a508c98e9f7f572f5aaba76f569a",
+      "regenerate-initramfs" : false,
+      "id" : "fedora-coreos-ce718b90ce19c2cac07fa45efdce91aad208a508c98e9f7f572f5aaba76f569a.0",
+      "version" : "30.1",
+      "requested-packages" : [
+      ],
+      "requested-base-removals" : [
+      ],
+      "serial" : 0,
+      "base-local-replacements" : [
+      ],
+      "timestamp" : 1561753297,
+      "booted" : true,
+      "packages" : [
+      ]
+    }
+  ],
+  "transaction" : null,
+  "cached-update" : null
+}
+
