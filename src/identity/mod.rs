@@ -127,7 +127,7 @@ impl Identity {
 
 fn read_stream() -> Fallible<String> {
     // TODO(lucab): read this from os-release.
-    let ver = "stable".to_string();
+    let ver = "testing".to_string();
     Ok(ver)
 }
 
