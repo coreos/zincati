@@ -9,10 +9,18 @@ use crate::rpm_ostree::{Release, RpmOstreeClient};
 use crate::strategy::UpdateStrategy;
 use actix::Addr;
 use chrono::prelude::*;
+use prometheus::IntGauge;
 use std::time::Duration;
 
 /// Default tick/refresh period for the state machine (in seconds).
 const DEFAULT_REFRESH_PERIOD_SECS: u64 = 5 * 60;
+
+lazy_static::lazy_static! {
+    static ref LATEST_STATE_CHANGE: IntGauge = register_int_gauge!(opts!(
+        "zincati_update_agent_latest_state_change_timestamp",
+        "UTC timestamp of update-agent last state change."
+    )).unwrap();
+}
 
 /// State machine for the agent.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -35,17 +43,42 @@ enum UpdateAgentState {
 
 impl Default for UpdateAgentState {
     fn default() -> Self {
-        UpdateAgentState::StartState
+        let start_state = UpdateAgentState::StartState;
+        LATEST_STATE_CHANGE.set(chrono::Utc::now().timestamp());
+        start_state
     }
 }
 
 impl UpdateAgentState {
+    /// Return the discriminant for current state
+    fn discriminant(&self) -> u8 {
+        // TODO(lucab): update when arbitrary-discriminant is stabilized:
+        // https://github.com/rust-lang/rust/issues/60553
+
+        match self {
+            UpdateAgentState::StartState => 0,
+            UpdateAgentState::Initialized => 1,
+            UpdateAgentState::Steady => 2,
+            UpdateAgentState::UpdateAvailable(_) => 3,
+            UpdateAgentState::UpdateStaged(_) => 4,
+            UpdateAgentState::UpdateFinalized(_) => 5,
+            UpdateAgentState::EndState => 6,
+        }
+    }
+
+    /// Progress the machine to a new state.
+    fn transition_to(&mut self, state: Self) {
+        LATEST_STATE_CHANGE.set(chrono::Utc::now().timestamp());
+
+        *self = state;
+    }
+
     /// Transition to the Initialized state.
     fn initialized(&mut self) {
         // Allowed starting states.
-        assert!(*self == UpdateAgentState::StartState);
+        assert!(self.discriminant() == 0);
 
-        *self = UpdateAgentState::Initialized;
+        self.transition_to(UpdateAgentState::Initialized);
     }
 
     /// Transition to the Steady state.
@@ -54,7 +87,7 @@ impl UpdateAgentState {
         assert!(*self == UpdateAgentState::Initialized);
 
         if is_steady {
-            *self = UpdateAgentState::Steady;
+            self.transition_to(UpdateAgentState::Steady);
         }
     }
 
@@ -64,23 +97,23 @@ impl UpdateAgentState {
         assert!(*self == UpdateAgentState::Steady);
 
         if let Some(release) = update {
-            *self = UpdateAgentState::UpdateAvailable(release)
-        };
+            self.transition_to(UpdateAgentState::UpdateAvailable(release));
+        }
     }
 
     /// Transition to the UpdateStaged state.
     fn update_staged(&mut self, update: Release) {
-        *self = UpdateAgentState::UpdateStaged(update);
+        self.transition_to(UpdateAgentState::UpdateStaged(update));
     }
 
     /// Transition to the UpdateFinalized state.
     fn update_finalized(&mut self, update: Release) {
-        *self = UpdateAgentState::UpdateFinalized(update);
+        self.transition_to(UpdateAgentState::UpdateFinalized(update));
     }
 
     /// Transition to the End state.
     fn end(&mut self) {
-        *self = UpdateAgentState::EndState;
+        self.transition_to(UpdateAgentState::EndState);
     }
 }
 
