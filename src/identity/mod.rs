@@ -1,4 +1,3 @@
-mod basearch;
 mod platform;
 
 use crate::config::inputs;
@@ -58,7 +57,7 @@ impl Identity {
 
     /// Try to build default agent identity.
     pub fn try_default() -> Fallible<Self> {
-        let basearch = basearch::read_basearch()?;
+        let basearch = rpm_ostree::basearch()?;
         let current_os = rpm_ostree::booted().context("failed to introspect booted OS image")?;
         let node_uuid = {
             let app_id = id128::Id128::try_from_slice(APP_ID)
