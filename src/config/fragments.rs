@@ -33,8 +33,11 @@ pub(crate) struct CincinnatiFragment {
 /// Config fragment for update logic.
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub(crate) struct UpdateFragment {
-    /// Update strategy (default: immediate)
+    /// Whether to enable auto-updates logic.
+    pub(crate) enabled: Option<bool>,
+    /// Update strategy (default: immediate).
     pub(crate) strategy: Option<String>,
+    /// `periodic` strategy config.
     pub(crate) periodic: Option<UpPeriodicFragment>,
     /// `remote_http` strategy config.
     pub(crate) remote_http: Option<UpHttpFragment>,
@@ -76,6 +79,7 @@ mod tests {
                 throttle_permille: None,
             }),
             updates: Some(UpdateFragment {
+                enabled: Some(false),
                 strategy: Some("immediate".to_string()),
                 periodic: None,
                 remote_http: None,

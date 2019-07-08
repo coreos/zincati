@@ -23,6 +23,8 @@ use structopt::clap::crate_name;
 /// It holds validated agent configuration.
 #[derive(Debug, Serialize)]
 pub(crate) struct Settings {
+    /// Whether to enable auto-updates logic.
+    pub(crate) enabled: bool,
     /// Cincinnati configuration.
     pub(crate) cincinnati: Cincinnati,
     /// Agent configuration.
@@ -47,6 +49,7 @@ impl Settings {
 
     /// Validate config and return a valid agent settings.
     fn validate(cfg: inputs::ConfigInput) -> Fallible<Self> {
+        let enabled = cfg.updates.enabled;
         let identity = Identity::with_config(cfg.identity)
             .context("failed to validate agent identity configuration")?;
         let strategy = UpdateStrategy::with_config(cfg.updates)
@@ -55,6 +58,7 @@ impl Settings {
             .context("failed to validate cincinnati configuration")?;
 
         Ok(Self {
+            enabled,
             cincinnati,
             identity,
             strategy,

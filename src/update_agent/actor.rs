@@ -94,7 +94,12 @@ impl UpdateAgent {
         trace!("update agent in start state");
 
         let initialization = self.nop().map(|_r, actor, _ctx| {
-            actor.state.initialized();
+            if actor.enabled {
+                actor.state.initialized();
+            } else {
+                log::info!("auto-updates logic disabled by configuration");
+                actor.state.end();
+            }
         });
 
         Box::new(initialization)

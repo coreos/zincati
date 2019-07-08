@@ -20,6 +20,10 @@ lazy_static::lazy_static! {
         "zincati_update_agent_latest_state_change_timestamp",
         "UTC timestamp of update-agent last state change."
     )).unwrap();
+    static ref UPDATES_ENABLED: IntGauge = register_int_gauge!(opts!(
+        "zincati_update_agent_updates_enabled",
+        "Whether auto-updates logic is enabled."
+    )).unwrap();
 }
 
 /// State machine for the agent.
@@ -122,6 +126,8 @@ impl UpdateAgentState {
 pub(crate) struct UpdateAgent {
     /// Cincinnati service.
     cincinnati: Cincinnati,
+    /// Whether to enable auto-updates logic.
+    enabled: bool,
     /// Agent identity.
     identity: Identity,
     /// State machine tick/refresh period.
@@ -144,6 +150,7 @@ impl UpdateAgent {
     ) -> failure::Fallible<Self> {
         let agent = UpdateAgent {
             cincinnati: cfg.cincinnati,
+            enabled: cfg.enabled,
             identity: cfg.identity,
             rpm_ostree_actor: rpm_ostree_addr,
             // TODO(lucab): consider tweaking this
@@ -154,6 +161,9 @@ impl UpdateAgent {
             strategy: cfg.strategy,
             state_changed: chrono::Utc::now(),
         };
+
+        UPDATES_ENABLED.set(i64::from(cfg.enabled));
+
         Ok(agent)
     }
 }

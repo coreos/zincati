@@ -125,6 +125,9 @@ impl IdentityInput {
 /// Config for update logic.
 #[derive(Debug, Serialize)]
 pub(crate) struct UpdateInput {
+    /// Whether to enable auto-updates logic.
+    pub(crate) enabled: bool,
+    /// Update strategy.
     pub(crate) strategy: String,
     /// `remote_http` strategy config.
     pub(crate) remote_http: StratHttpInput,
@@ -134,6 +137,7 @@ pub(crate) struct UpdateInput {
 
 impl UpdateInput {
     fn from_fragments(fragments: Vec<fragments::UpdateFragment>) -> Self {
+        let mut enabled = true;
         let mut strategy = String::new();
         let mut remote_http = StratHttpInput {
             base_url: String::new(),
@@ -141,6 +145,9 @@ impl UpdateInput {
         let periodic = StratPeriodicInput {};
 
         for snip in fragments {
+            if let Some(e) = snip.enabled {
+                enabled = e;
+            }
             if let Some(s) = snip.strategy {
                 strategy = s;
             }
@@ -152,6 +159,7 @@ impl UpdateInput {
         }
 
         Self {
+            enabled,
             strategy,
             remote_http,
             periodic,
