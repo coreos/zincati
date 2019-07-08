@@ -29,6 +29,8 @@ pub struct DeploymentJSON {
 struct BaseCommitMetaJSON {
     #[serde(rename = "coreos-assembler.basearch")]
     basearch: String,
+    #[serde(rename = "fedora-coreos.stream")]
+    stream: String,
 }
 
 impl DeploymentJSON {
@@ -60,6 +62,14 @@ pub fn booted() -> Fallible<Release> {
     let status = status_json(true)?;
     let json = booted_json(status)?;
     Ok(json.into_release())
+}
+
+/// Return updates stream for booted deployment.
+pub fn updates_stream() -> Fallible<String> {
+    let status = status_json(true)?;
+    let json = booted_json(status)?;
+    ensure!(!json.base_metadata.stream.is_empty(), "empty stream value");
+    Ok(json.base_metadata.stream)
 }
 
 /// Return JSON object for booted deployment.
@@ -117,5 +127,12 @@ mod tests {
         let status = mock_status().unwrap();
         let booted = booted_json(status).unwrap();
         assert_eq!(booted.base_metadata.basearch, "x86_64");
+    }
+
+    #[test]
+    fn mock_booted_updates_stream() {
+        let status = mock_status().unwrap();
+        let booted = booted_json(status).unwrap();
+        assert_eq!(booted.base_metadata.stream, "testing-devel");
     }
 }

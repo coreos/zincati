@@ -1,7 +1,7 @@
 mod cli_deploy;
 mod cli_finalize;
 mod cli_status;
-pub use cli_status::{basearch, booted};
+pub use cli_status::{basearch, booted, updates_stream};
 
 mod actor;
 pub use actor::{FinalizeDeployment, RpmOstreeClient, StageDeployment};

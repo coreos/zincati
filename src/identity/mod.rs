@@ -57,7 +57,8 @@ impl Identity {
 
     /// Try to build default agent identity.
     pub fn try_default() -> Fallible<Self> {
-        let basearch = rpm_ostree::basearch()?;
+        let basearch =
+            rpm_ostree::basearch().context("failed to introspect OS base architecture")?;
         let current_os = rpm_ostree::booted().context("failed to introspect booted OS image")?;
         let node_uuid = {
             let app_id = id128::Id128::try_from_slice(APP_ID)
@@ -65,8 +66,8 @@ impl Identity {
             compute_node_uuid(&app_id)?
         };
         let platform = platform::read_id("/proc/cmdline")?;
-        // TODO(lucab): populate this from node introspection.
-        let stream = read_stream()?;
+        let stream =
+            rpm_ostree::updates_stream().context("failed to introspect OS updates stream")?;
 
         let id = Self {
             basearch,
@@ -122,12 +123,6 @@ impl Identity {
             throttle_permille,
         }
     }
-}
-
-fn read_stream() -> Fallible<String> {
-    // TODO(lucab): read this from os-release.
-    let ver = "testing".to_string();
-    Ok(ver)
 }
 
 fn compute_node_uuid(app_id: &id128::Id128) -> Fallible<id128::Id128> {
