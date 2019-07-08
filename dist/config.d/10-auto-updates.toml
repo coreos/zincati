@@ -1,0 +1,3 @@
+# Enable auto-updates.
+[updates]
+enabled = true
