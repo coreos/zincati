@@ -8,6 +8,7 @@
         "coreos-assembler.config-dirty" : "true",
         "coreos-assembler.config-gitrev" : "e5ffda727170e124c7f7d8782e256b0462bf9869",
         "coreos-assembler.basearch" : "x86_64",
+        "fedora-coreos.stream" : "testing-devel",
         "rpmostree.inputhash" : "0e2ba98bac847c8a8cc5ffd42822a41d53ef6719ccaf6a0094559768aa24da33",
         "version" : "30.1",
         "rpmostree.rpmmd-repos" : [
