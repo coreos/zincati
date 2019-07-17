@@ -1,6 +1,11 @@
 [Unit]
 Description=Zincati Update Agent
 Documentation=https://github.com/coreos/zincati
+After=network.target
+# Wait for the boot to be marked as successful. In cluster contexts,
+# this prevents rolling out broken updates to all nodes in the fleet.
+Requires=boot-complete.target
+After=boot-complete.target
 
 [Service]
 User=zincati
