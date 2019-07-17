@@ -8,7 +8,7 @@
 
 #![allow(unused)]
 
-use failure::{Error, Fallible, ResultExt};
+use failure::{format_err, Error, Fallible, ResultExt};
 use futures::future;
 use futures::prelude::*;
 use reqwest::r#async as asynchro;
@@ -53,6 +53,7 @@ impl Client {
             .and_then(|req| req.send().from_err())
             .and_then(|resp| resp.error_for_status().map_err(Error::from))
             .and_then(|mut resp| resp.json::<Graph>().from_err())
+            .map_err(|e| format_err!("failed to query Cincinnati: {}", e))
     }
 
     /// Return a request builder with base URL and parameters set.

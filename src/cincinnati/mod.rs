@@ -9,10 +9,10 @@ mod mock_tests;
 
 use crate::config::inputs;
 use crate::identity::Identity;
-use failure::{bail, format_err, Error, Fallible};
+use failure::{bail, Error, Fallible};
 use futures::future;
 use futures::prelude::*;
-use prometheus::IntGauge;
+use prometheus::{IntCounter, IntGauge};
 use serde::Serialize;
 
 /// Metadata key for payload scheme.
@@ -25,6 +25,14 @@ lazy_static::lazy_static! {
     static ref GRAPH_NODES: IntGauge = register_int_gauge!(opts!(
         "zincati_cincinnati_graph_nodes_count",
         "Number of nodes in Cincinnati update graph."
+    )).unwrap();
+    static ref UPDATE_CHECKS: IntCounter = register_int_counter!(opts!(
+        "zincati_cincinnati_update_checks_total",
+        "Total number of checks for updates to the upstream Cincinnati server."
+    )).unwrap();
+    static ref UPDATE_CHECKS_ERRORS: IntCounter = register_int_counter!(opts!(
+        "zincati_cincinnati_update_checks_errors_total",
+        "Total number of errors on checks for updates."
     )).unwrap();
 }
 
@@ -67,7 +75,11 @@ impl Cincinnati {
 
         let update = self
             .next_update(id)
-            .map_err(|e| log::error!("failed to check for updates: {}", e));
+            .inspect(|_| UPDATE_CHECKS.inc())
+            .map_err(|e| {
+                UPDATE_CHECKS_ERRORS.inc();
+                log::error!("failed to check for updates: {}", e)
+            });
         Box::new(update)
     }
 
@@ -81,8 +93,7 @@ impl Cincinnati {
 
         let next = future::result(client)
             .and_then(|c| c.fetch_graph())
-            .and_then(|graph| find_update(graph, base_checksum))
-            .map_err(|e| format_err!("failed to query Cincinnati: {}", e));
+            .and_then(|graph| find_update(graph, base_checksum));
         Box::new(next)
     }
 }
