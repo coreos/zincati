@@ -86,13 +86,11 @@ impl UpdateAgentState {
     }
 
     /// Transition to the Steady state.
-    fn steady(&mut self, is_steady: bool) {
+    fn steady(&mut self) {
         // Allowed starting states.
         assert!(*self == UpdateAgentState::Initialized);
 
-        if is_steady {
-            self.transition_to(UpdateAgentState::Steady);
-        }
+        self.transition_to(UpdateAgentState::Steady);
     }
 
     /// Transition to the UpdateAvailable state.
@@ -186,7 +184,7 @@ mod tests {
         machine.initialized();
         assert_eq!(machine, UpdateAgentState::Initialized);
 
-        machine.steady(true);
+        machine.steady();
         assert_eq!(machine, UpdateAgentState::Steady);
 
         machine.update_available(None);

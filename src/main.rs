@@ -58,7 +58,7 @@ fn run_agent() -> failure::Fallible<()> {
     let settings =
         config::Settings::assemble().context("failed to assemble configuration settings")?;
     info!(
-        "agent running on node '{}' in group '{}'",
+        "agent running on node '{}', in update group '{}'",
         settings.identity.node_uuid.lower_hex(),
         settings.identity.group
     );
@@ -80,7 +80,7 @@ fn run_agent() -> failure::Fallible<()> {
         .context("failed to assemble update-agent from configuration settings")?;
     let _addr = agent.start();
 
-    debug!("starting actor system");
+    trace!("starting actor system");
     sys.run().context("agent failed")?;
 
     Ok(())

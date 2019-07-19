@@ -96,9 +96,10 @@ impl UpdateAgent {
         let initialization = self.nop().map(|_r, actor, _ctx| {
             if actor.enabled {
                 actor.state.initialized();
+                log::info!("initialization complete, auto-updates logic enabled");
             } else {
-                log::info!("auto-updates logic disabled by configuration");
                 actor.state.end();
+                log::warn!("initialization complete, auto-updates logic disabled by configuration");
             }
         });
 
@@ -112,7 +113,10 @@ impl UpdateAgent {
         let report_steady = self.strategy.report_steady(&self.identity);
         let state_change =
             actix::fut::wrap_future::<_, Self>(report_steady).map(|is_steady, actor, _ctx| {
-                actor.state.steady(is_steady);
+                if is_steady {
+                    actor.state.steady();
+                    log::debug!("reached steady state, periodically polling for updates");
+                }
             });
 
         Box::new(state_change)

@@ -59,7 +59,7 @@ impl Actor for MetricsService {
             .map(|stream| Connection { stream });
         ctx.add_stream(connections);
 
-        log::trace!(
+        log::debug!(
             "started metrics service on Unix-domain socket '{}'",
             SOCKET_PATH
         );
