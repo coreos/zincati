@@ -19,8 +19,6 @@ pub(crate) struct IdentityFragment {
     pub(crate) group: Option<String>,
     /// Update group for this agent (default: derived from machine-id)
     pub(crate) node_uuid: Option<String>,
-    /// Throttle bucket for this agent (default: dynamically computed)
-    pub(crate) throttle_permille: Option<String>,
 }
 
 /// Config fragment for Cincinnati client.
@@ -76,7 +74,6 @@ mod tests {
             identity: Some(IdentityFragment {
                 group: Some("workers".to_string()),
                 node_uuid: None,
-                throttle_permille: None,
             }),
             updates: Some(UpdateFragment {
                 enabled: Some(false),

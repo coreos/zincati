@@ -25,7 +25,7 @@ mod update_agent;
 
 use actix::Actor;
 use failure::ResultExt;
-use log::{debug, info, trace};
+use log::{info, trace};
 use structopt::clap::{crate_name, crate_version};
 use structopt::StructOpt;
 

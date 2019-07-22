@@ -12,7 +12,7 @@ fn test_empty_graph() {
         .with_status(200)
         .create();
 
-    let id = Identity::mock_default(None);
+    let id = Identity::mock_default();
     let client = Cincinnati {
         base_url: mockito::server_url(),
     };

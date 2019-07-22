@@ -95,7 +95,6 @@ impl CincinnatiInput {
 pub(crate) struct IdentityInput {
     pub(crate) group: String,
     pub(crate) node_uuid: String,
-    pub(crate) throttle_permille: Option<u16>,
 }
 
 impl IdentityInput {
@@ -103,7 +102,6 @@ impl IdentityInput {
         let mut cfg = Self {
             group: String::new(),
             node_uuid: String::new(),
-            throttle_permille: None,
         };
 
         for snip in fragments {
@@ -112,9 +110,6 @@ impl IdentityInput {
             }
             if let Some(nu) = snip.node_uuid {
                 cfg.node_uuid = nu;
-            }
-            if let Some(tp) = snip.throttle_permille {
-                cfg.throttle_permille = Some(tp.parse().unwrap());
             }
         }
 
