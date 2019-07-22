@@ -30,8 +30,6 @@ pub(crate) struct Identity {
     pub(crate) platform: String,
     /// Stream label.
     pub(crate) stream: String,
-    /// Optional throttle level, 0 (never) to 1000 (unlimited).
-    pub(crate) throttle_permille: Option<u16>,
 }
 
 impl Identity {
@@ -46,10 +44,6 @@ impl Identity {
         if !cfg.node_uuid.is_empty() {
             id.node_uuid = id128::Id128::parse_str(&cfg.node_uuid)
                 .map_err(|e| format_err!("failed to parse node UUID: {}", e))?;
-        }
-
-        if let Some(tp) = cfg.throttle_permille {
-            id.throttle_permille = Some(tp);
         }
 
         Ok(id)
@@ -76,15 +70,14 @@ impl Identity {
             current_os,
             group: DEFAULT_GROUP.to_string(),
             node_uuid,
-            throttle_permille: None,
         };
         Ok(id)
     }
 
     /// Return context variables for URL templates.
     pub fn url_variables(&self) -> HashMap<String, String> {
-        // This explicitly does not include "current_version",
-        // "throttle_permille" and "node_uuid".
+        // This explicitly does not include "current_version"
+        // and "node_uuid".
         let mut vars = HashMap::new();
         vars.insert("basearch".to_string(), self.basearch.clone());
         vars.insert("group".to_string(), self.group.clone());
@@ -102,14 +95,11 @@ impl Identity {
         vars.insert("node_uuid".to_string(), self.node_uuid.lower_hex());
         vars.insert("platform".to_string(), self.platform.clone());
         vars.insert("stream".to_string(), self.stream.clone());
-        if let Some(val) = self.throttle_permille {
-            vars.insert("throttle_permille".to_string(), val.to_string());
-        }
         vars
     }
 
     #[cfg(test)]
-    pub(crate) fn mock_default(throttle_permille: Option<u16>) -> Self {
+    pub(crate) fn mock_default() -> Self {
         Self {
             basearch: "mock-amd64".to_string(),
             current_os: rpm_ostree::Release {
@@ -120,7 +110,6 @@ impl Identity {
             node_uuid: id128::Id128::parse_str("e0f3745b108f471cbd4883c6fbed8cdd").unwrap(),
             platform: "mock-azure".to_string(),
             stream: "mock-stable".to_string(),
-            throttle_permille,
         }
     }
 }
@@ -137,7 +126,7 @@ mod tests {
 
     #[test]
     fn identity_url_variables() {
-        let id = Identity::mock_default(Some(500));
+        let id = Identity::mock_default();
         let vars = id.url_variables();
 
         assert!(vars.contains_key("basearch"));
@@ -146,12 +135,11 @@ mod tests {
         assert!(vars.contains_key("stream"));
         assert!(!vars.contains_key("node_uuid"));
         assert!(!vars.contains_key("current_os"));
-        assert!(!vars.contains_key("throttle_permille"));
     }
 
     #[test]
     fn identity_cincinnati_params() {
-        let id = Identity::mock_default(Some(500));
+        let id = Identity::mock_default();
         let vars = id.cincinnati_params();
 
         assert!(vars.contains_key("basearch"));
@@ -160,8 +148,5 @@ mod tests {
         assert!(vars.contains_key("stream"));
         assert!(vars.contains_key("node_uuid"));
         assert!(vars.contains_key("current_os"));
-
-        let throttle = vars.get("throttle_permille").unwrap();
-        assert_eq!(throttle, "500")
     }
 }
