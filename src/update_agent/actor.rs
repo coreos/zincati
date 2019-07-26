@@ -95,11 +95,11 @@ impl UpdateAgent {
 
         let initialization = self.nop().map(|_r, actor, _ctx| {
             if actor.enabled {
-                actor.state.initialized();
                 log::info!("initialization complete, auto-updates logic enabled");
+                actor.state.initialized();
             } else {
-                actor.state.end();
                 log::warn!("initialization complete, auto-updates logic disabled by configuration");
+                actor.state.end();
             }
         });
 
@@ -114,8 +114,8 @@ impl UpdateAgent {
         let state_change =
             actix::fut::wrap_future::<_, Self>(report_steady).map(|is_steady, actor, _ctx| {
                 if is_steady {
-                    actor.state.steady();
                     log::debug!("reached steady state, periodically polling for updates");
+                    actor.state.steady();
                 }
             });
 
@@ -190,12 +190,16 @@ impl UpdateAgent {
             return Box::new(actix::fut::err(()));
         }
 
+        log::info!(
+            "new release '{}' selected, proceeding to stage it",
+            release.version
+        );
         let msg = rpm_ostree::StageDeployment { release };
         let upgrade = self
             .rpm_ostree_actor
             .send(msg)
             .flatten()
-            .map_err(|e| log::error!("failed to stage update: {}", e))
+            .map_err(|e| log::error!("failed to stage deployment: {}", e))
             .into_actor(self);
 
         Box::new(upgrade)
@@ -211,12 +215,16 @@ impl UpdateAgent {
             return Box::new(actix::fut::err(()));
         }
 
+        log::info!(
+            "staged deployment '{}' available, proceeding to finalize it",
+            release.version
+        );
         let msg = rpm_ostree::FinalizeDeployment { release };
         let upgrade = self
             .rpm_ostree_actor
             .send(msg)
             .flatten()
-            .map_err(|e| log::error!("failed to finalize update: {}", e))
+            .map_err(|e| log::error!("failed to finalize deployment: {}", e))
             .into_actor(self);
 
         Box::new(upgrade)
