@@ -20,7 +20,7 @@ glob = "^0.3.0"
 lazy_static = "^1.3.0"
 liboverdrop = "^0.0.2"
 libsystemd = "^0.1.0"
-log = "^0.4.7"
+log = "^0.4.8"
 maplit = "^1.0"
 prometheus = { version = "^0.7.0", default-features = false }
 reqwest = "^0.9.13"
