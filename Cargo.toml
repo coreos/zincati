@@ -13,6 +13,7 @@ actix = "^0.8.1"
 cfg-if = "^0.1.9"
 env_logger = "^0.6.2"
 envsubst = "^0.1.0"
+fail = "^0.3.0"
 failure = "^0.1.5"
 futures = "^0.1.28"
 chrono = "^0.4.7"
@@ -35,6 +36,9 @@ url_serde = "^0.2.0"
 mockito = "^0.17"
 proptest = "^0.9"
 tokio = "^0.1"
+
+[features]
+failpoints = [ "fail/failpoints" ]
 
 [profile.release]
 lto = true
