@@ -33,7 +33,7 @@ toml = "^0.5.0"
 url_serde = "^0.2.0"
 
 [dev-dependencies]
-mockito = "^0.17"
+mockito = "^0.20"
 proptest = "^0.9"
 tokio = "^0.1"
 
