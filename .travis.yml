@@ -11,3 +11,4 @@ matrix:
 
 script:
   - cargo test
+  - cargo test --features failpoints
