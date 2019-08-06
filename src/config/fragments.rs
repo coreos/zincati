@@ -1,5 +1,6 @@
 //! TOML configuration fragments.
 
+use ordered_float::NotNan;
 use serde::Deserialize;
 
 /// Top-level configuration stanza.
@@ -19,6 +20,8 @@ pub(crate) struct IdentityFragment {
     pub(crate) group: Option<String>,
     /// Update group for this agent (default: derived from machine-id)
     pub(crate) node_uuid: Option<String>,
+    /// Update group for this agent (default: derived server-side)
+    pub(crate) rollout_wariness: Option<NotNan<f64>>,
 }
 
 /// Config fragment for Cincinnati client.
@@ -73,7 +76,8 @@ mod tests {
             }),
             identity: Some(IdentityFragment {
                 group: Some("workers".to_string()),
-                node_uuid: None,
+                node_uuid: Some("27e3ac02af3946af995c9940e18b0cce".to_string()),
+                rollout_wariness: Some(NotNan::new(0.5).unwrap()),
             }),
             updates: Some(UpdateFragment {
                 enabled: Some(false),
