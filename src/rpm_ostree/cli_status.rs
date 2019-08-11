@@ -39,6 +39,7 @@ impl DeploymentJSON {
         Release {
             checksum: self.base_revision(),
             version: self.version,
+            age_index: None,
         }
     }
 

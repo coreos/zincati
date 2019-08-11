@@ -62,6 +62,7 @@ mod tests {
         let release = Release {
             version: "foo".to_string(),
             checksum: "bar".to_string(),
+            age_index: None,
         };
         let result = deploy_locked(release);
         assert!(result.is_err());
@@ -78,6 +79,7 @@ mod tests {
         let release = Release {
             version: "foo".to_string(),
             checksum: "bar".to_string(),
+            age_index: None,
         };
         let result = deploy_locked(release.clone()).unwrap();
         assert_eq!(result, release);
