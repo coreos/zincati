@@ -2,7 +2,7 @@ mod platform;
 
 use crate::config::inputs;
 use crate::rpm_ostree;
-use failure::{format_err, ensure, Fallible, ResultExt};
+use failure::{ensure, format_err, Fallible, ResultExt};
 use libsystemd::id128;
 use ordered_float::NotNan;
 use serde::Serialize;
@@ -100,7 +100,7 @@ impl Identity {
     pub fn cincinnati_params(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
         vars.insert("basearch".to_string(), self.basearch.clone());
-        vars.insert("current_os".to_string(), self.current_os.checksum.clone());
+        vars.insert("os_version".to_string(), self.current_os.version.clone());
         vars.insert("group".to_string(), self.group.clone());
         vars.insert("node_uuid".to_string(), self.node_uuid.lower_hex());
         vars.insert("platform".to_string(), self.platform.clone());
@@ -148,7 +148,7 @@ mod tests {
         assert!(vars.contains_key("platform"));
         assert!(vars.contains_key("stream"));
         assert!(!vars.contains_key("node_uuid"));
-        assert!(!vars.contains_key("current_os"));
+        assert!(!vars.contains_key("os_version"));
     }
 
     #[test]
@@ -161,6 +161,6 @@ mod tests {
         assert!(vars.contains_key("platform"));
         assert!(vars.contains_key("stream"));
         assert!(vars.contains_key("node_uuid"));
-        assert!(vars.contains_key("current_os"));
+        assert!(vars.contains_key("os_version"));
     }
 }
