@@ -193,6 +193,7 @@ mod tests {
         let update = Release {
             version: "v1".to_string(),
             checksum: "ostree-checksum".to_string(),
+            age_index: None,
         };
         machine.update_available(Some(update.clone()));
         assert_eq!(machine, UpdateAgentState::UpdateAvailable(update.clone()));

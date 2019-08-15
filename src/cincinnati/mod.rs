@@ -16,6 +16,9 @@ use prometheus::{IntCounter, IntGauge};
 use serde::Serialize;
 
 /// Metadata key for payload scheme.
+pub static AGE_INDEX_KEY: &str = "org.fedoraproject.coreos.releases.age_index";
+
+/// Metadata key for payload scheme.
 pub static SCHEME_KEY: &str = "org.fedoraproject.coreos.scheme";
 
 /// Metadata value for "checksum" payload scheme.

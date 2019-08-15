@@ -118,6 +118,7 @@ impl Identity {
             current_os: rpm_ostree::Release {
                 version: "0.0.0-mock".to_string(),
                 checksum: "sha-mock".to_string(),
+                age_index: None,
             },
             group: "mock-workers".to_string(),
             node_uuid: id128::Id128::parse_str("e0f3745b108f471cbd4883c6fbed8cdd").unwrap(),
