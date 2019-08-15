@@ -23,6 +23,7 @@ liboverdrop = "^0.0.2"
 libsystemd = "^0.1.0"
 log = "^0.4.8"
 maplit = "^1.0"
+ordered-float = { version = "^1.0.2", features = ["serde"] }
 prometheus = { version = "^0.7.0", default-features = false }
 reqwest = "^0.9.19"
 serde = { version = "^1.0.98", features = ["derive"] }

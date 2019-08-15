@@ -2,8 +2,9 @@ mod platform;
 
 use crate::config::inputs;
 use crate::rpm_ostree;
-use failure::{format_err, Fallible, ResultExt};
+use failure::{format_err, ensure, Fallible, ResultExt};
 use libsystemd::id128;
+use ordered_float::NotNan;
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -28,6 +29,8 @@ pub(crate) struct Identity {
     pub(crate) node_uuid: id128::Id128,
     /// OS platform.
     pub(crate) platform: String,
+    /// Client wariness for rollout throttling.
+    pub(crate) rollout_wariness: Option<NotNan<f64>>,
     /// Stream label.
     pub(crate) stream: String,
 }
@@ -44,6 +47,12 @@ impl Identity {
         if !cfg.node_uuid.is_empty() {
             id.node_uuid = id128::Id128::parse_str(&cfg.node_uuid)
                 .map_err(|e| format_err!("failed to parse node UUID: {}", e))?;
+        }
+
+        if let Some(rw) = cfg.rollout_wariness {
+            ensure!(*rw >= 0.0, "unexpected negative rollout wariness: {}", rw);
+            ensure!(*rw <= 1.0, "unexpected overlarge rollout wariness: {}", rw);
+            id.rollout_wariness = Some(rw);
         }
 
         Ok(id)
@@ -70,6 +79,7 @@ impl Identity {
             current_os,
             group: DEFAULT_GROUP.to_string(),
             node_uuid,
+            rollout_wariness: None,
         };
         Ok(id)
     }
@@ -95,6 +105,9 @@ impl Identity {
         vars.insert("node_uuid".to_string(), self.node_uuid.lower_hex());
         vars.insert("platform".to_string(), self.platform.clone());
         vars.insert("stream".to_string(), self.stream.clone());
+        if let Some(rw) = self.rollout_wariness {
+            vars.insert("rollout_wariness".to_string(), format!("{:.06}", rw));
+        }
         vars
     }
 
@@ -109,6 +122,7 @@ impl Identity {
             group: "mock-workers".to_string(),
             node_uuid: id128::Id128::parse_str("e0f3745b108f471cbd4883c6fbed8cdd").unwrap(),
             platform: "mock-azure".to_string(),
+            rollout_wariness: Some(NotNan::new(0.5).unwrap()),
             stream: "mock-stable".to_string(),
         }
     }

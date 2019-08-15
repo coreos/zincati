@@ -1,17 +1,11 @@
 [identity]
-# Node group: used for cluster-wide reboot orchestration (via remote strategy)
 group = "workers"
+node_uuid = "27e3ac02af3946af995c9940e18b0cce"
+rollout_wariness = 0.5
 
-# Node UUID: by default derived from "/etc/machine-id"
-#node_uuid = "27e3ac02-af39-46af-995c-9940e18b0cce"
-
-# Base URL to the Cincinnati service
 [cincinnati]
 base_url= "http://example.com:80/"
 
-# Valid strategies: immediate / periodic / remote_http
 [updates]
-# Disable auto-updates.
 enabled = false
-# Immediately check for, fetch and finalize updates
 strategy = "immediate"

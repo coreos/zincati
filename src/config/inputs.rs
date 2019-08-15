@@ -1,6 +1,7 @@
 use crate::config::fragments;
 use failure::{Fallible, ResultExt};
 use log::trace;
+use ordered_float::NotNan;
 use serde::Serialize;
 
 /// Runtime configuration holding environmental inputs.
@@ -95,6 +96,7 @@ impl CincinnatiInput {
 pub(crate) struct IdentityInput {
     pub(crate) group: String,
     pub(crate) node_uuid: String,
+    pub(crate) rollout_wariness: Option<NotNan<f64>>,
 }
 
 impl IdentityInput {
@@ -102,6 +104,7 @@ impl IdentityInput {
         let mut cfg = Self {
             group: String::new(),
             node_uuid: String::new(),
+            rollout_wariness: None,
         };
 
         for snip in fragments {
@@ -110,6 +113,9 @@ impl IdentityInput {
             }
             if let Some(nu) = snip.node_uuid {
                 cfg.node_uuid = nu;
+            }
+            if let Some(rw) = snip.rollout_wariness {
+                cfg.rollout_wariness = Some(rw);
             }
         }
 

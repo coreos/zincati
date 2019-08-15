@@ -1,0 +1,15 @@
+# Configure agent identity.
+[identity]
+
+# Node group, used for cluster-wide reboot orchestration (e.g. Airlock).
+group = "default"
+
+# Node ID, in sd-id128(3) format.
+# By default it is automatically computed as
+# `systemd-id128 machine-id -a de35106b6ec24688b63afddaa156679b`
+#node_uuid = "<ID128>"
+
+# Client wariness for throttled rollouts, as a floating point number.
+# Allowed values are within the range from `0.0` (very bold clients) to `1.0` (cautious clients), limits included.
+# By default, clients are arbitrarily throttled by the Cincinnati server.
+#rollout_wariness = 0.5
