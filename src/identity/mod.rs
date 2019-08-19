@@ -100,6 +100,7 @@ impl Identity {
     pub fn cincinnati_params(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
         vars.insert("basearch".to_string(), self.basearch.clone());
+        vars.insert("os_checksum".to_string(), self.current_os.checksum.clone());
         vars.insert("os_version".to_string(), self.current_os.version.clone());
         vars.insert("group".to_string(), self.group.clone());
         vars.insert("node_uuid".to_string(), self.node_uuid.lower_hex());
@@ -149,6 +150,7 @@ mod tests {
         assert!(vars.contains_key("platform"));
         assert!(vars.contains_key("stream"));
         assert!(!vars.contains_key("node_uuid"));
+        assert!(!vars.contains_key("os_checksum"));
         assert!(!vars.contains_key("os_version"));
     }
 
@@ -162,6 +164,7 @@ mod tests {
         assert!(vars.contains_key("platform"));
         assert!(vars.contains_key("stream"));
         assert!(vars.contains_key("node_uuid"));
+        assert!(vars.contains_key("os_checksum"));
         assert!(vars.contains_key("os_version"));
     }
 }
