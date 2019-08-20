@@ -5,6 +5,7 @@ use crate::rpm_ostree;
 use failure::{ensure, format_err, Fallible, ResultExt};
 use libsystemd::id128;
 use ordered_float::NotNan;
+use prometheus::Gauge;
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -16,6 +17,13 @@ static APP_ID: &[u8] = &[
     0xde, 0x35, 0x10, 0x6b, 0x6e, 0xc2, 0x46, 0x88, 0xb6, 0x3a, 0xfd, 0xda, 0xa1, 0x56, 0x67, 0x9b,
 ];
 
+lazy_static::lazy_static! {
+    static ref ROLLOUT_WARINESS: Gauge = Gauge::new(
+        "zincati_identity_rollout_wariness",
+        "Client wariness for updates rollout"
+    ).unwrap();
+}
+
 /// Agent identity.
 #[derive(Debug, Serialize)]
 pub(crate) struct Identity {
@@ -23,7 +31,7 @@ pub(crate) struct Identity {
     pub(crate) basearch: String,
     /// Current OS (version and deployment base-checksum).
     pub(crate) current_os: rpm_ostree::Release,
-    /// Update groupd.
+    /// Update group.
     pub(crate) group: String,
     /// Unique node identifier.
     pub(crate) node_uuid: id128::Id128,
@@ -52,6 +60,9 @@ impl Identity {
         if let Some(rw) = cfg.rollout_wariness {
             ensure!(*rw >= 0.0, "unexpected negative rollout wariness: {}", rw);
             ensure!(*rw <= 1.0, "unexpected overlarge rollout wariness: {}", rw);
+
+            prometheus::register(Box::new(ROLLOUT_WARINESS.clone()))?;
+            ROLLOUT_WARINESS.set(*rw);
             id.rollout_wariness = Some(rw);
         }
 
