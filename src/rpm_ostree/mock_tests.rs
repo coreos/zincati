@@ -1,6 +1,6 @@
 use crate::cincinnati::Cincinnati;
-use crate::rpm_ostree::Release;
 use crate::identity::Identity;
+use crate::rpm_ostree::Release;
 use mockito::{self, Matcher};
 use tokio::runtime::current_thread as rt;
 
