@@ -23,6 +23,8 @@ use structopt::clap::crate_name;
 /// It holds validated agent configuration.
 #[derive(Debug, Serialize)]
 pub(crate) struct Settings {
+    /// Whether to enable automatic downgrades.
+    pub(crate) allow_downgrade: bool,
     /// Whether to enable auto-updates logic.
     pub(crate) enabled: bool,
     /// Cincinnati configuration.
@@ -49,6 +51,7 @@ impl Settings {
 
     /// Validate config and return a valid agent settings.
     fn validate(cfg: inputs::ConfigInput) -> Fallible<Self> {
+        let allow_downgrade = cfg.updates.allow_downgrade;
         let enabled = cfg.updates.enabled;
         let identity = Identity::with_config(cfg.identity)
             .context("failed to validate agent identity configuration")?;
@@ -58,6 +61,7 @@ impl Settings {
             .context("failed to validate cincinnati configuration")?;
 
         Ok(Self {
+            allow_downgrade,
             enabled,
             cincinnati,
             identity,

@@ -9,6 +9,10 @@ use prometheus::IntGauge;
 use std::collections::BTreeSet;
 
 lazy_static::lazy_static! {
+    static ref ALLOW_DOWNGRADE: IntGauge = register_int_gauge!(opts!(
+        "zincati_update_agent_updates_allow_downgrade",
+        "Whether downgrades via auto-updates logic are allowed."
+    )).unwrap();
     static ref LAST_REFRESH: IntGauge = register_int_gauge!(opts!(
         "zincati_update_agent_last_refresh_timestamp",
         "UTC timestamp of update-agent last refresh tick."
@@ -20,6 +24,11 @@ impl Actor for UpdateAgent {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         trace!("update agent started");
+
+        if self.allow_downgrade {
+            ALLOW_DOWNGRADE.set(1);
+            log::warn!("client configuration allows (possibly vulnerable) downgrades via auto-updates logic");
+        }
 
         // Kick-start the state machine.
         Self::tick_now(ctx);
@@ -149,9 +158,10 @@ impl UpdateAgent {
         let state_change = actix::fut::wrap_future::<_, Self>(can_check)
             .and_then(|can_check, actor, _ctx| actor.local_deployments(can_check))
             .and_then(|(can_check, depls), actor, _ctx| {
+                let allow_downgrade = actor.allow_downgrade;
                 actor
                     .cincinnati
-                    .fetch_update_hint(&actor.identity, depls, can_check)
+                    .fetch_update_hint(&actor.identity, depls, can_check, allow_downgrade)
                     .into_actor(actor)
             })
             .map(|release, actor, _ctx| actor.state.update_available(release));
@@ -205,7 +215,10 @@ impl UpdateAgent {
             "new release '{}' selected, proceeding to stage it",
             release.version
         );
-        let msg = rpm_ostree::StageDeployment { release };
+        let msg = rpm_ostree::StageDeployment {
+            release,
+            allow_downgrade: self.allow_downgrade,
+        };
         let upgrade = self
             .rpm_ostree_actor
             .send(msg)

@@ -126,6 +126,8 @@ impl IdentityInput {
 /// Config for update logic.
 #[derive(Debug, Serialize)]
 pub(crate) struct UpdateInput {
+    /// Whether to enable automatic downgrades.
+    pub(crate) allow_downgrade: bool,
     /// Whether to enable auto-updates logic.
     pub(crate) enabled: bool,
     /// Update strategy.
@@ -143,6 +145,7 @@ pub(crate) struct FleetLockInput {
 
 impl UpdateInput {
     fn from_fragments(fragments: Vec<fragments::UpdateFragment>) -> Self {
+        let mut allow_downgrade = false;
         let mut enabled = true;
         let mut strategy = String::new();
         let mut fleet_lock = FleetLockInput {
@@ -150,6 +153,9 @@ impl UpdateInput {
         };
 
         for snip in fragments {
+            if let Some(a) = snip.allow_downgrade {
+                allow_downgrade = a;
+            }
             if let Some(e) = snip.enabled {
                 enabled = e;
             }
@@ -164,6 +170,7 @@ impl UpdateInput {
         }
 
         Self {
+            allow_downgrade,
             enabled,
             strategy,
             fleet_lock,

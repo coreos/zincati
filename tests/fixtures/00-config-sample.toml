@@ -7,6 +7,7 @@ rollout_wariness = 0.5
 base_url= "http://cincinnati.example.com:80/"
 
 [updates]
+allow_downgrade = true
 enabled = false
 strategy = "fleet_lock"
 

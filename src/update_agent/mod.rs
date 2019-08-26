@@ -122,6 +122,8 @@ impl UpdateAgentState {
 /// Update agent.
 #[derive(Debug)]
 pub(crate) struct UpdateAgent {
+    /// Whether to allow automatic downgrades.
+    allow_downgrade: bool,
     /// Cincinnati service.
     cincinnati: Cincinnati,
     /// Whether to enable auto-updates logic.
@@ -147,6 +149,7 @@ impl UpdateAgent {
         rpm_ostree_addr: Addr<RpmOstreeClient>,
     ) -> failure::Fallible<Self> {
         let agent = UpdateAgent {
+            allow_downgrade: cfg.allow_downgrade,
             cincinnati: cfg.cincinnati,
             enabled: cfg.enabled,
             identity: cfg.identity,

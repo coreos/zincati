@@ -34,6 +34,8 @@ pub(crate) struct CincinnatiFragment {
 /// Config fragment for update logic.
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub(crate) struct UpdateFragment {
+    /// Whether to enable automatic downgrades.
+    pub(crate) allow_downgrade: Option<bool>,
     /// Whether to enable auto-updates logic.
     pub(crate) enabled: Option<bool>,
     /// Update strategy (default: immediate).
@@ -72,6 +74,7 @@ mod tests {
                 rollout_wariness: Some(NotNan::new(0.5).unwrap()),
             }),
             updates: Some(UpdateFragment {
+                allow_downgrade: Some(true),
                 enabled: Some(false),
                 strategy: Some("fleet_lock".to_string()),
                 fleet_lock: Some(UpdateFleetLock {

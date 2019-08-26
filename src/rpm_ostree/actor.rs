@@ -24,6 +24,8 @@ impl RpmOstreeClient {
 /// Request: stage a deployment (in finalization-locked mode).
 #[derive(Debug, Clone)]
 pub struct StageDeployment {
+    /// Whether to allow downgrades.
+    pub allow_downgrade: bool,
     /// Release to be staged.
     pub release: Release,
 }
@@ -37,7 +39,7 @@ impl Handler<StageDeployment> for RpmOstreeClient {
 
     fn handle(&mut self, msg: StageDeployment, _ctx: &mut Self::Context) -> Self::Result {
         trace!("request to stage release: {:?}", msg.release);
-        super::cli_deploy::deploy_locked(msg.release)
+        super::cli_deploy::deploy_locked(msg.release, msg.allow_downgrade)
     }
 }
 
