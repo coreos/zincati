@@ -29,6 +29,10 @@ lazy_static::lazy_static! {
         "zincati_cincinnati_graph_nodes_count",
         "Number of nodes in Cincinnati update graph."
     )).unwrap();
+    static ref GRAPH_EDGES: IntGauge = register_int_gauge!(opts!(
+        "zincati_cincinnati_graph_edges_count",
+        "Number of edges in Cincinnati update graph."
+    )).unwrap();
     static ref UPDATE_CHECKS: IntCounter = register_int_counter!(opts!(
         "zincati_cincinnati_update_checks_total",
         "Total number of checks for updates to the upstream Cincinnati server."
@@ -76,13 +80,13 @@ impl Cincinnati {
             return Box::new(futures::future::ok(None));
         }
 
-        let update = self
-            .next_update(id)
-            .inspect(|_| UPDATE_CHECKS.inc())
-            .map_err(|e| {
-                UPDATE_CHECKS_ERRORS.inc();
-                log::error!("failed to check for updates: {}", e)
-            });
+        UPDATE_CHECKS.inc();
+        log::trace!("checking upstream Cincinnati server for updates");
+
+        let update = self.next_update(id).map_err(|e| {
+            UPDATE_CHECKS_ERRORS.inc();
+            log::error!("failed to check for updates: {}", e)
+        });
         Box::new(update)
     }
 
@@ -104,6 +108,12 @@ impl Cincinnati {
 /// Walk the graph, looking for an update reachable from the given digest.
 fn find_update(graph: client::Graph, digest: String) -> Fallible<Option<Node>> {
     GRAPH_NODES.set(graph.nodes.len() as i64);
+    GRAPH_EDGES.set(graph.edges.len() as i64);
+    log::trace!(
+        "got an update graph with {} nodes and {} edges",
+        graph.nodes.len(),
+        graph.edges.len()
+    );
 
     let cur_position = match graph
         .nodes
