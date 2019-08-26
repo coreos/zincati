@@ -1,7 +1,7 @@
 use crate::cincinnati::Cincinnati;
 use crate::identity::Identity;
-use crate::rpm_ostree::Release;
 use mockito::{self, Matcher};
+use std::collections::BTreeSet;
 use tokio::runtime::current_thread as rt;
 
 #[test]
@@ -45,11 +45,9 @@ fn test_simple_graph() {
     let client = Cincinnati {
         base_url: mockito::server_url(),
     };
-    let update = rt::block_on_all(client.fetch_update_hint(&id, true)).unwrap();
+    let update = rt::block_on_all(client.fetch_update_hint(&id, BTreeSet::new(), true)).unwrap();
     m_graph.assert();
 
-    let node = update.unwrap();
-    let next = Release::from_cincinnati(node).unwrap();
-
+    let next = update.unwrap();
     assert_eq!(next.version, "30.20190725.0")
 }

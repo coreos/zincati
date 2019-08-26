@@ -5,6 +5,7 @@
 use super::Release;
 use failure::{bail, ensure, format_err, Fallible, ResultExt};
 use serde::Deserialize;
+use std::collections::BTreeSet;
 
 /// JSON output from `rpm-ostree status --json`
 #[derive(Debug, Deserialize)]
@@ -63,6 +64,17 @@ pub fn booted() -> Fallible<Release> {
     let status = status_json(true)?;
     let json = booted_json(status)?;
     Ok(json.into_release())
+}
+
+/// Return local deployments.
+pub fn local_deployments() -> Fallible<BTreeSet<Release>> {
+    let status = status_json(false)?;
+    let mut deployments = BTreeSet::<Release>::new();
+    for entry in status.deployments {
+        let release = entry.into_release();
+        deployments.insert(release);
+    }
+    Ok(deployments)
 }
 
 /// Return updates stream for booted deployment.
