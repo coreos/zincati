@@ -14,6 +14,8 @@ mod cincinnati;
 mod cli;
 /// File-based configuration.
 mod config;
+/// FleetLock client.
+mod fleet_lock;
 /// Agent identity.
 mod identity;
 /// Metrics service.
