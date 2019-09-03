@@ -17,7 +17,7 @@ pub(crate) struct StrategyImmediate {
 
 impl StrategyImmediate {
     /// Check if finalization is allowed.
-    pub(crate) fn can_finalize(&self) -> impl Future<Item = bool, Error = Error> {
+    pub(crate) fn can_finalize(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
         trace!(
             "immediate strategy, can finalize updates: {}",
             self.finalize
