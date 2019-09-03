@@ -130,20 +130,24 @@ pub(crate) struct UpdateInput {
     pub(crate) enabled: bool,
     /// Update strategy.
     pub(crate) strategy: String,
-    /// `remote_http` strategy config.
-    pub(crate) remote_http: StratHttpInput,
-    /// `periodic` strategy config.
-    pub(crate) periodic: StratPeriodicInput,
+    /// `fleet_lock` strategy config.
+    pub(crate) fleet_lock: FleetLockInput,
+}
+
+/// Config for "fleet_lock" strategy.
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct FleetLockInput {
+    /// Base URL (template) for the FleetLock service.
+    pub(crate) base_url: String,
 }
 
 impl UpdateInput {
     fn from_fragments(fragments: Vec<fragments::UpdateFragment>) -> Self {
         let mut enabled = true;
         let mut strategy = String::new();
-        let mut remote_http = StratHttpInput {
+        let mut fleet_lock = FleetLockInput {
             base_url: String::new(),
         };
-        let periodic = StratPeriodicInput {};
 
         for snip in fragments {
             if let Some(e) = snip.enabled {
@@ -152,9 +156,9 @@ impl UpdateInput {
             if let Some(s) = snip.strategy {
                 strategy = s;
             }
-            if let Some(remote) = snip.remote_http {
-                if let Some(b) = remote.base_url {
-                    remote_http.base_url = b;
+            if let Some(fl) = snip.fleet_lock {
+                if let Some(b) = fl.base_url {
+                    fleet_lock.base_url = b;
                 }
             }
         }
@@ -162,19 +166,7 @@ impl UpdateInput {
         Self {
             enabled,
             strategy,
-            remote_http,
-            periodic,
+            fleet_lock,
         }
     }
 }
-
-/// Config snippet for `remote_http` finalizer strategy.
-#[derive(Debug, Serialize)]
-pub(crate) struct StratHttpInput {
-    /// Base URL (template) for the remote semaphore manager.
-    pub(crate) base_url: String,
-}
-
-/// Config snippet for `periodic` strategy.
-#[derive(Debug, Serialize)]
-pub(crate) struct StratPeriodicInput {}

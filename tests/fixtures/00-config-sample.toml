@@ -4,8 +4,11 @@ node_uuid = "27e3ac02af3946af995c9940e18b0cce"
 rollout_wariness = 0.5
 
 [cincinnati]
-base_url= "http://example.com:80/"
+base_url= "http://cincinnati.example.com:80/"
 
 [updates]
 enabled = false
-strategy = "immediate"
+strategy = "fleet_lock"
+
+[updates.fleet_lock]
+base_url= "http://fleet-lock.example.com:8080/"
