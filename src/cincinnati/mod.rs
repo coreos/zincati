@@ -75,7 +75,7 @@ impl Cincinnati {
         &self,
         id: &Identity,
         can_check: bool,
-    ) -> Box<Future<Item = Option<Node>, Error = ()>> {
+    ) -> Box<dyn Future<Item = Option<Node>, Error = ()>> {
         if !can_check {
             return Box::new(futures::future::ok(None));
         }
@@ -91,7 +91,7 @@ impl Cincinnati {
     }
 
     /// Get the next update.
-    fn next_update(&self, id: &Identity) -> Box<Future<Item = Option<Node>, Error = Error>> {
+    fn next_update(&self, id: &Identity) -> Box<dyn Future<Item = Option<Node>, Error = Error>> {
         let params = id.cincinnati_params();
         let base_checksum = id.current_os.checksum.clone();
         let client = client::ClientBuilder::new(self.base_url.to_string())

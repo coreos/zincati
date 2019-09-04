@@ -27,14 +27,14 @@ impl StrategyImmediate {
         Box::new(immediate)
     }
 
-    pub(crate) fn report_steady(&self) -> Box<Future<Item = bool, Error = Error>> {
+    pub(crate) fn report_steady(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
         trace!("immediate strategy, report steady: {}", true);
 
         let immediate = future::ok(true);
         Box::new(immediate)
     }
 
-    pub(crate) fn can_check_and_fetch(&self) -> Box<Future<Item = bool, Error = Error>> {
+    pub(crate) fn can_check_and_fetch(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
         trace!("immediate strategy, can check updates: {}", self.check);
 
         let immediate = future::ok(self.check);

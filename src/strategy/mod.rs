@@ -32,7 +32,7 @@ impl UpdateStrategy {
     pub(crate) fn can_finalize(
         &self,
         _identity: &Identity,
-    ) -> Box<Future<Item = bool, Error = ()>> {
+    ) -> Box<dyn Future<Item = bool, Error = ()>> {
         let lock = match self {
             UpdateStrategy::Immediate(i) => i.can_finalize(),
         }
@@ -44,7 +44,7 @@ impl UpdateStrategy {
     pub(crate) fn report_steady(
         &self,
         _identity: &Identity,
-    ) -> Box<Future<Item = bool, Error = ()>> {
+    ) -> Box<dyn Future<Item = bool, Error = ()>> {
         let unlock = match self {
             UpdateStrategy::Immediate(i) => i.report_steady(),
         }
@@ -56,7 +56,7 @@ impl UpdateStrategy {
     pub(crate) fn can_check_and_fetch(
         &self,
         _identity: &Identity,
-    ) -> Box<Future<Item = bool, Error = ()>> {
+    ) -> Box<dyn Future<Item = bool, Error = ()>> {
         let can_check = match self {
             UpdateStrategy::Immediate(i) => i.can_check_and_fetch(),
         }
