@@ -66,6 +66,10 @@ impl Handler<RefreshTick> for UpdateAgent {
                 actor.state_changed = update_timestamp;
                 Self::tick_now(ctx);
             } else {
+                log::trace!(
+                    "scheduling next agent refresh in {} seconds",
+                    actor.refresh_period.as_secs()
+                );
                 Self::tick_later(ctx, actor.refresh_period);
             }
             actix::fut::ok(())
