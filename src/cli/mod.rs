@@ -7,7 +7,7 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 pub(crate) struct CliOptions {
     /// Verbosity level (higher is more verbose).
-    #[structopt(short = "v", parse(from_occurrences), raw(global = "true"))]
+    #[structopt(short = "v", parse(from_occurrences), global = true)]
     verbosity: u8,
 
     /// CLI sub-command.
