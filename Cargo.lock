@@ -2446,6 +2446,7 @@ dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "glob 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "http 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "liboverdrop 0.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libsystemd 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
