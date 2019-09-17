@@ -5,7 +5,7 @@ use crate::rpm_ostree;
 use failure::{ensure, format_err, Fallible, ResultExt};
 use libsystemd::id128;
 use ordered_float::NotNan;
-use prometheus::Gauge;
+use prometheus::{Gauge, IntGaugeVec};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -21,6 +21,11 @@ lazy_static::lazy_static! {
     static ref ROLLOUT_WARINESS: Gauge = Gauge::new(
         "zincati_identity_rollout_wariness",
         "Client wariness for updates rollout"
+    ).unwrap();
+    static ref OS_VERSION: IntGaugeVec = register_int_gauge_vec!(
+        "zincati_identity_os_version",
+        "OS version of the booted deployment",
+        &["value"]
     ).unwrap();
 }
 
@@ -65,6 +70,11 @@ impl Identity {
             ROLLOUT_WARINESS.set(*rw);
             id.rollout_wariness = Some(rw);
         }
+
+        // Export info-metrics with details about booted deployment.
+        OS_VERSION
+            .with_label_values(&[&id.current_os.version])
+            .set(1);
 
         Ok(id)
     }
