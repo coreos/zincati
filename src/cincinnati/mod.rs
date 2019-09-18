@@ -9,11 +9,13 @@ mod mock_tests;
 
 use crate::config::inputs;
 use crate::identity::Identity;
+use crate::rpm_ostree::Release;
 use failure::{bail, Error, Fallible};
 use futures::future;
 use futures::prelude::*;
 use prometheus::{IntCounter, IntGauge};
 use serde::Serialize;
+use std::collections::BTreeSet;
 
 /// Metadata key for payload scheme.
 pub static AGE_INDEX_KEY: &str = "org.fedoraproject.coreos.releases.age_index";
@@ -74,8 +76,9 @@ impl Cincinnati {
     pub(crate) fn fetch_update_hint(
         &self,
         id: &Identity,
+        deployments: BTreeSet<Release>,
         can_check: bool,
-    ) -> Box<dyn Future<Item = Option<Node>, Error = ()>> {
+    ) -> Box<dyn Future<Item = Option<Release>, Error = ()>> {
         if !can_check {
             return Box::new(futures::future::ok(None));
         }
@@ -83,7 +86,7 @@ impl Cincinnati {
         UPDATE_CHECKS.inc();
         log::trace!("checking upstream Cincinnati server for updates");
 
-        let update = self.next_update(id).map_err(|e| {
+        let update = self.next_update(id, deployments).map_err(|e| {
             UPDATE_CHECKS_ERRORS.inc();
             log::error!("failed to check for updates: {}", e)
         });
@@ -91,22 +94,30 @@ impl Cincinnati {
     }
 
     /// Get the next update.
-    fn next_update(&self, id: &Identity) -> Box<dyn Future<Item = Option<Node>, Error = Error>> {
+    fn next_update(
+        &self,
+        id: &Identity,
+        deployments: BTreeSet<Release>,
+    ) -> Box<dyn Future<Item = Option<Release>, Error = Error>> {
+        let booted = id.current_os.clone();
         let params = id.cincinnati_params();
-        let base_checksum = id.current_os.checksum.clone();
         let client = client::ClientBuilder::new(self.base_url.to_string())
             .query_params(Some(params))
             .build();
 
         let next = future::result(client)
             .and_then(|c| c.fetch_graph())
-            .and_then(|graph| find_update(graph, base_checksum));
+            .and_then(move |graph| find_update(graph, booted, deployments));
         Box::new(next)
     }
 }
 
 /// Walk the graph, looking for an update reachable from the given digest.
-fn find_update(graph: client::Graph, digest: String) -> Fallible<Option<Node>> {
+fn find_update(
+    graph: client::Graph,
+    booted_depl: Release,
+    local_depls: BTreeSet<Release>,
+) -> Fallible<Option<Release>> {
     GRAPH_NODES.set(graph.nodes.len() as i64);
     GRAPH_EDGES.set(graph.edges.len() as i64);
     log::trace!(
@@ -115,15 +126,21 @@ fn find_update(graph: client::Graph, digest: String) -> Fallible<Option<Node>> {
         graph.edges.len()
     );
 
+    // Find booted deployment in graph.
     let cur_position = match graph
         .nodes
         .iter()
-        .position(|n| is_same_checksum(n, &digest))
+        .position(|n| is_same_checksum(n, &booted_depl.checksum))
     {
         Some(pos) => pos,
         None => return Ok(None),
     };
+    drop(booted_depl);
 
+    // Try to find all local deployments in the graph too.
+    let local_releases = find_local_releases(&graph, local_depls);
+
+    // Find all possible update targets from booted deployment.
     let targets: Vec<_> = graph
         .edges
         .iter()
@@ -135,20 +152,45 @@ fn find_update(graph: client::Graph, digest: String) -> Fallible<Option<Node>> {
             }
         })
         .collect();
-
-    let mut updates = Vec::with_capacity(targets.len());
+    let mut updates = BTreeSet::new();
     for pos in targets {
-        match graph.nodes.get(pos) {
-            Some(n) => updates.push(n.clone()),
-            None => bail!("target node '{}' not present in graph"),
+        let node = match graph.nodes.get(pos) {
+            Some(n) => n.clone(),
+            None => bail!("target node '{}' not present in graph", pos),
         };
+        let release = Release::from_cincinnati(node)?;
+        updates.insert(release);
     }
 
-    match updates.len() {
-        0 => Ok(None),
-        // TODO(lucab): stable pick next update
-        _ => Ok(Some(updates.swap_remove(0))),
+    // Exclude target already deployed locally in the past.
+    let new_updates = updates.difference(&local_releases);
+
+    // Pick highest available updates target (based on age-index).
+    let next = match new_updates.last().cloned() {
+        Some(rel) => rel,
+        None => return Ok(None),
+    };
+
+    Ok(Some(next))
+}
+
+fn find_local_releases(graph: &client::Graph, depls: BTreeSet<Release>) -> BTreeSet<Release> {
+    use std::collections::HashSet;
+
+    let mut local_releases = BTreeSet::new();
+    let checksums: HashSet<String> = depls.into_iter().map(|rel| rel.checksum).collect();
+
+    for entry in &graph.nodes {
+        if !checksums.contains(&entry.payload) {
+            continue;
+        }
+
+        if let Ok(release) = Release::from_cincinnati(entry.clone()) {
+            local_releases.insert(release);
+        }
     }
+
+    local_releases
 }
 
 /// Check whether input node matches current checksum.

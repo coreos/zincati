@@ -1,6 +1,7 @@
 use crate::cincinnati::*;
 use crate::identity::Identity;
 use mockito::{self, Matcher};
+use std::collections::BTreeSet;
 use tokio::runtime::current_thread as rt;
 
 #[test]
@@ -16,7 +17,7 @@ fn test_empty_graph() {
     let client = Cincinnati {
         base_url: mockito::server_url(),
     };
-    let update = rt::block_on_all(client.next_update(&id));
+    let update = rt::block_on_all(client.next_update(&id, BTreeSet::new()));
     m_graph.assert();
 
     assert!(update.unwrap().is_none());

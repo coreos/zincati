@@ -4,7 +4,7 @@ mod cli_status;
 pub use cli_status::{basearch, booted, updates_stream};
 
 mod actor;
-pub use actor::{FinalizeDeployment, RpmOstreeClient, StageDeployment};
+pub use actor::{FinalizeDeployment, QueryLocalDeployments, RpmOstreeClient, StageDeployment};
 
 #[cfg(test)]
 mod mock_tests;

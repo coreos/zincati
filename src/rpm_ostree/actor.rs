@@ -4,6 +4,7 @@ use super::Release;
 use actix::prelude::*;
 use failure::Fallible;
 use log::trace;
+use std::collections::BTreeSet;
 
 /// Client actor for rpm-ostree.
 #[derive(Debug, Default, Clone)]
@@ -57,5 +58,22 @@ impl Handler<FinalizeDeployment> for RpmOstreeClient {
     fn handle(&mut self, msg: FinalizeDeployment, _ctx: &mut Self::Context) -> Self::Result {
         trace!("request to finalize release: {:?}", msg.release);
         super::cli_finalize::finalize_deployment(msg.release)
+    }
+}
+
+/// Request: query local deployments.
+#[derive(Debug, Clone)]
+pub struct QueryLocalDeployments {}
+
+impl Message for QueryLocalDeployments {
+    type Result = Fallible<BTreeSet<Release>>;
+}
+
+impl Handler<QueryLocalDeployments> for RpmOstreeClient {
+    type Result = Fallible<BTreeSet<Release>>;
+
+    fn handle(&mut self, _msg: QueryLocalDeployments, _ctx: &mut Self::Context) -> Self::Result {
+        trace!("request to list local deployments");
+        super::cli_status::local_deployments()
     }
 }

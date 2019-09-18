@@ -6,6 +6,7 @@ use actix::prelude::*;
 use failure::Error;
 use log::trace;
 use prometheus::IntGauge;
+use std::collections::BTreeSet;
 
 lazy_static::lazy_static! {
     static ref LAST_REFRESH: IntGauge = register_int_gauge!(opts!(
@@ -132,20 +133,12 @@ impl UpdateAgent {
 
         let can_check = self.strategy.can_check_and_fetch(&self.identity);
         let state_change = actix::fut::wrap_future::<_, Self>(can_check)
-            .and_then(|can_check, actor, _ctx| {
+            .and_then(|can_check, actor, _ctx| actor.local_deployments(can_check))
+            .and_then(|(can_check, depls), actor, _ctx| {
                 actor
                     .cincinnati
-                    .fetch_update_hint(&actor.identity, can_check)
+                    .fetch_update_hint(&actor.identity, depls, can_check)
                     .into_actor(actor)
-            })
-            .map(|update, _actor, _ctx| {
-                if let Some(u) = update {
-                    match Release::from_cincinnati(u) {
-                        Ok(rel) => return Some(rel),
-                        Err(e) => log::error!("{}", e),
-                    }
-                };
-                None
             })
             .map(|release, actor, _ctx| actor.state.update_available(release));
 
@@ -207,6 +200,28 @@ impl UpdateAgent {
             .into_actor(self);
 
         Box::new(upgrade)
+    }
+
+    /// List local deployments.
+    fn local_deployments(
+        &mut self,
+        can_fetch: bool,
+    ) -> ResponseActFuture<Self, (bool, BTreeSet<Release>), ()> {
+        if !can_fetch {
+            return Box::new(actix::fut::ok((can_fetch, BTreeSet::new())));
+        }
+
+        let msg = rpm_ostree::QueryLocalDeployments {};
+        let depls = self
+            .rpm_ostree_actor
+            .send(msg)
+            .flatten()
+            .map_err(|e| log::error!("failed to query local deployments: {}", e))
+            .inspect(|depls| log::trace!("found {} local deployments", depls.len()))
+            .map(move |depls| (can_fetch, depls))
+            .into_actor(self);
+
+        Box::new(depls)
     }
 
     /// Finalize a deployment (unlock and reboot).
