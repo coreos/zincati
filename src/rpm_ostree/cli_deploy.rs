@@ -38,8 +38,12 @@ fn invoke_cli(release: Release) -> Fallible<Release> {
         .arg(format!("revision={}", release.checksum))
         .output()
         .with_context(|e| format_err!("failed to run rpm-ostree: {}", e))?;
+    let exit_code = cmd.status.code().unwrap_or(-1);
 
-    if !cmd.status.success() {
+    // This CLI verb has multiple positive exit codes:
+    //  * 0  => "ok, changes applied"
+    //  * 77 => "ok, unchanged"
+    if !(exit_code == 0 || exit_code == 77) {
         bail!(
             "rpm-ostree deploy failed:\n{}",
             String::from_utf8_lossy(&cmd.stderr)
