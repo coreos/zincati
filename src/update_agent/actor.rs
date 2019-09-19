@@ -67,11 +67,12 @@ impl Handler<RefreshTick> for UpdateAgent {
                 actor.state_changed = update_timestamp;
                 Self::tick_now(ctx);
             } else {
+                let pause = Self::add_jitter(actor.refresh_period);
                 log::trace!(
                     "scheduling next agent refresh in {} seconds",
-                    actor.refresh_period.as_secs()
+                    pause.as_secs()
                 );
-                Self::tick_later(ctx, actor.refresh_period);
+                Self::tick_later(ctx, pause);
             }
             actix::fut::ok(())
         });
@@ -92,6 +93,19 @@ impl UpdateAgent {
     /// Schedule a delayed refresh of the state machine.
     pub fn tick_later(ctx: &mut Context<Self>, after: std::time::Duration) -> actix::SpawnHandle {
         ctx.notify_later(RefreshTick {}, after)
+    }
+
+    /// Add a small, random amount (0% to 10%) of jitter to a given period.
+    ///
+    /// This random jitter is useful to prevent clients from converging to
+    /// the same phase-locked loop.
+    fn add_jitter(period: std::time::Duration) -> std::time::Duration {
+        use rand::Rng;
+
+        let secs = period.as_secs();
+        let rand: u8 = rand::thread_rng().gen_range(0, 11);
+        let jitter = u64::max(secs / 100, 1).saturating_mul(u64::from(rand));
+        std::time::Duration::from_secs(secs.saturating_add(jitter))
     }
 
     /// Initialize the update agent.
