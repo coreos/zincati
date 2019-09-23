@@ -52,7 +52,7 @@ impl Settings {
         let enabled = cfg.updates.enabled;
         let identity = Identity::with_config(cfg.identity)
             .context("failed to validate agent identity configuration")?;
-        let strategy = UpdateStrategy::with_config(cfg.updates)
+        let strategy = UpdateStrategy::with_config(cfg.updates, &identity)
             .context("failed to validate update-strategy configuration")?;
         let cincinnati = Cincinnati::with_config(cfg.cincinnati, &identity)
             .context("failed to validate cincinnati configuration")?;

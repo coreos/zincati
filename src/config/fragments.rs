@@ -38,23 +38,15 @@ pub(crate) struct UpdateFragment {
     pub(crate) enabled: Option<bool>,
     /// Update strategy (default: immediate).
     pub(crate) strategy: Option<String>,
-    /// `periodic` strategy config.
-    pub(crate) periodic: Option<UpPeriodicFragment>,
-    /// `remote_http` strategy config.
-    pub(crate) remote_http: Option<UpHttpFragment>,
+    /// `fleet_lock` strategy config.
+    pub(crate) fleet_lock: Option<UpdateFleetLock>,
 }
 
-/// Config fragment for `remote_http` update strategy.
+/// Config fragment for `fleet_lock` update strategy.
 #[derive(Debug, Deserialize, PartialEq, Eq)]
-pub(crate) struct UpHttpFragment {
+pub(crate) struct UpdateFleetLock {
     /// Base URL for the remote semaphore manager.
     pub(crate) base_url: Option<String>,
-}
-
-/// Config fragment for `periodic` update strategy.
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-pub(crate) struct UpPeriodicFragment {
-    // TODO(lucab): define entries.
 }
 
 #[cfg(test)]
@@ -72,7 +64,7 @@ mod tests {
 
         let expected = ConfigFragment {
             cincinnati: Some(CincinnatiFragment {
-                base_url: Some("http://example.com:80/".to_string()),
+                base_url: Some("http://cincinnati.example.com:80/".to_string()),
             }),
             identity: Some(IdentityFragment {
                 group: Some("workers".to_string()),
@@ -81,9 +73,10 @@ mod tests {
             }),
             updates: Some(UpdateFragment {
                 enabled: Some(false),
-                strategy: Some("immediate".to_string()),
-                periodic: None,
-                remote_http: None,
+                strategy: Some("fleet_lock".to_string()),
+                fleet_lock: Some(UpdateFleetLock {
+                    base_url: Some("http://fleet-lock.example.com:8080/".to_string()),
+                }),
             }),
         };
 

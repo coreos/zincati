@@ -1,0 +1,12 @@
+# How to finalize update.
+[updates]
+
+# String to customize update strategy.
+# Default strategy is to immediately finalize updates as soon as available,
+# and reboot the node.
+strategy = "immediate"
+
+# Update strategy which uses an external reboot coordinator (FleetLock protocol).
+#strategy = "fleet_lock"
+# Base URL for the FleetLock service.
+#fleet_lock.base_url = "https://fleet-lock.example.com/"
