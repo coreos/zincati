@@ -35,6 +35,26 @@ It is recommended to setup and monitor canary nodes, but otherwise normal worker
 
 The default and recommended configuration does not set any static wariness value on Zincati side, leaving rollout decisions to Cincinnati backend.
 
+## Strategies for updates finalization
+
+Zincati actively tries to detect and stage new updates whenever they become available.
+Once a new payload has been locally staged, a machine reboot is required in order to atomically apply the update to the system as a whole.
+
+Rebooting a machine does affect any workloads running on the machine at that time, and can potentially impact services across a whole cluster of nodes.
+For such reason, Zincati allows the user to control when a node is allowed to reboot to finalize an auto-update.
+
+The following finalization strategies are currently available:
+ * immediately reboot to apply an update, as soon as it is downloaded and staged locally (`immediate` strategy, see [relevant documentation][strategy-immediate]).
+ * use an external lock-manager to reboot a fleet of machines in a coordinated way (`fleet_lock` strategy, see [relevant documentation][strategy-fleet_lock]).
+
+By default, the `immediate` strategy is used in order to proactively keep machines up-to-date.
+
+For further documentation on configurations, check the [updates strategy][updates-strategy] documentation.
+
+[strategy-immediate]: updates-strategy.md#immediate-strategy
+[strategy-fleet_lock]: updates-strategy.md#lock-based-strategy
+[updates-strategy]: updates-strategy.md
+
 ## Disabling auto-updates
 
 To disable auto-updates, a configuration snippet containing the following has to be installed on the system:
