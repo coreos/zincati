@@ -39,8 +39,8 @@ fn main() -> failure::Fallible<()> {
 
     // Setup logging.
     env_logger::Builder::from_default_env()
-        .default_format_timestamp(false)
-        .default_format_module_path(false)
+        .format_timestamp(None)
+        .format_module_path(false)
         .filter(Some(crate_name!()), cli_opts.loglevel())
         .try_init()
         .context("failed to initialize logging")?;
