@@ -11,7 +11,7 @@ edition = "2018"
 [dependencies]
 actix = "^0.8.1"
 cfg-if = "^0.1.9"
-env_logger = "^0.6.2"
+env_logger = "^0.7.0"
 envsubst = "^0.1.0"
 fail = "^0.3.0"
 failure = "^0.1.5"
