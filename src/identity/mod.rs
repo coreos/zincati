@@ -22,10 +22,10 @@ lazy_static::lazy_static! {
         "zincati_identity_rollout_wariness",
         "Client wariness for updates rollout"
     ).unwrap();
-    static ref OS_VERSION: IntGaugeVec = register_int_gauge_vec!(
-        "zincati_identity_os_version",
-        "OS version of the booted deployment",
-        &["value"]
+    static ref OS_INFO: IntGaugeVec = register_int_gauge_vec!(
+        "zincati_identity_os_info",
+        "Information about the underlying booted OS",
+        &["os_version"]
     ).unwrap();
 }
 
@@ -72,9 +72,7 @@ impl Identity {
         }
 
         // Export info-metrics with details about booted deployment.
-        OS_VERSION
-            .with_label_values(&[&id.current_os.version])
-            .set(1);
+        OS_INFO.with_label_values(&[&id.current_os.version]).set(1);
 
         Ok(id)
     }
