@@ -157,7 +157,7 @@ pub struct ClientIdentity {
 #[derive(Clone, Debug, Serialize)]
 pub struct ClientParameters {
     /// Node identifier, for lock ownership.
-    node_uuid: String,
+    id: String,
     /// Reboot group, for role-specific remote configuration.
     group: String,
 }
@@ -173,7 +173,7 @@ impl ClientBuilder {
             hclient: None,
             client_identity: ClientIdentity {
                 client_params: ClientParameters {
-                    node_uuid: identity.node_uuid.lower_hex(),
+                    id: identity.node_uuid.lower_hex(),
                     group: identity.group.clone(),
                 },
             },

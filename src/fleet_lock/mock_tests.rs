@@ -8,7 +8,7 @@ fn test_pre_reboot_lock() {
     let body = r#"
 {
   "client_params": {
-    "node_uuid": "e0f3745b108f471cbd4883c6fbed8cdd",
+    "id": "e0f3745b108f471cbd4883c6fbed8cdd",
     "group": "mock-workers"
   }
 }
@@ -59,7 +59,7 @@ fn test_steady_state_lock() {
     let body = r#"
 {
   "client_params": {
-    "node_uuid": "e0f3745b108f471cbd4883c6fbed8cdd",
+    "id": "e0f3745b108f471cbd4883c6fbed8cdd",
     "group": "mock-workers"
   }
 }
