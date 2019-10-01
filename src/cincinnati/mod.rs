@@ -13,7 +13,7 @@ use crate::rpm_ostree::Release;
 use failure::{bail, Fallible};
 use futures::future;
 use futures::prelude::*;
-use prometheus::{IntCounter, IntGauge};
+use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use serde::Serialize;
 use std::collections::BTreeSet;
 
@@ -39,10 +39,11 @@ lazy_static::lazy_static! {
         "zincati_cincinnati_update_checks_total",
         "Total number of checks for updates to the upstream Cincinnati server."
     )).unwrap();
-    static ref UPDATE_CHECKS_ERRORS: IntCounter = register_int_counter!(opts!(
+    static ref UPDATE_CHECKS_ERRORS: IntCounterVec = register_int_counter_vec!(
         "zincati_cincinnati_update_checks_errors_total",
-        "Total number of errors on checks for updates."
-    )).unwrap();
+        "Total number of errors while checking for updates.",
+        &["kind"]
+    ).unwrap();
 }
 
 /// Cincinnati configuration.
@@ -88,7 +89,7 @@ impl Cincinnati {
         log::trace!("checking upstream Cincinnati server for updates");
 
         let update = self.next_update(id, deployments).map_err(|e| {
-            UPDATE_CHECKS_ERRORS.inc();
+            UPDATE_CHECKS_ERRORS.with_label_values(&[&e.error_kind()]).inc();
             log::error!("failed to check Cincinnati for updates: {}", e)
         });
         Box::new(update)
