@@ -2,7 +2,7 @@
 
 // Cincinnati client.
 mod client;
-pub use client::Node;
+pub use client::{CincinnatiError, Node};
 
 #[cfg(test)]
 mod mock_tests;
@@ -10,10 +10,10 @@ mod mock_tests;
 use crate::config::inputs;
 use crate::identity::Identity;
 use crate::rpm_ostree::Release;
-use failure::{bail, Error, Fallible};
+use failure::{bail, Fallible};
 use futures::future;
 use futures::prelude::*;
-use prometheus::{IntCounter, IntGauge};
+use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use serde::Serialize;
 use std::collections::BTreeSet;
 
@@ -39,10 +39,11 @@ lazy_static::lazy_static! {
         "zincati_cincinnati_update_checks_total",
         "Total number of checks for updates to the upstream Cincinnati server."
     )).unwrap();
-    static ref UPDATE_CHECKS_ERRORS: IntCounter = register_int_counter!(opts!(
+    static ref UPDATE_CHECKS_ERRORS: IntCounterVec = register_int_counter_vec!(
         "zincati_cincinnati_update_checks_errors_total",
-        "Total number of errors on checks for updates."
-    )).unwrap();
+        "Total number of errors while checking for updates.",
+        &["kind"]
+    ).unwrap();
 }
 
 /// Cincinnati configuration.
@@ -67,6 +68,7 @@ impl Cincinnati {
         } else {
             cfg.base_url
         };
+        log::info!("Cincinnati service: {}", &base_url);
 
         let c = Self { base_url };
         Ok(c)
@@ -87,8 +89,8 @@ impl Cincinnati {
         log::trace!("checking upstream Cincinnati server for updates");
 
         let update = self.next_update(id, deployments).map_err(|e| {
-            UPDATE_CHECKS_ERRORS.inc();
-            log::error!("failed to check for updates: {}", e)
+            UPDATE_CHECKS_ERRORS.with_label_values(&[&e.error_kind()]).inc();
+            log::error!("failed to check Cincinnati for updates: {}", e)
         });
         Box::new(update)
     }
@@ -98,12 +100,13 @@ impl Cincinnati {
         &self,
         id: &Identity,
         deployments: BTreeSet<Release>,
-    ) -> Box<dyn Future<Item = Option<Release>, Error = Error>> {
+    ) -> Box<dyn Future<Item = Option<Release>, Error = CincinnatiError>> {
         let booted = id.current_os.clone();
         let params = id.cincinnati_params();
         let client = client::ClientBuilder::new(self.base_url.to_string())
             .query_params(Some(params))
-            .build();
+            .build()
+            .map_err(|e| CincinnatiError::FailedClientBuilder(e.to_string()));
 
         let next = future::result(client)
             .and_then(|c| c.fetch_graph())
@@ -117,7 +120,7 @@ fn find_update(
     graph: client::Graph,
     booted_depl: Release,
     local_depls: BTreeSet<Release>,
-) -> Fallible<Option<Release>> {
+) -> Result<Option<Release>, CincinnatiError> {
     GRAPH_NODES.set(graph.nodes.len() as i64);
     GRAPH_EDGES.set(graph.edges.len() as i64);
     log::trace!(
@@ -156,9 +159,13 @@ fn find_update(
     for pos in targets {
         let node = match graph.nodes.get(pos) {
             Some(n) => n.clone(),
-            None => bail!("target node '{}' not present in graph", pos),
+            None => {
+                let msg = format!("target node '{}' not present in graph", pos);
+                return Err(CincinnatiError::FailedNodeLookup(msg));
+            }
         };
-        let release = Release::from_cincinnati(node)?;
+        let release = Release::from_cincinnati(node)
+            .map_err(|e| CincinnatiError::FailedNodeParsing(e.to_string()))?;
         updates.insert(release);
     }
 
