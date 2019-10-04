@@ -6,7 +6,7 @@
 //! https://github.com/coreos/airlock/pull/1.
 
 use crate::identity::Identity;
-use failure::{Error, Fail, Fallible, ResultExt};
+use failure::{Fail, Fallible, ResultExt};
 use futures::future;
 use futures::prelude::*;
 use reqwest::r#async as asynchro;
@@ -22,30 +22,66 @@ static V1_PRE_REBOOT: &str = "v1/pre-reboot";
 /// FleetLock steady-state API path endpoint (v1).
 static V1_STEADY_STATE: &str = "v1/steady-state";
 
-/// Error from lock manager.
-#[derive(Clone, Debug, Fail, Deserialize, Serialize, PartialEq, Eq)]
-pub struct LockRejection {
-    /// Endpoint that returned this rejection/error.
-    #[serde(skip)]
-    endpoint: String,
-    /// HTTP status code returned by the server.
-    #[serde(skip)]
-    status: reqwest::StatusCode,
+/// FleetLock JSON protocol: service error.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct RemoteJSONError {
     /// Machine-friendly brief error kind.
     kind: String,
     /// Human-friendly detailed error explanation.
     value: String,
 }
 
-impl std::fmt::Display for LockRejection {
+/// Error related to the FleetLock service.
+#[derive(Clone, Debug, Fail, PartialEq, Eq)]
+pub enum FleetLockError {
+    /// Remote endpoint error.
+    Remote(reqwest::StatusCode, RemoteJSONError),
+    /// Generic HTTP error.
+    HTTP(reqwest::StatusCode),
+    /// Client builder failed.
+    FailedClientBuilder(String),
+    /// Client failed request.
+    FailedRequest(String),
+}
+
+impl FleetLockError {
+    /// Return the machine-friendly brief error kind.
+    pub fn error_kind(&self) -> String {
+        match *self {
+            FleetLockError::Remote(_, ref err) => err.kind.clone(),
+            FleetLockError::HTTP(status) => format!("generic_http_{}", status.as_u16()),
+            FleetLockError::FailedClientBuilder(_) => "client_failed_build".to_string(),
+            FleetLockError::FailedRequest(_) => "client_failed_request".to_string(),
+        }
+    }
+
+    /// Return the human-friendly detailed error explanation.
+    pub fn error_value(&self) -> String {
+        match *self {
+            FleetLockError::Remote(_, ref err) => err.value.clone(),
+            FleetLockError::HTTP(_) => "(unknown/generic server error)".to_string(),
+            FleetLockError::FailedClientBuilder(ref err)
+            | FleetLockError::FailedRequest(ref err) => err.clone(),
+        }
+    }
+
+    /// Return the server-side error status code, if any.
+    pub fn status_code(&self) -> Option<u16> {
+        match *self {
+            FleetLockError::Remote(s, _) | FleetLockError::HTTP(s) => Some(s.as_u16()),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for FleetLockError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "lock manager {} rejection, code {}: {}",
-            self.endpoint,
-            self.status.as_u16(),
-            self.value
-        )
+        // Account for both server-side and client-side failures.
+        let context = match self.status_code() {
+            Some(s) => format!("server-side error, code {}", s),
+            None => "client-side error".to_string(),
+        };
+        write!(f, "{}: {}", context, self.error_value())
     }
 }
 
@@ -65,24 +101,36 @@ pub struct Client {
 impl Client {
     /// Try to lock a semaphore slot on the remote manager.
     ///
-    /// It returns `true` if the operation succeeds, or a `LockRejection`
+    /// It returns `true` if the operation succeeds, or a `FleetLockError`
     /// with the relevant error explanation.
-    pub fn pre_reboot(&self) -> impl Future<Item = bool, Error = Error> {
-        let req = self.new_request(Method::POST, V1_PRE_REBOOT);
+    pub fn pre_reboot(&self) -> impl Future<Item = bool, Error = FleetLockError> {
+        let req = self
+            .new_request(Method::POST, V1_PRE_REBOOT)
+            .map_err(|e| FleetLockError::FailedClientBuilder(e.to_string()));
+
         future::result(req)
-            .and_then(|req| req.send().from_err())
-            .and_then(|resp| Self::map_response(resp, "pre-reboot").from_err())
+            .and_then(|req| {
+                req.send()
+                    .map_err(|e| FleetLockError::FailedRequest(e.to_string()))
+            })
+            .and_then(|resp| Self::map_response(resp))
     }
 
     /// Try to unlock a semaphore slot on the remote manager.
     ///
-    /// It returns `true` if the operation succeeds, or a `LockRejection`
+    /// It returns `true` if the operation succeeds, or a `FleetLockError`
     /// with the relevant error explanation.
-    pub fn steady_state(&self) -> impl Future<Item = bool, Error = Error> {
-        let req = self.new_request(Method::POST, V1_STEADY_STATE);
+    pub fn steady_state(&self) -> impl Future<Item = bool, Error = FleetLockError> {
+        let req = self
+            .new_request(Method::POST, V1_STEADY_STATE)
+            .map_err(|e| FleetLockError::FailedClientBuilder(e.to_string()));
+
         future::result(req)
-            .and_then(|req| req.send().from_err())
-            .and_then(|resp| Self::map_response(resp, "steady-state").from_err())
+            .and_then(|req| {
+                req.send()
+                    .map_err(|e| FleetLockError::FailedRequest(e.to_string()))
+            })
+            .and_then(|resp| Self::map_response(resp))
     }
 
     /// Return a request builder for the target URL, with proper parameters set.
@@ -103,8 +151,7 @@ impl Client {
     /// Map an HTTP response to a service result.
     fn map_response(
         mut response: asynchro::Response,
-        api: &str,
-    ) -> Box<dyn Future<Item = bool, Error = LockRejection>> {
+    ) -> Box<dyn Future<Item = bool, Error = FleetLockError>> {
         // On success, short-circuit to `true`.
         let status = response.status();
         if status.is_success() {
@@ -112,26 +159,18 @@ impl Client {
         }
 
         // On error, decode failure details (or synthesize a generic error).
-        let endpoint = api.to_string();
         let rejection = response
-            .json::<LockRejection>()
+            .json::<RemoteJSONError>()
             .then(move |r| {
-                if let Ok(mut rej) = r {
-                    rej.status = status;
-                    rej.endpoint = endpoint;
-                    Err(rej)
+                if let Ok(rej) = r {
+                    Err(FleetLockError::Remote(status, rej))
                 } else {
-                    Err(LockRejection {
-                        status,
-                        endpoint,
-                        kind: format!("generic_http_{}", status.as_u16()),
-                        value: "(unknown server error)".to_string(),
-                    })
+                    Err(FleetLockError::HTTP(status))
                 }
             })
             // TODO(lucab): this is likely not needed and can eventually be dropped,
             //  see https://github.com/coreos/zincati/issues/35
-            .map(|_: LockRejection| false);
+            .map(|_: FleetLockError| false);
         Box::new(rejection)
     }
 }
@@ -226,36 +265,32 @@ mod tests {
 }
 "#;
         let response = Response::builder().status(466).body(err_body).unwrap();
-        let fut_rejection = Client::map_response(response.into(), "test-ep");
+        let fut_rejection = Client::map_response(response.into());
         let rejection = rt::block_on_all(fut_rejection).unwrap_err();
-        let expected_rejection = LockRejection {
-            status: StatusCode::from_u16(466).unwrap(),
-            endpoint: "test-ep".to_string(),
-            kind: "failure_foo".to_string(),
-            value: "failed to perform foo".to_string(),
-        };
+        let expected_rejection = FleetLockError::Remote(
+            StatusCode::from_u16(466).unwrap(),
+            RemoteJSONError {
+                kind: "failure_foo".to_string(),
+                value: "failed to perform foo".to_string(),
+            },
+        );
         assert_eq!(&rejection, &expected_rejection);
 
         let msg = rejection.to_string();
-        let expected_msg = "lock manager test-ep rejection, code 466: failed to perform foo";
+        let expected_msg = "server-side error, code 466: failed to perform foo";
         assert_eq!(&msg, expected_msg);
     }
 
     #[test]
     fn test_http_error_display() {
         let response = Response::builder().status(433).body("").unwrap();
-        let fut_rejection = Client::map_response(response.into(), "test-ep");
+        let fut_rejection = Client::map_response(response.into());
         let rejection = rt::block_on_all(fut_rejection).unwrap_err();
-        let expected_rejection = LockRejection {
-            status: StatusCode::from_u16(433).unwrap(),
-            endpoint: "test-ep".to_string(),
-            kind: "generic_http_433".to_string(),
-            value: "(unknown server error)".to_string(),
-        };
+        let expected_rejection = FleetLockError::HTTP(StatusCode::from_u16(433).unwrap());
         assert_eq!(&rejection, &expected_rejection);
 
         let msg = rejection.to_string();
-        let expected_msg = "lock manager test-ep rejection, code 433: (unknown server error)";
+        let expected_msg = "server-side error, code 433: (unknown/generic server error)";
         assert_eq!(&msg, expected_msg);
     }
 }
