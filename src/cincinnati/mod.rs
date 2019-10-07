@@ -23,6 +23,12 @@ pub static AGE_INDEX_KEY: &str = "org.fedoraproject.coreos.releases.age_index";
 /// Metadata key for payload scheme.
 pub static SCHEME_KEY: &str = "org.fedoraproject.coreos.scheme";
 
+/// Metadata key for dead-end sentinel.
+pub static DEADEND_KEY: &str = "org.fedoraproject.coreos.updates.deadend";
+
+/// Metadata key for dead-end reason.
+pub static DEADEND_REASON_KEY: &str = "org.fedoraproject.coreos.updates.deadend_reason";
+
 /// Metadata value for "checksum" payload scheme.
 pub static CHECKSUM_SCHEME: &str = "checksum";
 
@@ -35,6 +41,10 @@ lazy_static::lazy_static! {
         "zincati_cincinnati_graph_edges_count",
         "Number of edges in Cincinnati update graph."
     )).unwrap();
+    static ref BOOTED_DEADEND: IntGauge = register_int_gauge!(
+        "zincati_cincinnati_booted_release_is_deadend",
+        "Whether currently booted OS release is a dead-end."
+    ).unwrap();
     static ref UPDATE_CHECKS: IntCounter = register_int_counter!(opts!(
         "zincati_cincinnati_update_checks_total",
         "Total number of checks for updates to the upstream Cincinnati server."
@@ -132,15 +142,25 @@ fn find_update(
     );
 
     // Find booted deployment in graph.
-    let cur_position = match graph
+    let (cur_position, cur_release) = match graph
         .nodes
         .iter()
-        .position(|n| is_same_checksum(n, &booted_depl.checksum))
+        .enumerate()
+        .find(|(_, node)| is_same_checksum(node, &booted_depl.checksum))
     {
-        Some(pos) => pos,
+        Some(current) => current,
         None => return Ok(None),
     };
     drop(booted_depl);
+
+    // Evaluate and record whether booted OS is a dead-end release.
+    // TODO(lucab): consider exposing this information in more places
+    // (e.g. logs, motd, env/json file in a well-known location).
+    let is_deadend = match evaluate_deadend(&cur_release) {
+        Some(_) => 1,
+        None => 0,
+    };
+    BOOTED_DEADEND.set(is_deadend);
 
     // Try to find all local deployments in the graph too.
     let local_releases = find_local_releases(&graph, local_depls);
@@ -183,6 +203,7 @@ fn find_update(
     Ok(Some(next))
 }
 
+/// Try to match a set of (local) deployments to their graph entries.
 fn find_local_releases(graph: &client::Graph, depls: BTreeSet<Release>) -> BTreeSet<Release> {
     use std::collections::HashSet;
 
@@ -213,6 +234,33 @@ fn is_same_checksum(node: &Node, checksum: &str) -> bool {
     payload_is_checksum && node.payload == checksum
 }
 
+/// Check and record whether input node is a dead-end.
+///
+/// Note: this is usually only called on the node
+/// corresponding to the booted deployment.
+fn evaluate_deadend(node: &Node) -> Option<String> {
+    let node_is_deadend = node
+        .metadata
+        .get(DEADEND_KEY)
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
+    if !node_is_deadend {
+        return None;
+    }
+
+    let mut deadend_reason = node
+        .metadata
+        .get(DEADEND_REASON_KEY)
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    if deadend_reason.is_empty() {
+        deadend_reason = "(unknown reason)".to_string();
+    }
+
+    Some(deadend_reason)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,5 +285,38 @@ mod tests {
             metadata: HashMap::new(),
         };
         assert!(!is_same_checksum(&mismatch, current));
+    }
+
+    #[test]
+    fn deadend_node() {
+        let deadend_json = r#"
+{
+  "version": "30.20190716.1",
+  "metadata": {
+    "org.fedoraproject.coreos.releases.age_index": "0",
+    "org.fedoraproject.coreos.scheme": "checksum",
+    "org.fedoraproject.coreos.updates.deadend": "true",
+    "org.fedoraproject.coreos.updates.deadend_reason": "https://github.com/coreos/fedora-coreos-tracker/issues/215"
+  },
+  "payload": "ff4803b069b5a10e5bee2f6bb0027117637559d813c2016e27d57b309dd09d6f"
+}
+"#;
+        let deadend: Node = serde_json::from_str(deadend_json).unwrap();
+        let reason = "https://github.com/coreos/fedora-coreos-tracker/issues/215".to_string();
+        assert_eq!(evaluate_deadend(&deadend), Some(reason));
+
+        let common_json = r#"
+{
+  "version": "30.20190725.0",
+  "metadata": {
+    "org.fedoraproject.coreos.releases.age_index": "1",
+    "org.fedoraproject.coreos.scheme": "checksum"
+  },
+  "payload": "8b79877efa7ac06becd8637d95f8ca83aa385f89f383288bf3c2c31ca53216c7"
+}
+"#;
+
+        let common: Node = serde_json::from_str(common_json).unwrap();
+        assert_eq!(evaluate_deadend(&common), None);
     }
 }
