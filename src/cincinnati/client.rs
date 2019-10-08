@@ -72,7 +72,7 @@ impl CincinnatiError {
             CincinnatiError::FailedJSONDecoding(_) => "client_failed_json_decoding".to_string(),
             CincinnatiError::FailedNodeLookup(_) => "client_failed_node_lookup".to_string(),
             CincinnatiError::FailedNodeParsing(_) => "client_failed_node_parsing".to_string(),
-            CincinnatiError::FailedRequest(_) => "client_failed_json_decoding".to_string(),
+            CincinnatiError::FailedRequest(_) => "client_failed_request".to_string(),
         }
     }
 

@@ -89,7 +89,9 @@ impl Cincinnati {
         log::trace!("checking upstream Cincinnati server for updates");
 
         let update = self.next_update(id, deployments).map_err(|e| {
-            UPDATE_CHECKS_ERRORS.with_label_values(&[&e.error_kind()]).inc();
+            UPDATE_CHECKS_ERRORS
+                .with_label_values(&[&e.error_kind()])
+                .inc();
             log::error!("failed to check Cincinnati for updates: {}", e)
         });
         Box::new(update)

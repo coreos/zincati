@@ -3,11 +3,25 @@
 use crate::config::inputs;
 use crate::fleet_lock::{Client, ClientBuilder};
 use crate::identity::Identity;
-use failure::{Error, Fallible};
+use failure::{format_err, Error, Fallible};
 use futures::future;
 use futures::prelude::*;
 use log::trace;
+use prometheus::IntCounterVec;
 use serde::Serialize;
+
+lazy_static::lazy_static! {
+    static ref FLEET_LOCK_REQUESTS: IntCounterVec = register_int_counter_vec!(
+        "zincati_strategy_fleet_lock_requests_total",
+        "Total number of requests to the FleetLock server.",
+        &["api"]
+    ).unwrap();
+    static ref FLEET_LOCK_ERRORS: IntCounterVec = register_int_counter_vec!(
+        "zincati_strategy_fleet_lock_errors_total",
+        "Total number of errors while talking to the FleetLock server.",
+        &["api", "kind"]
+    ).unwrap();
+}
 
 /// Strategy for remote coordination.
 #[derive(Clone, Debug, Serialize)]
@@ -41,16 +55,32 @@ impl StrategyFleetLock {
 
     /// Check if finalization is allowed.
     pub(crate) fn can_finalize(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
+        let api = "pre-reboot";
+        FLEET_LOCK_REQUESTS.with_label_values(&[api]).inc();
         trace!("fleet_lock strategy, checking whether update can be finalized");
 
-        Box::new(self.client.pre_reboot())
+        let res = self.client.pre_reboot().map_err(move |e| {
+            FLEET_LOCK_ERRORS
+                .with_label_values(&[api, &e.error_kind()])
+                .inc();
+            format_err!("lock-manager {} failure: {}", api, e)
+        });
+        Box::new(res)
     }
 
     /// Try to report steady state.
     pub(crate) fn report_steady(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
+        let api = "steady-state";
+        FLEET_LOCK_REQUESTS.with_label_values(&[api]).inc();
         trace!("fleet_lock strategy, attempting to report steady");
 
-        Box::new(self.client.steady_state())
+        let res = self.client.steady_state().map_err(move |e| {
+            FLEET_LOCK_ERRORS
+                .with_label_values(&[api, &e.error_kind()])
+                .inc();
+            format_err!("lock-manager {} failure: {}", api, e)
+        });
+        Box::new(res)
     }
 
     /// Check if fetching updates is allowed
