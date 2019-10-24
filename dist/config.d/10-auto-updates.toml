@@ -4,3 +4,8 @@
 # Boolean to enable auto-update logic.
 # There is almost no case where disabling this is a good idea.
 enabled = true
+
+# Boolean to allow downgrading via updates logic.
+# This provides an additional safety net against rogue servers,
+# and allowing downgrades via Zincati is generally not recommended.
+allow_downgrade = false

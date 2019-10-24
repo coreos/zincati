@@ -90,6 +90,7 @@ impl Cincinnati {
         id: &Identity,
         deployments: BTreeSet<Release>,
         can_check: bool,
+        allow_downgrade: bool,
     ) -> Box<dyn Future<Item = Option<Release>, Error = ()>> {
         if !can_check {
             return Box::new(futures::future::ok(None));
@@ -98,12 +99,14 @@ impl Cincinnati {
         UPDATE_CHECKS.inc();
         log::trace!("checking upstream Cincinnati server for updates");
 
-        let update = self.next_update(id, deployments).map_err(|e| {
-            UPDATE_CHECKS_ERRORS
-                .with_label_values(&[&e.error_kind()])
-                .inc();
-            log::error!("failed to check Cincinnati for updates: {}", e)
-        });
+        let update = self
+            .next_update(id, deployments, allow_downgrade)
+            .map_err(|e| {
+                UPDATE_CHECKS_ERRORS
+                    .with_label_values(&[&e.error_kind()])
+                    .inc();
+                log::error!("failed to check Cincinnati for updates: {}", e)
+            });
         Box::new(update)
     }
 
@@ -112,6 +115,7 @@ impl Cincinnati {
         &self,
         id: &Identity,
         deployments: BTreeSet<Release>,
+        allow_downgrade: bool,
     ) -> Box<dyn Future<Item = Option<Release>, Error = CincinnatiError>> {
         let booted = id.current_os.clone();
         let params = id.cincinnati_params();
@@ -122,7 +126,7 @@ impl Cincinnati {
 
         let next = future::result(client)
             .and_then(|c| c.fetch_graph())
-            .and_then(move |graph| find_update(graph, booted, deployments));
+            .and_then(move |graph| find_update(graph, booted, deployments, allow_downgrade));
         Box::new(next)
     }
 }
@@ -132,6 +136,7 @@ fn find_update(
     graph: client::Graph,
     booted_depl: Release,
     local_depls: BTreeSet<Release>,
+    allow_downgrade: bool,
 ) -> Result<Option<Release>, CincinnatiError> {
     GRAPH_NODES.set(graph.nodes.len() as i64);
     GRAPH_EDGES.set(graph.edges.len() as i64);
@@ -142,7 +147,7 @@ fn find_update(
     );
 
     // Find booted deployment in graph.
-    let (cur_position, cur_release) = match graph
+    let (cur_position, cur_node) = match graph
         .nodes
         .iter()
         .enumerate()
@@ -152,11 +157,13 @@ fn find_update(
         None => return Ok(None),
     };
     drop(booted_depl);
+    let cur_release = Release::from_cincinnati(cur_node.clone())
+        .map_err(|e| CincinnatiError::FailedNodeParsing(e.to_string()))?;
 
     // Evaluate and record whether booted OS is a dead-end release.
     // TODO(lucab): consider exposing this information in more places
     // (e.g. logs, motd, env/json file in a well-known location).
-    let is_deadend = match evaluate_deadend(&cur_release) {
+    let is_deadend = match evaluate_deadend(&cur_node) {
         Some(_) => 1,
         None => 0,
     };
@@ -199,6 +206,15 @@ fn find_update(
         Some(rel) => rel,
         None => return Ok(None),
     };
+
+    // Check for downgrades.
+    if next <= cur_release {
+        log::warn!("downgrade hint towards target release '{}'", next.version);
+        if !allow_downgrade {
+            log::warn!("update hint rejected, downgrades are not allowed by configuration");
+            return Ok(None);
+        }
+    }
 
     Ok(Some(next))
 }

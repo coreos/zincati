@@ -55,6 +55,24 @@ For further documentation on configurations, check the [updates strategy][update
 [strategy-fleet_lock]: updates-strategy.md#lock-based-strategy
 [updates-strategy]: updates-strategy.md
 
+## Updates ordering and downgrades
+
+OS updates have a strict ascending ordering called "age index", which is based on the date and time of release.
+Versions that have been released earlier in time have a lower index than recent ones.
+
+Zincati uses this absolute ordering to prefer newer releases (i.e. with higher age index) when multiple updates are available at the same time.
+By default, this ordering is also used to prevent automatic downgrades.
+
+For custom environments where automatic downgrades have to be supported, the following configuration snippet can be used to enable them:
+
+```toml
+[updates]
+allow_downgrade = true
+```
+
+Enabling such logic removes an additional safety check, and may allow rogue Cincinnati servers to induce downgrades to old releases with known security vulnerabilities.
+It is generally not recommended to allow and perform automatic downgrades via Zincati.
+
 ## Disabling auto-updates
 
 To disable auto-updates, a configuration snippet containing the following has to be installed on the system:

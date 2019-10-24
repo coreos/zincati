@@ -103,6 +103,7 @@ mod tests {
     fn test_url_simple() {
         let id = Identity::mock_default();
         let input = UpdateInput {
+            allow_downgrade: false,
             enabled: true,
             strategy: "fleet_lock".to_string(),
             fleet_lock: FleetLockInput {
@@ -118,6 +119,7 @@ mod tests {
     fn test_empty_url() {
         let id = Identity::mock_default();
         let input = UpdateInput {
+            allow_downgrade: false,
             enabled: true,
             strategy: "fleet_lock".to_string(),
             fleet_lock: FleetLockInput {

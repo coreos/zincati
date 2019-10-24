@@ -45,9 +45,67 @@ fn test_simple_graph() {
     let client = Cincinnati {
         base_url: mockito::server_url(),
     };
-    let update = rt::block_on_all(client.fetch_update_hint(&id, BTreeSet::new(), true)).unwrap();
+    let update =
+        rt::block_on_all(client.fetch_update_hint(&id, BTreeSet::new(), true, false)).unwrap();
     m_graph.assert();
 
     let next = update.unwrap();
+    assert_eq!(next.version, "30.20190725.0")
+}
+
+#[test]
+fn test_downgrade() {
+    let simple_graph = r#"
+{
+  "nodes": [
+    {
+      "version": "30.20190725.0",
+      "metadata": {
+        "org.fedoraproject.coreos.scheme": "checksum",
+        "org.fedoraproject.coreos.releases.age_index": "0"
+      },
+      "payload": "8b79877efa7ac06becd8637d95f8ca83aa385f89f383288bf3c2c31ca53216c7"
+    },
+    {
+      "version": "0.0.0-mock",
+      "metadata": {
+        "org.fedoraproject.coreos.scheme": "checksum",
+        "org.fedoraproject.coreos.releases.age_index": "1"
+      },
+      "payload": "sha-mock"
+    }
+  ],
+  "edges": [
+    [
+      1,
+      0
+    ]
+  ]
+}
+"#;
+
+    let m_graph = mockito::mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
+        .match_header("accept", Matcher::Regex("application/json".to_string()))
+        .with_body(&simple_graph)
+        .with_status(200)
+        .expect(2)
+        .create();
+
+    let id = Identity::mock_default();
+    let client = Cincinnati {
+        base_url: mockito::server_url(),
+    };
+
+    // Downgrades denied.
+    let upgrade =
+        rt::block_on_all(client.fetch_update_hint(&id, BTreeSet::new(), true, false)).unwrap();
+    assert_eq!(upgrade, None);
+
+    // Downgrades allowed.
+    let downgrade =
+        rt::block_on_all(client.fetch_update_hint(&id, BTreeSet::new(), true, true)).unwrap();
+
+    m_graph.assert();
+    let next = downgrade.unwrap();
     assert_eq!(next.version, "30.20190725.0")
 }

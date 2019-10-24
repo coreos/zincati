@@ -16,10 +16,10 @@ lazy_static::lazy_static! {
 }
 
 /// Deploy an upgrade (by checksum) and leave the new deployment locked.
-pub fn deploy_locked(release: Release) -> Fallible<Release> {
+pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Fallible<Release> {
     DEPLOY_ATTEMPTS.inc();
 
-    let result = invoke_cli(release);
+    let result = invoke_cli(release, allow_downgrade);
     if result.is_err() {
         DEPLOY_FAILURES.inc();
     }
@@ -28,21 +28,26 @@ pub fn deploy_locked(release: Release) -> Fallible<Release> {
 }
 
 /// CLI executor.
-fn invoke_cli(release: Release) -> Fallible<Release> {
+fn invoke_cli(release: Release, allow_downgrade: bool) -> Fallible<Release> {
     fail_point!("deploy_locked_err", |_| bail!("deploy_locked_err"));
     fail_point!("deploy_locked_ok", |_| Ok(release.clone()));
 
-    let cmd = std::process::Command::new("rpm-ostree")
-        .arg("deploy")
+    let mut cmd = std::process::Command::new("rpm-ostree");
+    cmd.arg("deploy")
         .arg("--lock-finalization")
-        .arg(format!("revision={}", release.checksum))
+        .arg(format!("revision={}", release.checksum));
+    if !allow_downgrade {
+        cmd.arg("--disallow-downgrade");
+    }
+
+    let out = cmd
         .output()
         .with_context(|e| format_err!("failed to run rpm-ostree: {}", e))?;
 
-    if !cmd.status.success() {
+    if !out.status.success() {
         bail!(
             "rpm-ostree deploy failed:\n{}",
-            String::from_utf8_lossy(&cmd.stderr)
+            String::from_utf8_lossy(&out.stderr)
         );
     }
     Ok(release)
@@ -64,7 +69,7 @@ mod tests {
             checksum: "bar".to_string(),
             age_index: None,
         };
-        let result = deploy_locked(release);
+        let result = deploy_locked(release, true);
         assert!(result.is_err());
         assert!(DEPLOY_ATTEMPTS.get() >= 1);
         assert!(DEPLOY_FAILURES.get() >= 1);
@@ -81,7 +86,7 @@ mod tests {
             checksum: "bar".to_string(),
             age_index: None,
         };
-        let result = deploy_locked(release.clone()).unwrap();
+        let result = deploy_locked(release.clone(), true).unwrap();
         assert_eq!(result, release);
         assert!(DEPLOY_ATTEMPTS.get() >= 1);
     }
