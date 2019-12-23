@@ -29,7 +29,7 @@ rand = "^0.7.2"
 reqwest = "^0.9.24"
 serde = { version = "^1.0.104", features = ["derive"] }
 serde_json = "^1.0.44"
-structopt = "^0.3.5"
+structopt = "^0.3.6"
 tokio = "^0.1.22"
 toml = "^0.5.5"
 url_serde = "^0.2.0"
