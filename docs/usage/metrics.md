@@ -16,7 +16,7 @@ To gather metrics from a locally running Zincati instance, it is sufficient to c
 For example, manual inspection can be performed via `ncat`:
 
 ```
-$ sudo ncat -U --recv-only /run/zincati/private/metrics.promsock
+$ sudo socat - UNIX-CONNECT:/run/zincati/private/metrics.promsock
 
 # HELP zincati_update_agent_last_refresh_timestamp UTC timestamp of update-agent last refresh tick.
 # TYPE zincati_update_agent_last_refresh_timestamp gauge
