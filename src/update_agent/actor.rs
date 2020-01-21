@@ -7,6 +7,7 @@ use failure::Error;
 use log::trace;
 use prometheus::IntGauge;
 use std::collections::BTreeSet;
+use std::time::Duration;
 
 lazy_static::lazy_static! {
     static ref ALLOW_DOWNGRADE: IntGauge = register_int_gauge!(opts!(
@@ -76,7 +77,8 @@ impl Handler<RefreshTick> for UpdateAgent {
                 actor.state_changed = update_timestamp;
                 Self::tick_now(ctx);
             } else {
-                let pause = Self::add_jitter(actor.refresh_period);
+                let interval = actor.refresh_delay();
+                let pause = Self::add_jitter(interval);
                 log::trace!(
                     "scheduling next agent refresh in {} seconds",
                     pause.as_secs()
@@ -102,6 +104,20 @@ impl UpdateAgent {
     /// Schedule a delayed refresh of the state machine.
     pub fn tick_later(ctx: &mut Context<Self>, after: std::time::Duration) -> actix::SpawnHandle {
         ctx.notify_later(RefreshTick {}, after)
+    }
+
+    /// Pausing interval between state-machine refresh cycles.
+    ///
+    /// This influences the pace of the update-agent refresh loop. Timing of the
+    /// state machine is not uniform. Some states benefit from more/less
+    /// frequent refreshes, or can be customized by the user.
+    fn refresh_delay(&self) -> Duration {
+        let default_delay = Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS);
+
+        match self.state {
+            UpdateAgentState::Steady => self.steady_interval,
+            _ => default_delay,
+        }
     }
 
     /// Add a small, random amount (0% to 10%) of jitter to a given period.

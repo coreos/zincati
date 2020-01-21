@@ -130,8 +130,8 @@ pub(crate) struct UpdateAgent {
     enabled: bool,
     /// Agent identity.
     identity: Identity,
-    /// State machine tick/refresh period.
-    refresh_period: Duration,
+    /// Refresh interval in steady state.
+    steady_interval: Duration,
     /// rpm-ostree client actor.
     rpm_ostree_actor: Addr<RpmOstreeClient>,
     /// Update strategy.
@@ -157,7 +157,7 @@ impl UpdateAgent {
             // TODO(lucab): consider tweaking this
             //   * maybe configurable, in minutes?
             //   * maybe more granular, per-state?
-            refresh_period: Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS),
+            steady_interval: Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS),
             state: UpdateAgentState::default(),
             strategy: cfg.strategy,
             state_changed: chrono::Utc::now(),
