@@ -231,7 +231,7 @@ impl ClientBuilder {
     pub fn build(self) -> Fallible<Client> {
         let hclient = match self.hclient {
             Some(client) => client,
-            None => asynchro::ClientBuilder::new().build()?,
+            None => asynchro::ClientBuilder::new().use_sys_proxy().build()?,
         };
 
         let api_base = reqwest::Url::parse(&self.api_base)
