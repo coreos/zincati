@@ -1,0 +1,5 @@
+# Configure agent timing.
+[agent.timing]
+
+# Pausing interval between updates checks in steady mode, in seconds.
+steady_interval_secs = 300

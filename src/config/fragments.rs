@@ -2,10 +2,13 @@
 
 use ordered_float::NotNan;
 use serde::Deserialize;
+use std::num::NonZeroU64;
 
 /// Top-level configuration stanza.
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub(crate) struct ConfigFragment {
+    /// Agent configuration.
+    pub(crate) agent: Option<AgentFragment>,
     /// Cincinnati client configuration.
     pub(crate) cincinnati: Option<CincinnatiFragment>,
     /// Agent identity.
@@ -14,6 +17,21 @@ pub(crate) struct ConfigFragment {
     pub(crate) updates: Option<UpdateFragment>,
 }
 
+/// Config fragment for agent settings.
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub(crate) struct AgentFragment {
+    /// Timing settings for the agent.
+    pub(crate) timing: Option<AgentTiming>,
+}
+
+/// Config fragment for agent timing.
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub(crate) struct AgentTiming {
+    /// Pausing interval between updates checks in steady mode, in seconds (default: 300).
+    pub(crate) steady_interval_secs: Option<NonZeroU64>,
+}
+
+// Config fragment for agent identity.
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub(crate) struct IdentityFragment {
     /// Update group for this agent (default: 'default')
@@ -65,6 +83,11 @@ mod tests {
         let cfg: ConfigFragment = toml::from_slice(&content).unwrap();
 
         let expected = ConfigFragment {
+            agent: Some(AgentFragment {
+                timing: Some(AgentTiming {
+                    steady_interval_secs: Some(NonZeroU64::new(35).unwrap()),
+                }),
+            }),
             cincinnati: Some(CincinnatiFragment {
                 base_url: Some("http://cincinnati.example.com:80/".to_string()),
             }),

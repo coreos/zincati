@@ -1,3 +1,6 @@
+[agent.timing]
+steady_interval_secs = 35
+
 [identity]
 group = "workers"
 node_uuid = "27e3ac02af3946af995c9940e18b0cce"
