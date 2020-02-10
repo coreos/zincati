@@ -127,7 +127,7 @@ impl Client {
         let result = future::result(req)
             .and_then(|req| req.send().from_err())
             .map_err(move |e| CincinnatiError::FailedRequest(e.to_string()))
-            .and_then(|resp| Self::map_response(resp));
+            .and_then(Self::map_response);
         Box::new(result)
     }
 

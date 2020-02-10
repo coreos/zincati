@@ -113,7 +113,7 @@ impl Client {
                 req.send()
                     .map_err(|e| FleetLockError::FailedRequest(e.to_string()))
             })
-            .and_then(|resp| Self::map_response(resp))
+            .and_then(Self::map_response)
     }
 
     /// Try to unlock a semaphore slot on the remote manager.
@@ -130,7 +130,7 @@ impl Client {
                 req.send()
                     .map_err(|e| FleetLockError::FailedRequest(e.to_string()))
             })
-            .and_then(|resp| Self::map_response(resp))
+            .and_then(Self::map_response)
     }
 
     /// Return a request builder for the target URL, with proper parameters set.
