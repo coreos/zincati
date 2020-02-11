@@ -13,7 +13,9 @@ use prometheus::IntGauge;
 use std::time::Duration;
 
 /// Default tick/refresh period for the state machine (in seconds).
-const DEFAULT_REFRESH_PERIOD_SECS: u64 = 5 * 60;
+const DEFAULT_REFRESH_PERIOD_SECS: u64 = 300; // 5 minutes.
+/// Default refresh interval for steady state (in seconds).
+pub(crate) const DEFAULT_STEADY_INTERVAL_SECS: u64 = 300; // 5 minutes.
 
 lazy_static::lazy_static! {
     static ref LATEST_STATE_CHANGE: IntGauge = register_int_gauge!(opts!(
@@ -148,21 +150,21 @@ impl UpdateAgent {
         cfg: Settings,
         rpm_ostree_addr: Addr<RpmOstreeClient>,
     ) -> failure::Fallible<Self> {
+        let steady_secs = cfg.steady_interval_secs.get();
         let agent = UpdateAgent {
             allow_downgrade: cfg.allow_downgrade,
             cincinnati: cfg.cincinnati,
             enabled: cfg.enabled,
             identity: cfg.identity,
             rpm_ostree_actor: rpm_ostree_addr,
-            // TODO(lucab): consider tweaking this
-            //   * maybe configurable, in minutes?
-            //   * maybe more granular, per-state?
-            steady_interval: Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS),
+            steady_interval: Duration::from_secs(steady_secs),
             state: UpdateAgentState::default(),
             strategy: cfg.strategy,
             state_changed: chrono::Utc::now(),
         };
 
+        // TODO(lucab): consider adding more metrics here
+        //  (e.g. steady interval, downgrade allowed, etc.)
         UPDATES_ENABLED.set(i64::from(cfg.enabled));
 
         Ok(agent)

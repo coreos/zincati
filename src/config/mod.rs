@@ -16,6 +16,7 @@ use crate::identity::Identity;
 use crate::strategy::UpdateStrategy;
 use failure::{Fallible, ResultExt};
 use serde::Serialize;
+use std::num::NonZeroU64;
 use structopt::clap::crate_name;
 
 /// Runtime configuration for the agent.
@@ -27,6 +28,8 @@ pub(crate) struct Settings {
     pub(crate) allow_downgrade: bool,
     /// Whether to enable auto-updates logic.
     pub(crate) enabled: bool,
+    /// Agent timing, steady state refresh period.
+    pub(crate) steady_interval_secs: NonZeroU64,
     /// Cincinnati configuration.
     pub(crate) cincinnati: Cincinnati,
     /// Agent configuration.
@@ -53,6 +56,7 @@ impl Settings {
     fn validate(cfg: inputs::ConfigInput) -> Fallible<Self> {
         let allow_downgrade = cfg.updates.allow_downgrade;
         let enabled = cfg.updates.enabled;
+        let steady_interval_secs = cfg.agent.steady_interval_secs;
         let identity = Identity::with_config(cfg.identity)
             .context("failed to validate agent identity configuration")?;
         let strategy = UpdateStrategy::with_config(cfg.updates, &identity)
@@ -63,6 +67,7 @@ impl Settings {
         Ok(Self {
             allow_downgrade,
             enabled,
+            steady_interval_secs,
             cincinnati,
             identity,
             strategy,

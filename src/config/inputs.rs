@@ -1,12 +1,15 @@
 use crate::config::fragments;
+use crate::update_agent::DEFAULT_STEADY_INTERVAL_SECS;
 use failure::{Fallible, ResultExt};
 use log::trace;
 use ordered_float::NotNan;
 use serde::Serialize;
+use std::num::NonZeroU64;
 
 /// Runtime configuration holding environmental inputs.
 #[derive(Debug, Serialize)]
 pub(crate) struct ConfigInput {
+    pub(crate) agent: AgentInput,
     pub(crate) cincinnati: CincinnatiInput,
     pub(crate) updates: UpdateInput,
     pub(crate) identity: IdentityInput,
@@ -46,11 +49,15 @@ impl ConfigInput {
 
     /// Merge multiple fragments into a single configuration.
     fn merge_fragments(fragments: Vec<fragments::ConfigFragment>) -> Self {
+        let mut agents = vec![];
         let mut cincinnatis = vec![];
         let mut updates = vec![];
         let mut identities = vec![];
 
         for snip in fragments {
+            if let Some(a) = snip.agent {
+                agents.push(a);
+            }
             if let Some(c) = snip.cincinnati {
                 cincinnatis.push(c);
             }
@@ -63,10 +70,36 @@ impl ConfigInput {
         }
 
         Self {
+            agent: AgentInput::from_fragments(agents),
             cincinnati: CincinnatiInput::from_fragments(cincinnatis),
             updates: UpdateInput::from_fragments(updates),
             identity: IdentityInput::from_fragments(identities),
         }
+    }
+}
+
+/// Config for the agent.
+#[derive(Debug, Serialize)]
+pub(crate) struct AgentInput {
+    pub(crate) steady_interval_secs: NonZeroU64,
+}
+
+impl AgentInput {
+    fn from_fragments(fragments: Vec<fragments::AgentFragment>) -> Self {
+        let mut cfg = Self {
+            steady_interval_secs: NonZeroU64::new(DEFAULT_STEADY_INTERVAL_SECS)
+                .expect("non-zero interval"),
+        };
+
+        for snip in fragments {
+            if let Some(timing) = snip.timing {
+                if let Some(s) = timing.steady_interval_secs {
+                    cfg.steady_interval_secs = s;
+                }
+            }
+        }
+
+        cfg
     }
 }
 
