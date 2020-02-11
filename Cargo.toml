@@ -48,9 +48,8 @@ lto = true
 
 [package.metadata.release]
 sign-commit = true
-upload-doc = false
 disable-publish = true
 disable-push = true
 pre-release-commit-message = "cargo: zincati release {{version}}"
-pro-release-commit-message = "cargo: development version bump"
+post-release-commit-message = "cargo: development version bump"
 tag-message = "zincati {{version}}"
