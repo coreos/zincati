@@ -12,9 +12,13 @@ use futures::prelude::*;
 use reqwest::r#async as asynchro;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[cfg(test)]
 mod mock_tests;
+
+/// Default timeout for HTTP requests completion (30 minutes).
+const DEFAULT_HTTP_COMPLETION_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// FleetLock pre-reboot API path endpoint (v1).
 static V1_PRE_REBOOT: &str = "v1/pre-reboot";
@@ -231,7 +235,10 @@ impl ClientBuilder {
     pub fn build(self) -> Fallible<Client> {
         let hclient = match self.hclient {
             Some(client) => client,
-            None => asynchro::ClientBuilder::new().use_sys_proxy().build()?,
+            None => asynchro::ClientBuilder::new()
+                .use_sys_proxy()
+                .timeout(DEFAULT_HTTP_COMPLETION_TIMEOUT)
+                .build()?,
         };
 
         let api_base = reqwest::Url::parse(&self.api_base)
