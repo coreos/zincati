@@ -15,6 +15,10 @@ use reqwest::r#async as asynchro;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::Duration;
+
+/// Default timeout for HTTP requests completion (30 minutes).
+const DEFAULT_HTTP_COMPLETION_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// Cincinnati graph API path endpoint (v1).
 static V1_GRAPH_PATH: &str = "v1/graph";
@@ -214,7 +218,10 @@ impl ClientBuilder {
     pub fn build(self) -> Fallible<Client> {
         let hclient = match self.hclient {
             Some(client) => client,
-            None => asynchro::ClientBuilder::new().use_sys_proxy().build()?,
+            None => asynchro::ClientBuilder::new()
+                .use_sys_proxy()
+                .timeout(DEFAULT_HTTP_COMPLETION_TIMEOUT)
+                .build()?,
         };
         let query_params = match self.query_params {
             Some(params) => params,
