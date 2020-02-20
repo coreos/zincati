@@ -4,8 +4,6 @@ use actix::prelude::*;
 use failure::{Fallible, ResultExt};
 use std::os::unix::net as std_net;
 use tokio::net as tokio_net;
-use tokio::prelude::*;
-use tokio::reactor;
 
 /// Unix socket path.
 static SOCKET_PATH: &str = "/run/zincati/private/metrics.promsock";
@@ -37,9 +35,12 @@ impl MetricsService {
 }
 
 /// Incoming Unix-domain socket connection.
-#[derive(Message)]
 struct Connection {
     stream: tokio_net::UnixStream,
+}
+
+impl Message for Connection {
+    type Result = ();
 }
 
 impl Actor for MetricsService {
@@ -50,13 +51,21 @@ impl Actor for MetricsService {
             .listener
             .try_clone()
             .expect("failed to clone metrics listener");
-        let async_listener =
-            tokio_net::UnixListener::from_std(listener, &reactor::Handle::default())
-                .expect("failed to create async metrics listener");
+        let async_listener = tokio_net::UnixListener::from_std(listener)
+            .expect("failed to create async metrics listener");
 
-        let connections = async_listener
-            .incoming()
-            .map(|stream| Connection { stream });
+        // This uses manual stream unfolding in order to keep the async listener
+        // alive for the whole duration of the stream.
+        let connections = futures::stream::unfold(async_listener, |mut l| async move {
+            loop {
+                let next = l.accept().await;
+                if let Ok((stream, _addr)) = next {
+                    let conn = Connection { stream };
+                    break Some((conn, l));
+                }
+            }
+        });
+
         ctx.add_stream(connections);
 
         log::debug!(
@@ -74,10 +83,9 @@ impl actix::io::WriteHandler<std::io::Error> for MetricsService {
     fn finished(&mut self, _ctx: &mut Self::Context) {}
 }
 
-impl StreamHandler<Connection, std::io::Error> for MetricsService {
+impl StreamHandler<Connection> for MetricsService {
     fn handle(&mut self, item: Connection, ctx: &mut Context<MetricsService>) {
-        let (_, sink) = item.stream.split();
-        let mut wr = actix::io::Writer::new(sink, ctx);
+        let mut wr = actix::io::Writer::new(item.stream, ctx);
         if let Ok(metrics) = MetricsService::prometheus_text_encode() {
             wr.write(&metrics);
         }

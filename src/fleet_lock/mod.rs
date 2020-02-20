@@ -7,9 +7,7 @@
 
 use crate::identity::Identity;
 use failure::{Fail, Fallible, ResultExt};
-use futures::future;
 use futures::prelude::*;
-use reqwest::r#async as asynchro;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -97,7 +95,7 @@ pub struct Client {
     api_base: reqwest::Url,
     /// Asynchronous reqwest client.
     #[serde(skip)]
-    hclient: asynchro::Client,
+    hclient: reqwest::Client,
     /// Request body.
     body: String,
 }
@@ -107,12 +105,12 @@ impl Client {
     ///
     /// It returns `true` if the operation succeeds, or a `FleetLockError`
     /// with the relevant error explanation.
-    pub fn pre_reboot(&self) -> impl Future<Item = bool, Error = FleetLockError> {
+    pub fn pre_reboot(&self) -> impl Future<Output = Result<bool, FleetLockError>> {
         let req = self
             .new_request(Method::POST, V1_PRE_REBOOT)
             .map_err(|e| FleetLockError::FailedClientBuilder(e.to_string()));
 
-        future::result(req)
+        futures::future::ready(req)
             .and_then(|req| {
                 req.send()
                     .map_err(|e| FleetLockError::FailedRequest(e.to_string()))
@@ -124,12 +122,12 @@ impl Client {
     ///
     /// It returns `true` if the operation succeeds, or a `FleetLockError`
     /// with the relevant error explanation.
-    pub fn steady_state(&self) -> impl Future<Item = bool, Error = FleetLockError> {
+    pub fn steady_state(&self) -> impl Future<Output = Result<bool, FleetLockError>> {
         let req = self
             .new_request(Method::POST, V1_STEADY_STATE)
             .map_err(|e| FleetLockError::FailedClientBuilder(e.to_string()));
 
-        future::result(req)
+        futures::future::ready(req)
             .and_then(|req| {
                 req.send()
                     .map_err(|e| FleetLockError::FailedRequest(e.to_string()))
@@ -142,7 +140,7 @@ impl Client {
         &self,
         method: reqwest::Method,
         url_suffix: S,
-    ) -> Fallible<asynchro::RequestBuilder> {
+    ) -> Fallible<reqwest::RequestBuilder> {
         let url = self.api_base.clone().join(url_suffix.as_ref())?;
         let builder = self
             .hclient
@@ -153,29 +151,18 @@ impl Client {
     }
 
     /// Map an HTTP response to a service result.
-    fn map_response(
-        mut response: asynchro::Response,
-    ) -> Box<dyn Future<Item = bool, Error = FleetLockError>> {
+    async fn map_response(response: reqwest::Response) -> Result<bool, FleetLockError> {
         // On success, short-circuit to `true`.
         let status = response.status();
         if status.is_success() {
-            return Box::new(future::ok(true));
+            return Ok(true);
         }
 
         // On error, decode failure details (or synthesize a generic error).
-        let rejection = response
-            .json::<RemoteJSONError>()
-            .then(move |r| {
-                if let Ok(rej) = r {
-                    Err(FleetLockError::Remote(status, rej))
-                } else {
-                    Err(FleetLockError::HTTP(status))
-                }
-            })
-            // TODO(lucab): this is likely not needed and can eventually be dropped,
-            //  see https://github.com/coreos/zincati/issues/35
-            .map(|_: FleetLockError| false);
-        Box::new(rejection)
+        match response.json::<RemoteJSONError>().await {
+            Ok(rej) => Err(FleetLockError::Remote(status, rej)),
+            _ => Err(FleetLockError::HTTP(status)),
+        }
     }
 }
 
@@ -185,7 +172,7 @@ pub struct ClientBuilder {
     /// Base URL for API endpoint (mandatory).
     api_base: String,
     /// Asynchronous reqwest client (custom).
-    hclient: Option<asynchro::Client>,
+    hclient: Option<reqwest::Client>,
     /// Client identity.
     client_identity: ClientIdentity,
 }
@@ -225,7 +212,7 @@ impl ClientBuilder {
 
     /// Set (or reset) the HTTP client to use.
     #[allow(dead_code)]
-    pub fn http_client(self, hclient: Option<asynchro::Client>) -> Self {
+    pub fn http_client(self, hclient: Option<reqwest::Client>) -> Self {
         let mut builder = self;
         builder.hclient = hclient;
         builder
@@ -235,8 +222,7 @@ impl ClientBuilder {
     pub fn build(self) -> Fallible<Client> {
         let hclient = match self.hclient {
             Some(client) => client,
-            None => asynchro::ClientBuilder::new()
-                .use_sys_proxy()
+            None => reqwest::ClientBuilder::new()
                 .timeout(DEFAULT_HTTP_COMPLETION_TIMEOUT)
                 .build()?,
         };
@@ -261,7 +247,7 @@ mod tests {
     use super::*;
     use http::response::Response;
     use http::status::StatusCode;
-    use tokio::runtime::current_thread as rt;
+    use tokio::runtime as rt;
 
     #[test]
     fn test_service_rejection_display() {
@@ -271,9 +257,10 @@ mod tests {
   "value": "failed to perform foo"
 }
 "#;
+        let mut runtime = rt::Runtime::new().unwrap();
         let response = Response::builder().status(466).body(err_body).unwrap();
         let fut_rejection = Client::map_response(response.into());
-        let rejection = rt::block_on_all(fut_rejection).unwrap_err();
+        let rejection = runtime.block_on(fut_rejection).unwrap_err();
         let expected_rejection = FleetLockError::Remote(
             StatusCode::from_u16(466).unwrap(),
             RemoteJSONError {
@@ -290,9 +277,10 @@ mod tests {
 
     #[test]
     fn test_http_error_display() {
+        let mut runtime = rt::Runtime::new().unwrap();
         let response = Response::builder().status(433).body("").unwrap();
         let fut_rejection = Client::map_response(response.into());
-        let rejection = rt::block_on_all(fut_rejection).unwrap_err();
+        let rejection = runtime.block_on(fut_rejection).unwrap_err();
         let expected_rejection = FleetLockError::HTTP(StatusCode::from_u16(433).unwrap());
         assert_eq!(&rejection, &expected_rejection);
 

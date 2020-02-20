@@ -4,6 +4,7 @@ use super::{UpdateAgent, UpdateAgentState};
 use crate::rpm_ostree::{self, Release};
 use actix::prelude::*;
 use failure::Error;
+use futures::prelude::*;
 use log::trace;
 use prometheus::IntGauge;
 use std::collections::BTreeSet;
@@ -43,7 +44,7 @@ impl Message for RefreshTick {
 }
 
 impl Handler<RefreshTick> for UpdateAgent {
-    type Result = ResponseActFuture<Self, (), Error>;
+    type Result = ResponseActFuture<Self, Result<(), Error>>;
 
     fn handle(&mut self, _msg: RefreshTick, ctx: &mut Self::Context) -> Self::Result {
         let tick_timestamp = chrono::Utc::now();
@@ -85,7 +86,7 @@ impl Handler<RefreshTick> for UpdateAgent {
                 );
                 Self::tick_later(ctx, pause);
             }
-            actix::fut::ok(())
+            actix::fut::ready(())
         });
 
         // Process state machine refresh ticks sequentially.
@@ -134,7 +135,7 @@ impl UpdateAgent {
     }
 
     /// Initialize the update agent.
-    fn initialize(&mut self) -> ResponseActFuture<Self, (), ()> {
+    fn initialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("update agent in start state");
 
         let initialization = self.nop().map(|_r, actor, _ctx| {
@@ -144,14 +145,15 @@ impl UpdateAgent {
             } else {
                 log::warn!("initialization complete, auto-updates logic disabled by configuration");
                 actor.state.end();
-            }
+            };
+            Ok(())
         });
 
         Box::new(initialization)
     }
 
     /// Try to reach steady state.
-    fn try_steady(&mut self) -> ResponseActFuture<Self, (), ()> {
+    fn try_steady(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to report steady state");
 
         let report_steady = self.strategy.report_steady(&self.identity);
@@ -161,58 +163,71 @@ impl UpdateAgent {
                     log::debug!("reached steady state, periodically polling for updates");
                     actor.state.steady();
                 }
+                Ok(())
             });
 
         Box::new(state_change)
     }
 
     /// Try to check for updates.
-    fn try_check_updates(&mut self) -> ResponseActFuture<Self, (), ()> {
+    fn try_check_updates(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to check for updates");
 
         let can_check = self.strategy.can_check_and_fetch(&self.identity);
         let state_change = actix::fut::wrap_future::<_, Self>(can_check)
-            .and_then(|can_check, actor, _ctx| actor.local_deployments(can_check))
-            .and_then(|(can_check, depls), actor, _ctx| {
+            .then(|can_check, actor, _ctx| actor.local_deployments(can_check))
+            .then(|res, actor, _ctx| {
                 let allow_downgrade = actor.allow_downgrade;
-                actor
-                    .cincinnati
-                    .fetch_update_hint(&actor.identity, depls, can_check, allow_downgrade)
-                    .into_actor(actor)
+                let release = match res {
+                    Ok((can_check, depls)) => actor.cincinnati.fetch_update_hint(
+                        &actor.identity,
+                        depls,
+                        can_check,
+                        allow_downgrade,
+                    ),
+                    _ => Box::pin(futures::future::ready(None)),
+                };
+                release.into_actor(actor)
             })
-            .map(|release, actor, _ctx| actor.state.update_available(release));
+            .map(|res, actor, _ctx| {
+                actor.state.update_available(res);
+                Ok(())
+            });
 
         Box::new(state_change)
     }
 
     /// Try to stage an update.
-    fn try_stage_update(&mut self, release: Release) -> ResponseActFuture<Self, (), ()> {
+    fn try_stage_update(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to stage an update");
 
         let can_fetch = self.strategy.can_check_and_fetch(&self.identity);
         let state_change = actix::fut::wrap_future::<_, Self>(can_fetch)
-            .and_then(|can_fetch, actor, _ctx| actor.locked_upgrade(can_fetch, release))
-            .map(|release, actor, _ctx| actor.state.update_staged(release));
+            .then(|can_fetch, actor, _ctx| actor.locked_upgrade(can_fetch, release))
+            .map(|res, actor, _ctx| res.map(|release| actor.state.update_staged(release)));
 
         Box::new(state_change)
     }
 
     /// Try to finalize an update.
-    fn try_finalize_update(&mut self, release: Release) -> ResponseActFuture<Self, (), ()> {
+    fn try_finalize_update(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to finalize an update");
 
         let can_finalize = self.strategy.can_finalize(&self.identity);
         let state_change = actix::fut::wrap_future::<_, Self>(can_finalize)
-            .and_then(|can_finalize, actor, _ctx| actor.finalize_deployment(can_finalize, release))
-            .map(|release, actor, _ctx| actor.state.update_finalized(release));
+            .then(|can_finalize, actor, _ctx| actor.finalize_deployment(can_finalize, release))
+            .map(|res, actor, _ctx| res.map(|release| actor.state.update_finalized(release)));
 
         Box::new(state_change)
     }
 
     /// Actor job is done.
-    fn end(&mut self, release: Release) -> ResponseActFuture<Self, (), ()> {
+    fn end(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
         log::info!("update applied, waiting for reboot: {}", release.version);
-        let state_change = self.nop().map(|_r, actor, _ctx| actor.state.end());
+        let state_change = self.nop().map(|_r, actor, _ctx| {
+            actor.state.end();
+            Ok(())
+        });
 
         Box::new(state_change)
     }
@@ -222,7 +237,7 @@ impl UpdateAgent {
         &mut self,
         can_fetch: bool,
         release: Release,
-    ) -> ResponseActFuture<Self, Release, ()> {
+    ) -> ResponseActFuture<Self, Result<Release, ()>> {
         if !can_fetch {
             return Box::new(actix::fut::err(()));
         }
@@ -238,7 +253,7 @@ impl UpdateAgent {
         let upgrade = self
             .rpm_ostree_actor
             .send(msg)
-            .flatten()
+            .unwrap_or_else(|e| Err(e.into()))
             .map_err(|e| log::error!("failed to stage deployment: {}", e))
             .into_actor(self);
 
@@ -249,7 +264,7 @@ impl UpdateAgent {
     fn local_deployments(
         &mut self,
         can_fetch: bool,
-    ) -> ResponseActFuture<Self, (bool, BTreeSet<Release>), ()> {
+    ) -> ResponseActFuture<Self, Result<(bool, BTreeSet<Release>), ()>> {
         if !can_fetch {
             return Box::new(actix::fut::ok((can_fetch, BTreeSet::new())));
         }
@@ -258,10 +273,12 @@ impl UpdateAgent {
         let depls = self
             .rpm_ostree_actor
             .send(msg)
-            .flatten()
+            .unwrap_or_else(|e| Err(e.into()))
             .map_err(|e| log::error!("failed to query local deployments: {}", e))
-            .inspect(|depls| log::trace!("found {} local deployments", depls.len()))
-            .map(move |depls| (can_fetch, depls))
+            .map_ok(move |depls| {
+                log::trace!("found {} local deployments", depls.len());
+                (can_fetch, depls)
+            })
             .into_actor(self);
 
         Box::new(depls)
@@ -272,7 +289,7 @@ impl UpdateAgent {
         &mut self,
         can_finalize: bool,
         release: Release,
-    ) -> ResponseActFuture<Self, Release, ()> {
+    ) -> ResponseActFuture<Self, Result<Release, ()>> {
         if !can_finalize {
             return Box::new(actix::fut::err(()));
         }
@@ -285,7 +302,7 @@ impl UpdateAgent {
         let upgrade = self
             .rpm_ostree_actor
             .send(msg)
-            .flatten()
+            .unwrap_or_else(|e| Err(e.into()))
             .map_err(|e| log::error!("failed to finalize deployment: {}", e))
             .into_actor(self);
 
@@ -293,7 +310,7 @@ impl UpdateAgent {
     }
 
     /// Do nothing, without errors.
-    fn nop(&mut self) -> ResponseActFuture<Self, (), ()> {
+    fn nop(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         let nop = actix::fut::ok(());
         Box::new(nop)
     }

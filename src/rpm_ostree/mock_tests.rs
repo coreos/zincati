@@ -2,7 +2,7 @@ use crate::cincinnati::Cincinnati;
 use crate::identity::Identity;
 use mockito::{self, Matcher};
 use std::collections::BTreeSet;
-use tokio::runtime::current_thread as rt;
+use tokio::runtime as rt;
 
 #[test]
 fn test_simple_graph() {
@@ -41,12 +41,12 @@ fn test_simple_graph() {
         .with_status(200)
         .create();
 
+    let mut runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = Cincinnati {
         base_url: mockito::server_url(),
     };
-    let update =
-        rt::block_on_all(client.fetch_update_hint(&id, BTreeSet::new(), true, false)).unwrap();
+    let update = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), true, false));
     m_graph.assert();
 
     let next = update.unwrap();
@@ -91,19 +91,18 @@ fn test_downgrade() {
         .expect(2)
         .create();
 
+    let mut runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = Cincinnati {
         base_url: mockito::server_url(),
     };
 
     // Downgrades denied.
-    let upgrade =
-        rt::block_on_all(client.fetch_update_hint(&id, BTreeSet::new(), true, false)).unwrap();
+    let upgrade = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), true, false));
     assert_eq!(upgrade, None);
 
     // Downgrades allowed.
-    let downgrade =
-        rt::block_on_all(client.fetch_update_hint(&id, BTreeSet::new(), true, true)).unwrap();
+    let downgrade = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), true, true));
 
     m_graph.assert();
     let next = downgrade.unwrap();

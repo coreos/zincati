@@ -5,6 +5,7 @@ use futures::future;
 use futures::prelude::*;
 use log::trace;
 use serde::Serialize;
+use std::pin::Pin;
 
 /// Strategy for immediate updates.
 #[derive(Clone, Debug, Serialize)]
@@ -17,28 +18,28 @@ pub(crate) struct StrategyImmediate {
 
 impl StrategyImmediate {
     /// Check if finalization is allowed.
-    pub(crate) fn can_finalize(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
+    pub(crate) fn can_finalize(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         trace!(
             "immediate strategy, can finalize updates: {}",
             self.finalize
         );
 
-        let immediate = future::ok(self.finalize);
-        Box::new(immediate)
+        let res = future::ok(self.finalize);
+        Box::pin(res)
     }
 
-    pub(crate) fn report_steady(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
+    pub(crate) fn report_steady(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         trace!("immediate strategy, report steady: {}", true);
 
         let immediate = future::ok(true);
-        Box::new(immediate)
+        Box::pin(immediate)
     }
 
-    pub(crate) fn can_check_and_fetch(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
+    pub(crate) fn can_check_and_fetch(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         trace!("immediate strategy, can check updates: {}", self.check);
 
         let immediate = future::ok(self.check);
-        Box::new(immediate)
+        Box::pin(immediate)
     }
 }
 
@@ -55,7 +56,7 @@ impl Default for StrategyImmediate {
 mod tests {
     use super::*;
     use proptest::prelude::*;
-    use tokio::runtime::current_thread as rt;
+    use tokio::runtime as rt;
 
     #[test]
     fn default() {
@@ -67,7 +68,8 @@ mod tests {
     #[test]
     fn report_steady() {
         let default = StrategyImmediate::default();
-        let steady = rt::block_on_all(default.report_steady()).unwrap();
+        let mut runtime = rt::Runtime::new().unwrap();
+        let steady = runtime.block_on(default.report_steady()).unwrap();
         assert_eq!(steady, true);
     }
 
@@ -90,7 +92,8 @@ mod tests {
                 finalize
             };
 
-            let can_check = rt::block_on_all(strat.can_check_and_fetch()).unwrap();
+            let mut runtime = rt::Runtime::new().unwrap();
+            let can_check = runtime.block_on(strat.can_check_and_fetch()).unwrap();
             assert_eq!(can_check, check);
         }
 
@@ -101,7 +104,8 @@ mod tests {
                 finalize
             };
 
-            let can_finalize = rt::block_on_all(strat.can_finalize()).unwrap();
+            let mut runtime = rt::Runtime::new().unwrap();
+            let can_finalize = runtime.block_on(strat.can_finalize()).unwrap();
             assert_eq!(can_finalize, finalize);
         }
     }

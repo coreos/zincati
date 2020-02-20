@@ -11,11 +11,12 @@ use crate::config::inputs;
 use crate::identity::Identity;
 use crate::rpm_ostree::Release;
 use failure::{bail, Fallible};
-use futures::future;
 use futures::prelude::*;
+use futures::TryFutureExt;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use serde::Serialize;
 use std::collections::BTreeSet;
+use std::pin::Pin;
 
 /// Metadata key for payload scheme.
 pub static AGE_INDEX_KEY: &str = "org.fedoraproject.coreos.releases.age_index";
@@ -91,9 +92,9 @@ impl Cincinnati {
         deployments: BTreeSet<Release>,
         can_check: bool,
         allow_downgrade: bool,
-    ) -> Box<dyn Future<Item = Option<Release>, Error = ()>> {
+    ) -> Pin<Box<dyn Future<Output = Option<Release>>>> {
         if !can_check {
-            return Box::new(futures::future::ok(None));
+            return Box::pin(futures::future::ready(None));
         }
 
         UPDATE_CHECKS.inc();
@@ -101,13 +102,14 @@ impl Cincinnati {
 
         let update = self
             .next_update(id, deployments, allow_downgrade)
-            .map_err(|e| {
+            .unwrap_or_else(|e| {
                 UPDATE_CHECKS_ERRORS
                     .with_label_values(&[&e.error_kind()])
                     .inc();
-                log::error!("failed to check Cincinnati for updates: {}", e)
+                log::error!("failed to check Cincinnati for updates: {}", e);
+                None
             });
-        Box::new(update)
+        Box::pin(update)
     }
 
     /// Get the next update.
@@ -116,7 +118,7 @@ impl Cincinnati {
         id: &Identity,
         deployments: BTreeSet<Release>,
         allow_downgrade: bool,
-    ) -> Box<dyn Future<Item = Option<Release>, Error = CincinnatiError>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Release>, CincinnatiError>>>> {
         let booted = id.current_os.clone();
         let params = id.cincinnati_params();
         let client = client::ClientBuilder::new(self.base_url.to_string())
@@ -124,10 +126,12 @@ impl Cincinnati {
             .build()
             .map_err(|e| CincinnatiError::FailedClientBuilder(e.to_string()));
 
-        let next = future::result(client)
+        let next = futures::future::ready(client)
             .and_then(|c| c.fetch_graph())
-            .and_then(move |graph| find_update(graph, booted, deployments, allow_downgrade));
-        Box::new(next)
+            .and_then(move |graph| async move {
+                find_update(graph, booted, deployments, allow_downgrade)
+            });
+        Box::pin(next)
     }
 }
 

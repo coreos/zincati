@@ -34,42 +34,48 @@ impl UpdateStrategy {
     }
 
     /// Check if finalization is allowed at this time.
-    pub(crate) fn can_finalize(
-        &self,
-        _identity: &Identity,
-    ) -> Box<dyn Future<Item = bool, Error = ()>> {
+    pub(crate) fn can_finalize(&self, _identity: &Identity) -> impl Future<Output = bool> {
         let lock = match self {
             UpdateStrategy::FleetLock(s) => s.can_finalize(),
             UpdateStrategy::Immediate(s) => s.can_finalize(),
+        };
+
+        async {
+            lock.await.unwrap_or_else(|e| {
+                error!("{}", e);
+                false
+            })
         }
-        .map_err(|e| error!("{}", e));
-        Box::new(lock)
     }
 
     /// Try to report and enter steady state.
-    pub(crate) fn report_steady(
-        &self,
-        _identity: &Identity,
-    ) -> Box<dyn Future<Item = bool, Error = ()>> {
+    pub(crate) fn report_steady(&self, _identity: &Identity) -> impl Future<Output = bool> {
         let unlock = match self {
             UpdateStrategy::FleetLock(s) => s.report_steady(),
             UpdateStrategy::Immediate(s) => s.report_steady(),
+        };
+
+        async {
+            unlock.await.unwrap_or_else(|e| {
+                error!("{}", e);
+                false
+            })
         }
-        .map_err(|e| error!("{}", e));
-        Box::new(unlock)
     }
 
     /// Check if this agent is allowed to check for updates at this time.
-    pub(crate) fn can_check_and_fetch(
-        &self,
-        _identity: &Identity,
-    ) -> Box<dyn Future<Item = bool, Error = ()>> {
+    pub(crate) fn can_check_and_fetch(&self, _identity: &Identity) -> impl Future<Output = bool> {
         let can_check = match self {
             UpdateStrategy::FleetLock(s) => s.can_check_and_fetch(),
             UpdateStrategy::Immediate(s) => s.can_check_and_fetch(),
+        };
+
+        async {
+            can_check.await.unwrap_or_else(|e| {
+                error!("{}", e);
+                false
+            })
         }
-        .map_err(|e| error!("{}", e));
-        Box::new(can_check)
     }
 
     /// Build a new "immediate" strategy.

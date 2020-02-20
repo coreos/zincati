@@ -1,7 +1,7 @@
 use crate::fleet_lock::*;
 use crate::identity::Identity;
 use mockito::Matcher;
-use tokio::runtime::current_thread as rt;
+use tokio::runtime as rt;
 
 #[test]
 fn test_pre_reboot_lock() {
@@ -19,11 +19,12 @@ fn test_pre_reboot_lock() {
         .with_status(200)
         .create();
 
+    let mut runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = ClientBuilder::new(mockito::server_url(), &id)
         .build()
         .unwrap();
-    let res = rt::block_on_all(client.pre_reboot());
+    let res = runtime.block_on(client.pre_reboot());
     m_pre_reboot.assert();
 
     let lock = res.unwrap();
@@ -44,11 +45,12 @@ fn test_pre_reboot_error() {
         .with_body(body)
         .create();
 
+    let mut runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = ClientBuilder::new(mockito::server_url(), &id)
         .build()
         .unwrap();
-    let res = rt::block_on_all(client.pre_reboot());
+    let res = runtime.block_on(client.pre_reboot());
     m_pre_reboot.assert();
 
     let _rejection = res.unwrap_err();
@@ -70,11 +72,12 @@ fn test_steady_state_lock() {
         .with_status(200)
         .create();
 
+    let mut runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = ClientBuilder::new(mockito::server_url(), &id)
         .build()
         .unwrap();
-    let res = rt::block_on_all(client.steady_state());
+    let res = runtime.block_on(client.steady_state());
     m_steady_state.assert();
 
     let unlock = res.unwrap();
@@ -95,11 +98,12 @@ fn test_steady_state_error() {
         .with_body(body)
         .create();
 
+    let mut runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = ClientBuilder::new(mockito::server_url(), &id)
         .build()
         .unwrap();
-    let res = rt::block_on_all(client.steady_state());
+    let res = runtime.block_on(client.steady_state());
     m_steady_state.assert();
 
     let _rejection = res.unwrap_err();
