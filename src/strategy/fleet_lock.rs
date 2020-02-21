@@ -9,6 +9,7 @@ use futures::prelude::*;
 use log::trace;
 use prometheus::IntCounterVec;
 use serde::Serialize;
+use std::pin::Pin;
 
 lazy_static::lazy_static! {
     static ref FLEET_LOCK_REQUESTS: IntCounterVec = register_int_counter_vec!(
@@ -54,7 +55,7 @@ impl StrategyFleetLock {
     }
 
     /// Check if finalization is allowed.
-    pub(crate) fn can_finalize(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
+    pub(crate) fn can_finalize(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         let api = "pre-reboot";
         FLEET_LOCK_REQUESTS.with_label_values(&[api]).inc();
         trace!("fleet_lock strategy, checking whether update can be finalized");
@@ -65,11 +66,11 @@ impl StrategyFleetLock {
                 .inc();
             format_err!("lock-manager {} failure: {}", api, e)
         });
-        Box::new(res)
+        Box::pin(res)
     }
 
     /// Try to report steady state.
-    pub(crate) fn report_steady(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
+    pub(crate) fn report_steady(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         let api = "steady-state";
         FLEET_LOCK_REQUESTS.with_label_values(&[api]).inc();
         trace!("fleet_lock strategy, attempting to report steady");
@@ -80,16 +81,16 @@ impl StrategyFleetLock {
                 .inc();
             format_err!("lock-manager {} failure: {}", api, e)
         });
-        Box::new(res)
+        Box::pin(res)
     }
 
     /// Check if fetching updates is allowed
-    pub(crate) fn can_check_and_fetch(&self) -> Box<dyn Future<Item = bool, Error = Error>> {
+    pub(crate) fn can_check_and_fetch(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         trace!("fleet_lock strategy, can check updates: {}", true);
 
         // TODO(lucab): https://github.com/coreos/zincati/issues/35
         let res = future::ok(true);
-        Box::new(res)
+        Box::pin(res)
     }
 }
 
