@@ -212,9 +212,9 @@ checksum = "d7b8a9123b8027467bce0099fe556c628a53c8d83df0507084c31e9ba2e39aff"
 
 [[package]]
 name = "assert-json-diff"
-version = "1.0.2"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f8d0d5ebee6ef30f131793343f1a2c26023324ee72e0f38d91c73f7f44af41a"
+checksum = "9c356497fd3417158bcb318266ac83c391219ca3a5fa659049f42e0041ab57d6"
 dependencies = [
  "extend",
  "serde",
@@ -1140,9 +1140,9 @@ dependencies = [
 
 [[package]]
 name = "mockito"
-version = "0.23.2"
+version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5b1e4eb1d47033cef0658ede747a75ca0d777e068c4fba34a4a610ca98d6fa1"
+checksum = "ae82e6bad452dd42b0f4437414eae3c8c27b958a55dc6c198e351042c4e3024e"
 dependencies = [
  "assert-json-diff",
  "colored",
