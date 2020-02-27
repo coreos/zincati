@@ -19,6 +19,10 @@ lazy_static::lazy_static! {
         "zincati_update_agent_last_refresh_timestamp",
         "UTC timestamp of update-agent last refresh tick."
     )).unwrap();
+    static ref UPDATES_ENABLED: IntGauge = register_int_gauge!(opts!(
+        "zincati_update_agent_updates_enabled",
+        "Whether auto-updates logic is enabled."
+    )).unwrap();
 }
 
 impl Actor for UpdateAgent {
@@ -26,6 +30,9 @@ impl Actor for UpdateAgent {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         trace!("update agent started");
+
+        // TODO(lucab): consider adding more metrics here (e.g. steady interval).
+        UPDATES_ENABLED.set(i64::from(self.enabled));
 
         if self.allow_downgrade {
             ALLOW_DOWNGRADE.set(1);
@@ -97,7 +104,7 @@ impl Handler<RefreshTick> for UpdateAgent {
 }
 
 impl UpdateAgent {
-    /// Schedule an immediate refresh the state machine.
+    /// Schedule an immediate refresh of the state machine.
     pub fn tick_now(ctx: &mut Context<Self>) {
         ctx.notify(RefreshTick {})
     }

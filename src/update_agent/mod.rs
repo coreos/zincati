@@ -22,10 +22,6 @@ lazy_static::lazy_static! {
         "zincati_update_agent_latest_state_change_timestamp",
         "UTC timestamp of update-agent last state change."
     )).unwrap();
-    static ref UPDATES_ENABLED: IntGauge = register_int_gauge!(opts!(
-        "zincati_update_agent_updates_enabled",
-        "Whether auto-updates logic is enabled."
-    )).unwrap();
 }
 
 /// State machine for the agent.
@@ -162,10 +158,6 @@ impl UpdateAgent {
             strategy: cfg.strategy,
             state_changed: chrono::Utc::now(),
         };
-
-        // TODO(lucab): consider adding more metrics here
-        //  (e.g. steady interval, downgrade allowed, etc.)
-        UPDATES_ENABLED.set(i64::from(cfg.enabled));
 
         Ok(agent)
     }
