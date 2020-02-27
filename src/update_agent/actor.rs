@@ -61,20 +61,21 @@ impl Handler<RefreshTick> for UpdateAgent {
         let prev_state = self.state.clone();
 
         let state_action = match &self.state {
-            UpdateAgentState::StartState => self.initialize(),
-            UpdateAgentState::Initialized => self.try_steady(),
-            UpdateAgentState::Steady => self.try_check_updates(),
+            UpdateAgentState::StartState => self.tick_initialize(),
+            UpdateAgentState::Initialized => self.tick_report_steady(),
+            UpdateAgentState::ReportedSteady => self.tick_check_updates(),
+            UpdateAgentState::NoNewUpdate => self.tick_check_updates(),
             UpdateAgentState::UpdateAvailable(release) => {
                 let update = release.clone();
-                self.try_stage_update(update)
+                self.tick_stage_update(update)
             }
             UpdateAgentState::UpdateStaged(release) => {
                 let update = release.clone();
-                self.try_finalize_update(update)
+                self.tick_finalize_update(update)
             }
             UpdateAgentState::UpdateFinalized(release) => {
                 let update = release.clone();
-                self.end(update)
+                self.tick_end(update)
             }
             UpdateAgentState::EndState => self.nop(),
         };
@@ -123,7 +124,9 @@ impl UpdateAgent {
         let default_delay = Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS);
 
         match self.state {
-            UpdateAgentState::Steady => self.steady_interval,
+            UpdateAgentState::ReportedSteady | UpdateAgentState::NoNewUpdate => {
+                self.steady_interval
+            }
             _ => default_delay,
         }
     }
@@ -142,7 +145,7 @@ impl UpdateAgent {
     }
 
     /// Initialize the update agent.
-    fn initialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_initialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("update agent in start state");
 
         let initialization = self.nop().map(|_r, actor, _ctx| {
@@ -159,8 +162,8 @@ impl UpdateAgent {
         Box::new(initialization)
     }
 
-    /// Try to reach steady state.
-    fn try_steady(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+    /// Try to report steady state.
+    fn tick_report_steady(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to report steady state");
 
         let report_steady = self.strategy.report_steady(&self.identity);
@@ -168,7 +171,7 @@ impl UpdateAgent {
             actix::fut::wrap_future::<_, Self>(report_steady).map(|is_steady, actor, _ctx| {
                 if is_steady {
                     log::debug!("reached steady state, periodically polling for updates");
-                    actor.state.steady();
+                    actor.state.reported_steady();
                 }
                 Ok(())
             });
@@ -177,7 +180,7 @@ impl UpdateAgent {
     }
 
     /// Try to check for updates.
-    fn try_check_updates(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_check_updates(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to check for updates");
 
         let can_check = self.strategy.can_check_and_fetch(&self.identity);
@@ -197,7 +200,10 @@ impl UpdateAgent {
                 release.into_actor(actor)
             })
             .map(|res, actor, _ctx| {
-                actor.state.update_available(res);
+                match res {
+                    Some(release) => actor.state.update_available(release),
+                    None => actor.state.no_new_update(),
+                };
                 Ok(())
             });
 
@@ -205,7 +211,7 @@ impl UpdateAgent {
     }
 
     /// Try to stage an update.
-    fn try_stage_update(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_stage_update(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to stage an update");
 
         let can_fetch = self.strategy.can_check_and_fetch(&self.identity);
@@ -217,7 +223,10 @@ impl UpdateAgent {
     }
 
     /// Try to finalize an update.
-    fn try_finalize_update(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_finalize_update(
+        &mut self,
+        release: Release,
+    ) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to finalize an update");
 
         let can_finalize = self.strategy.can_finalize(&self.identity);
@@ -229,7 +238,7 @@ impl UpdateAgent {
     }
 
     /// Actor job is done.
-    fn end(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_end(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
         log::info!("update applied, waiting for reboot: {}", release.version);
         let state_change = self.nop().map(|_r, actor, _ctx| {
             actor.state.end();
