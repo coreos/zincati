@@ -22,10 +22,6 @@ lazy_static::lazy_static! {
         "zincati_update_agent_latest_state_change_timestamp",
         "UTC timestamp of update-agent last state change."
     )).unwrap();
-    static ref UPDATES_ENABLED: IntGauge = register_int_gauge!(opts!(
-        "zincati_update_agent_updates_enabled",
-        "Whether auto-updates logic is enabled."
-    )).unwrap();
 }
 
 /// State machine for the agent.
@@ -35,8 +31,10 @@ enum UpdateAgentState {
     StartState,
     /// Agent initialized.
     Initialized,
-    /// Agent ready to check for updates.
-    Steady,
+    /// Node steady, agent allowed to check for updates.
+    ReportedSteady,
+    /// No further updates available yet.
+    NoNewUpdate,
     /// Update available from Cincinnati.
     UpdateAvailable(Release),
     /// Update staged by rpm-ostree.
@@ -56,22 +54,6 @@ impl Default for UpdateAgentState {
 }
 
 impl UpdateAgentState {
-    /// Return the discriminant for current state
-    fn discriminant(&self) -> u8 {
-        // TODO(lucab): update when arbitrary-discriminant is stabilized:
-        // https://github.com/rust-lang/rust/issues/60553
-
-        match self {
-            UpdateAgentState::StartState => 0,
-            UpdateAgentState::Initialized => 1,
-            UpdateAgentState::Steady => 2,
-            UpdateAgentState::UpdateAvailable(_) => 3,
-            UpdateAgentState::UpdateStaged(_) => 4,
-            UpdateAgentState::UpdateFinalized(_) => 5,
-            UpdateAgentState::EndState => 6,
-        }
-    }
-
     /// Progress the machine to a new state.
     fn transition_to(&mut self, state: Self) {
         LATEST_STATE_CHANGE.set(chrono::Utc::now().timestamp());
@@ -81,43 +63,79 @@ impl UpdateAgentState {
 
     /// Transition to the Initialized state.
     fn initialized(&mut self) {
+        let target = UpdateAgentState::Initialized;
         // Allowed starting states.
-        assert!(self.discriminant() == 0);
+        assert!(
+            *self == UpdateAgentState::StartState,
+            "transition not allowed: {:?} to {:?}",
+            self,
+            target,
+        );
 
-        self.transition_to(UpdateAgentState::Initialized);
+        self.transition_to(target);
     }
 
-    /// Transition to the Steady state.
-    fn steady(&mut self) {
+    /// Transition to the ReportedSteady state.
+    fn reported_steady(&mut self) {
+        let target = UpdateAgentState::ReportedSteady;
         // Allowed starting states.
-        assert!(*self == UpdateAgentState::Initialized);
+        assert!(
+            *self == UpdateAgentState::Initialized,
+            "transition not allowed: {:?} to {:?}",
+            self,
+            target,
+        );
 
-        self.transition_to(UpdateAgentState::Steady);
+        self.transition_to(target);
+    }
+
+    /// Transition to the NoNewUpdate state.
+    fn no_new_update(&mut self) {
+        let target = UpdateAgentState::NoNewUpdate;
+        // Allowed starting states.
+        assert!(
+            *self == UpdateAgentState::ReportedSteady || *self == UpdateAgentState::NoNewUpdate,
+            "transition not allowed: {:?} to {:?}",
+            self,
+            target
+        );
+
+        self.transition_to(UpdateAgentState::NoNewUpdate);
     }
 
     /// Transition to the UpdateAvailable state.
-    fn update_available(&mut self, update: Option<Release>) {
+    fn update_available(&mut self, update: Release) {
+        let target = UpdateAgentState::UpdateAvailable(update);
         // Allowed starting states.
-        assert!(*self == UpdateAgentState::Steady);
+        assert!(
+            *self == UpdateAgentState::ReportedSteady || *self == UpdateAgentState::NoNewUpdate,
+            "transition not allowed: {:?} to {:?}",
+            self,
+            target
+        );
 
-        if let Some(release) = update {
-            self.transition_to(UpdateAgentState::UpdateAvailable(release));
-        }
+        self.transition_to(target);
     }
 
     /// Transition to the UpdateStaged state.
     fn update_staged(&mut self, update: Release) {
-        self.transition_to(UpdateAgentState::UpdateStaged(update));
+        let target = UpdateAgentState::UpdateStaged(update);
+
+        self.transition_to(target);
     }
 
     /// Transition to the UpdateFinalized state.
     fn update_finalized(&mut self, update: Release) {
-        self.transition_to(UpdateAgentState::UpdateFinalized(update));
+        let target = UpdateAgentState::UpdateFinalized(update);
+
+        self.transition_to(target);
     }
 
     /// Transition to the End state.
     fn end(&mut self) {
-        self.transition_to(UpdateAgentState::EndState);
+        let target = UpdateAgentState::EndState;
+
+        self.transition_to(target);
     }
 }
 
@@ -163,10 +181,6 @@ impl UpdateAgent {
             state_changed: chrono::Utc::now(),
         };
 
-        // TODO(lucab): consider adding more metrics here
-        //  (e.g. steady interval, downgrade allowed, etc.)
-        UPDATES_ENABLED.set(i64::from(cfg.enabled));
-
         Ok(agent)
     }
 }
@@ -189,18 +203,21 @@ mod tests {
         machine.initialized();
         assert_eq!(machine, UpdateAgentState::Initialized);
 
-        machine.steady();
-        assert_eq!(machine, UpdateAgentState::Steady);
+        machine.reported_steady();
+        assert_eq!(machine, UpdateAgentState::ReportedSteady);
 
-        machine.update_available(None);
-        assert_eq!(machine, UpdateAgentState::Steady);
+        machine.no_new_update();
+        assert_eq!(machine, UpdateAgentState::NoNewUpdate);
+
+        machine.no_new_update();
+        assert_eq!(machine, UpdateAgentState::NoNewUpdate);
 
         let update = Release {
             version: "v1".to_string(),
             checksum: "ostree-checksum".to_string(),
             age_index: None,
         };
-        machine.update_available(Some(update.clone()));
+        machine.update_available(update.clone());
         assert_eq!(machine, UpdateAgentState::UpdateAvailable(update.clone()));
 
         machine.update_staged(update.clone());
