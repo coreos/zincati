@@ -1,6 +1,6 @@
 [package]
 name = "zincati"
-version = "0.0.9-alpha.0"
+version = "0.0.9"
 description = "Update agent for Fedora CoreOS"
 license = "Apache-2.0"
 keywords = ["cincinnati", "coreos", "fedora", "rpm-ostree"]
