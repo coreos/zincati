@@ -2481,7 +2481,7 @@ dependencies = [
 
 [[package]]
 name = "zincati"
-version = "0.0.9"
+version = "0.0.10-alpha.0"
 dependencies = [
  "actix",
  "cfg-if",
