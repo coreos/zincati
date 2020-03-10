@@ -6,7 +6,7 @@ use std::os::unix::net as std_net;
 use tokio::net as tokio_net;
 
 /// Unix socket path.
-static SOCKET_PATH: &str = "/run/zincati/private/metrics.promsock";
+static SOCKET_PATH: &str = "/run/zincati/public/metrics.promsock";
 
 /// Metrics exposition service.
 pub struct MetricsService {
