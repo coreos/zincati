@@ -16,6 +16,3 @@ Environment=ZINCATI_VERBOSITY="-v"
 ExecStart=/usr/libexec/zincati agent ${ZINCATI_VERBOSITY}
 Restart=on-failure
 RestartSec=10s
-
-[Install]
-WantedBy=multi-user.target

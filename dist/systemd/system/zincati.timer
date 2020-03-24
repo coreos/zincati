@@ -1,0 +1,8 @@
+[Timer]
+# Spreading things across 30 minutes should help
+# to avoid thundering herds by default.
+OnBootSec=1h
+AccuracySec=30m
+
+[Install]
+WantedBy=timers.target

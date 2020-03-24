@@ -16,7 +16,7 @@ all:
 install:
 	install -D -t ${DESTDIR}/usr/libexec target/${PROFILE}/zincati
 	install -D -m 644 -t ${DESTDIR}/usr/lib/zincati/config.d dist/config.d/*.toml
-	install -D -m 644 -t ${DESTDIR}/usr/lib/systemd/system dist/systemd/system/*.service
+	install -D -m 644 -t ${DESTDIR}/usr/lib/systemd/system dist/systemd/system/*.{service,timer}
 	install -D -m 644 -t ${DESTDIR}/usr/lib/sysusers.d dist/sysusers.d/*.conf
 	install -D -m 644 -t ${DESTDIR}/usr/lib/tmpfiles.d dist/tmpfiles.d/*.conf
 	install -D -m 644 -t ${DESTDIR}/usr/share/polkit-1/rules.d dist/polkit-1/rules.d/*.rules
