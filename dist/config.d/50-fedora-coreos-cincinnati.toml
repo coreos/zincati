@@ -1,3 +1,3 @@
-# Fedora CoreOS Cincinnati backend (staging service)
+# Fedora CoreOS Cincinnati backend
 [cincinnati]
-base_url= "https://updates.coreos.stg.fedoraproject.org"
+base_url= "https://updates.coreos.fedoraproject.org"
