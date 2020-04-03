@@ -543,11 +543,11 @@ dependencies = [
 
 [[package]]
 name = "envsubst"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13cf19a8d534c83456ea13365a1935810a39f0e43bf1ec9371077e1966da396a"
+checksum = "87bf9e478f69f88f589c11ddc017e4ddfcfd196ee2c9a4249074c83ddf544162"
 dependencies = [
- "failure",
+ "thiserror",
 ]
 
 [[package]]
