@@ -2,7 +2,7 @@
 
 Zincati tracks and exposes some of its internal metrics, in order to ease monitoring tasks across a large fleet of nodes.
 
-Metrics are collected and exported according to [Prometheus] [textual format](prom-text), over a local endpoint.
+Metrics are collected and exported according to [Prometheus] [textual format][prom-text], over a local endpoint.
 
 [Prometheus]: https://prometheus.io/
 [prom-text]: https://prometheus.io/docs/instrumenting/exposition_formats/
@@ -11,7 +11,7 @@ Metrics are collected and exported according to [Prometheus] [textual format](pr
 
 To gather metrics from a locally running Zincati instance, it is sufficient to connect and read from the Unix-domain socket located at `/run/zincati/public/metrics.promsock`.
 
-For example, manual inspection can be performed via `ncat`:
+For example, manual inspection can be performed via `socat`:
 
 ```
 $ sudo socat - UNIX-CONNECT:/run/zincati/public/metrics.promsock
@@ -29,6 +29,6 @@ zincati_update_agent_updates_enabled 1
 ```
 
 Additionally, the local Unix-domain socket can be proxied to HTTP and exposed to Prometheus.
-For an example of such setup, check the [local\_exporter] repository.
+For an example of such setup, check the [local\_exporter][local_exporter] repository.
 
 [local_exporter]: https://github.com/lucab/local_exporter
