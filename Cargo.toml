@@ -36,7 +36,7 @@ url_serde = "^0.2"
 
 [dev-dependencies]
 http = "^0.2"
-mockito = "^0.23"
+mockito = "^0.25"
 proptest = "^0.9"
 
 [features]
