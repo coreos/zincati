@@ -1015,18 +1015,16 @@ dependencies = [
 
 [[package]]
 name = "libsystemd"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b613f5b2b8b90db24f7b81310b9c9b8f5cff11929bd95044f8a1084cf9442f0a"
+checksum = "bae2d2c748fd451980295da7af96771e141fb3fea014dd852dd5f74e2a36c9c7"
 dependencies = [
  "error-chain",
  "hmac",
  "libc",
  "nix",
  "serde",
- "serde_derive",
  "sha2",
- "try_or",
  "uuid",
 ]
 
@@ -1194,9 +1192,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.13.1"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dbdc256eaac2e3bd236d93ad999d3479ef775c863dbda3068c4006a92eec51b"
+checksum = "50e4785f2c3b7589a0d0c1dd60285e1188adac4006e8abd6dd578e1567027363"
 dependencies = [
  "bitflags",
  "cc",
@@ -2170,12 +2168,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e604eb7b43c06650e854be16a2a03155743d3752dd1c943f6829e26b7a36e382"
 
 [[package]]
-name = "try_or"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d70eaad66ee689bc3cbc300a9996e5f94608ac6b4598322367411d5f0574541"
-
-[[package]]
 name = "typenum"
 version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2260,9 +2252,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "0.7.4"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90dbc611eb48397705a6b0f6e917da23ae517e4d127123d2cf7674206627d32a"
+checksum = "9fde2f6a4bea1d6e007c4ad38c6839fa71cbb63b6dbf5b595aa38dc9b1093c11"
 dependencies = [
  "serde",
 ]
