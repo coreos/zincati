@@ -10,12 +10,16 @@ mod mock_tests;
 use crate::config::inputs;
 use crate::identity::Identity;
 use crate::rpm_ostree::Release;
-use failure::{bail, Fallible};
+use failure::{bail, Fallible, ResultExt};
 use futures::prelude::*;
 use futures::TryFutureExt;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use serde::Serialize;
 use std::collections::BTreeSet;
+use std::fs;
+use std::fs::Permissions;
+use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::pin::Pin;
 
 /// Metadata key for payload scheme.
@@ -130,6 +134,56 @@ impl Cincinnati {
     }
 }
 
+/// Write MOTD indicating a dead-end release, with the passed `reason`.
+/// If `reason` is `None`, the MOTD written is left as an empty file.
+fn refresh_deadend_motd(reason: Option<String>) -> Fallible<()> {
+    // Avoid showing partially-written messages using tempfile and
+    // persist (rename).
+    let mut f = tempfile::Builder::new()
+        .prefix(".deadend.")
+        .suffix(".motd.partial")
+        // Create the tempfile in the same directory as the final MOTD,
+        // to ensure proper SELinux labels are applied to the tempfile
+        // before renaming.
+        .tempfile_in("/run/zincati/public/motd.d")
+        .with_context(|e| format!("failed to create temporary MOTD file: {}", e))?;
+    // Set correct permissions of the temporary file, before moving to
+    // the destination (`tempfile` creates files with mode 0600).
+    fs::set_permissions(f.path(), Permissions::from_mode(0o664))
+        .with_context(|e| format!("failed to set permissions of temporary MOTD file: {}", e))?;
+
+    if let Some(reason) = reason {
+        writeln!(
+            f,
+            "This release is a dead-end and won't auto-update: {}",
+            reason
+        )
+        .with_context(|e| format!("failed to write MOTD: {}", e))?;
+    }
+
+    f.persist("/run/zincati/public/motd.d/deadend.motd")
+        .with_context(|e| format!("failed to persist temporary MOTD file: {}", e))?;
+    Ok(())
+}
+
+/// Evaluate and record whether booted OS is a dead-end release, and
+/// log that information in a MOTD file.
+fn refresh_deadend_status(node: &Node) {
+    let deadend_reason = evaluate_deadend(node);
+    match &deadend_reason {
+        Some(reason) => {
+            log::info!("dead-end release detected: {}", reason);
+            BOOTED_DEADEND.set(1);
+        }
+        None => {
+            BOOTED_DEADEND.set(0);
+        }
+    };
+    if let Err(e) = refresh_deadend_motd(deadend_reason) {
+        log::warn!("failed to update dead-end release MOTD: {}", e);
+    }
+}
+
 /// Walk the graph, looking for an update reachable from the given digest.
 fn find_update(
     graph: client::Graph,
@@ -159,14 +213,7 @@ fn find_update(
     let cur_release = Release::from_cincinnati(cur_node.clone())
         .map_err(|e| CincinnatiError::FailedNodeParsing(e.to_string()))?;
 
-    // Evaluate and record whether booted OS is a dead-end release.
-    // TODO(lucab): consider exposing this information in more places
-    // (e.g. logs, motd, env/json file in a well-known location).
-    let is_deadend = match evaluate_deadend(&cur_node) {
-        Some(_) => 1,
-        None => 0,
-    };
-    BOOTED_DEADEND.set(is_deadend);
+    refresh_deadend_status(&cur_node);
 
     // Try to find all local deployments in the graph too.
     let local_releases = find_local_releases(&graph, local_depls);
