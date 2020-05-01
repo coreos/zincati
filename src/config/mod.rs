@@ -6,7 +6,7 @@
 //!  * Settings: validated settings for the agent.
 
 /// TOML structures.
-mod fragments;
+pub(crate) mod fragments;
 
 /// Configuration fragments.
 pub(crate) mod inputs;

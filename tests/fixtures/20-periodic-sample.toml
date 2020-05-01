@@ -1,0 +1,15 @@
+[[updates.periodic.window]]
+days = [ "Tue", "Wed" ]
+start_time = "23:00"
+length_minutes = 120
+
+[[updates.periodic.window]]
+days = [ "Thu" ]
+start_time = "23:30"
+length_minutes = 25
+
+[[updates.periodic.window]]
+days = [ "Sun" ]
+start_time = "00:00"
+# 2 days, wrapping back to beginning of week.
+length_minutes = 2880
