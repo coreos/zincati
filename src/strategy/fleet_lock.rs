@@ -97,7 +97,7 @@ impl StrategyFleetLock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::inputs::{FleetLockInput, UpdateInput};
+    use crate::config::inputs::{FleetLockInput, PeriodicInput, UpdateInput};
     use crate::identity::Identity;
 
     #[test]
@@ -110,6 +110,7 @@ mod tests {
             fleet_lock: FleetLockInput {
                 base_url: "https://example.com".to_string(),
             },
+            periodic: PeriodicInput { intervals: vec![] },
         };
 
         let res = StrategyFleetLock::new(input, &id);
@@ -126,6 +127,7 @@ mod tests {
             fleet_lock: FleetLockInput {
                 base_url: String::new(),
             },
+            periodic: PeriodicInput { intervals: vec![] },
         };
 
         let res = StrategyFleetLock::new(input, &id);
