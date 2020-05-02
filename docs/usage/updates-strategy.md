@@ -56,3 +56,40 @@ Such an approach is only recommended where nodes are already grouped into an orc
 
 [fleet_lock]: https://github.com/coreos/airlock/pull/1 
 [etcd3]: https://etcd.io/
+
+# Periodic strategy
+
+The `periodic` strategy allows Zincati to only reboot for updates during certain timeframes, also known as "maintenance windows" or "reboot windows".
+Outside of those maintenance windows, reboots are not automatically performed and auto-updates are staged and held until the next available window.
+
+Reboot windows recur on a weekly basis, and can be defined in any arbitrary order and length. Their individual length must be greater than zero.
+To avoid timezone-related skews in a fleet of machines, all maintenance windows are defined in UTC dates and times.
+
+Periodic reboot windows can be configured and enabled in the following way:
+
+```toml
+[updates]
+strategy = "periodic"
+
+[[updates.periodic.window]]
+days = [ "Sat", "Sun" ]
+start_time = "23:30"
+length_minutes = 60
+
+[[updates.periodic.window]]
+days = [ "Wed" ]
+start_time = "01:00"
+length_minutes = 30
+```
+
+The above configuration would result in three maintenance windows during which Zincati is allowed to reboot the machine for updates:
+ * 60 minutes starting at 23:30 UTC on Saturday night, and ending at 00:30 UTC on Sunday morning
+ * 60 minutes starting at 23:30 UTC on Sunday night, and ending at 00:30 UTC on Monday morning
+ * 30 minutes starting at 01:00 UTC on Wednesday morning, and ending at 01:30 UTC on Wednesday morning
+
+Reboot windows can be separately configured in multiple snippets, as long as each `updates.periodic.window` entry contains all the required properties:
+ * `days`: an array of weekdays (C locale), either in full or abbreviated (first three letters) form
+ * `start_time`: window starting time, in `hh:mm` ISO 8601 format
+ * `length_minutes`: non-zero window duration, in minutes
+
+For convenience, multiple entries can be defined with overlapping times, and each window definition is allowed to cross day and week boundaries (wrapping to the next day).
