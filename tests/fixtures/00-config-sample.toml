@@ -7,7 +7,7 @@ node_uuid = "27e3ac02af3946af995c9940e18b0cce"
 rollout_wariness = 0.5
 
 [cincinnati]
-base_url= "http://cincinnati.example.com:80/"
+base_url = "http://cincinnati.example.com:80/"
 
 [updates]
 allow_downgrade = true
@@ -15,4 +15,14 @@ enabled = false
 strategy = "fleet_lock"
 
 [updates.fleet_lock]
-base_url= "http://fleet-lock.example.com:8080/"
+base_url = "http://fleet-lock.example.com:8080/"
+
+[[updates.periodic.window]]
+days = [ "Sat", "Sun" ]
+start_time = "23:00"
+length_minutes = 120
+
+[[updates.periodic.window]]
+days = [ "Wed" ]
+start_time = "23:30"
+length_minutes = 25

@@ -2,6 +2,7 @@
 
 use ordered_float::NotNan;
 use serde::Deserialize;
+use std::collections::BTreeSet;
 use std::num::NonZeroU64;
 
 /// Top-level configuration stanza.
@@ -60,6 +61,8 @@ pub(crate) struct UpdateFragment {
     pub(crate) strategy: Option<String>,
     /// `fleet_lock` strategy config.
     pub(crate) fleet_lock: Option<UpdateFleetLock>,
+    /// `periodic` strategy config.
+    pub(crate) periodic: Option<UpdatePeriodic>,
 }
 
 /// Config fragment for `fleet_lock` update strategy.
@@ -69,9 +72,28 @@ pub(crate) struct UpdateFleetLock {
     pub(crate) base_url: Option<String>,
 }
 
+/// Config fragment for `periodic` update strategy.
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub(crate) struct UpdatePeriodic {
+    /// A weekly window.
+    pub(crate) window: Option<Vec<UpdatePeriodicWindow>>,
+}
+
+/// Config fragment for a `periodic.window` entry.
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub(crate) struct UpdatePeriodicWindow {
+    /// Weekdays (English names).
+    pub(crate) days: BTreeSet<String>,
+    /// Start time (`hh:mm` 24h format).
+    pub(crate) start_time: String,
+    /// Window length in minutes.
+    pub(crate) length_minutes: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use maplit::btreeset;
     use std::io::Read;
 
     #[test]
@@ -102,6 +124,20 @@ mod tests {
                 strategy: Some("fleet_lock".to_string()),
                 fleet_lock: Some(UpdateFleetLock {
                     base_url: Some("http://fleet-lock.example.com:8080/".to_string()),
+                }),
+                periodic: Some(UpdatePeriodic {
+                    window: Some(vec![
+                        UpdatePeriodicWindow {
+                            days: btreeset!("Sat".to_string(), "Sun".to_string()),
+                            start_time: "23:00".to_string(),
+                            length_minutes: 120,
+                        },
+                        UpdatePeriodicWindow {
+                            days: btreeset!("Wed".to_string()),
+                            start_time: "23:30".to_string(),
+                            length_minutes: 25,
+                        },
+                    ]),
                 }),
             }),
         };

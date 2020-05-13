@@ -11,18 +11,20 @@ edition = "2018"
 [dependencies]
 actix = "^0.9"
 cfg-if = "^0.1"
-chrono = "^0.4"
+chrono = { version = "^0.4", features = ["serde"] }
 env_logger = "^0.7"
 envsubst = "^0.2"
 fail = "^0.4"
 failure = "^0.1"
 futures = "^0.3"
 glob = "^0.3"
+intervaltree = "^0.2.6"
 lazy_static = "^1.4"
 liboverdrop = "^0.0.2"
 libsystemd = "^0.2"
 log = "^0.4"
 maplit = "^1.0"
+num-traits = "^0.2"
 ordered-float = { version = "^1.0", features = ["serde"] }
 prometheus = { version = "^0.8", default-features = false }
 rand = "^0.7"

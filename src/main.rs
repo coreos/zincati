@@ -26,6 +26,8 @@ mod rpm_ostree;
 mod strategy;
 /// Update agent.
 mod update_agent;
+/// Logic for weekly maintenance windows.
+mod weekly;
 
 use actix::Actor;
 use failure::ResultExt;

@@ -48,7 +48,7 @@ impl ConfigInput {
     }
 
     /// Merge multiple fragments into a single configuration.
-    fn merge_fragments(fragments: Vec<fragments::ConfigFragment>) -> Self {
+    pub(crate) fn merge_fragments(fragments: Vec<fragments::ConfigFragment>) -> Self {
         let mut agents = vec![];
         let mut cincinnatis = vec![];
         let mut updates = vec![];
@@ -167,6 +167,8 @@ pub(crate) struct UpdateInput {
     pub(crate) strategy: String,
     /// `fleet_lock` strategy config.
     pub(crate) fleet_lock: FleetLockInput,
+    /// `periodic` strategy config.
+    pub(crate) periodic: PeriodicInput,
 }
 
 /// Config for "fleet_lock" strategy.
@@ -174,6 +176,21 @@ pub(crate) struct UpdateInput {
 pub(crate) struct FleetLockInput {
     /// Base URL (template) for the FleetLock service.
     pub(crate) base_url: String,
+}
+
+/// Config for "periodic" strategy.
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct PeriodicInput {
+    /// Set of updates windows.
+    pub(crate) intervals: Vec<PeriodicIntervalInput>,
+}
+
+/// Update window for a "periodic" interval.
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct PeriodicIntervalInput {
+    pub(crate) start_day: String,
+    pub(crate) start_time: String,
+    pub(crate) length_minutes: u32,
 }
 
 impl UpdateInput {
@@ -184,6 +201,7 @@ impl UpdateInput {
         let mut fleet_lock = FleetLockInput {
             base_url: String::new(),
         };
+        let mut periodic = PeriodicInput { intervals: vec![] };
 
         for snip in fragments {
             if let Some(a) = snip.allow_downgrade {
@@ -200,6 +218,20 @@ impl UpdateInput {
                     fleet_lock.base_url = b;
                 }
             }
+            if let Some(w) = snip.periodic {
+                if let Some(win) = w.window {
+                    for entry in win {
+                        for day in entry.days {
+                            let interval = PeriodicIntervalInput {
+                                start_day: day,
+                                start_time: entry.start_time.clone(),
+                                length_minutes: entry.length_minutes,
+                            };
+                            periodic.intervals.push(interval);
+                        }
+                    }
+                }
+            }
         }
 
         Self {
@@ -207,6 +239,7 @@ impl UpdateInput {
             enabled,
             strategy,
             fleet_lock,
+            periodic,
         }
     }
 }
