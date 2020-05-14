@@ -81,18 +81,17 @@ impl Handler<RefreshTick> for UpdateAgent {
         };
 
         let update_machine = state_action.then(move |_r, actor, ctx| {
-            if prev_state != actor.state {
-                let update_timestamp = chrono::Utc::now();
-                actor.state_changed = update_timestamp;
-                Self::tick_now(ctx);
-            } else {
-                let interval = actor.refresh_delay();
+            if let Some(interval) = actor.refresh_delay(prev_state) {
                 let pause = Self::add_jitter(interval);
                 log::trace!(
                     "scheduling next agent refresh in {} seconds",
                     pause.as_secs()
                 );
                 Self::tick_later(ctx, pause);
+            } else {
+                let update_timestamp = chrono::Utc::now();
+                actor.state_changed = update_timestamp;
+                Self::tick_now(ctx);
             }
             actix::fut::ready(())
         });
@@ -120,15 +119,21 @@ impl UpdateAgent {
     /// This influences the pace of the update-agent refresh loop. Timing of the
     /// state machine is not uniform. Some states benefit from more/less
     /// frequent refreshes, or can be customized by the user.
-    fn refresh_delay(&self) -> Duration {
-        let default_delay = Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS);
+    fn refresh_delay(&self, prev_state: UpdateAgentState) -> Option<Duration> {
+        use std::mem::discriminant;
 
-        match self.state {
+        // State changes trigger immediate tick/action.
+        if discriminant(&prev_state) != discriminant(&self.state) {
+            return None;
+        }
+
+        let delay = match self.state {
             UpdateAgentState::ReportedSteady | UpdateAgentState::NoNewUpdate => {
                 self.steady_interval
             }
-            _ => default_delay,
-        }
+            _ => Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS),
+        };
+        Some(delay)
     }
 
     /// Add a small, random amount (0% to 10%) of jitter to a given period.
