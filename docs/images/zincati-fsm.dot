@@ -25,6 +25,8 @@ digraph finite_state_machine {
     NoNewUpdate -> NoNewUpdate [label="no_new_update()"];
     NoNewUpdate -> UpdateAvailable [label="update_available()"];
 
+    UpdateAvailable -> UpdateAvailable [label="deploy_failed()"];
+    UpdateAvailable -> NoNewUpdate [label="update_abandoned()"];
     UpdateAvailable -> UpdateStaged [label="update_staged()"];
 
     UpdateStaged -> UpdateFinalized [label="update_finalized()"];
