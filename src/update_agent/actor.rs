@@ -65,7 +65,7 @@ impl Handler<RefreshTick> for UpdateAgent {
             UpdateAgentState::Initialized => self.tick_report_steady(),
             UpdateAgentState::ReportedSteady => self.tick_check_updates(),
             UpdateAgentState::NoNewUpdate => self.tick_check_updates(),
-            UpdateAgentState::UpdateAvailable(release) => {
+            UpdateAgentState::UpdateAvailable((release, _)) => {
                 let update = release.clone();
                 self.tick_stage_update(update)
             }
@@ -219,10 +219,17 @@ impl UpdateAgent {
     fn tick_stage_update(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to stage an update");
 
+        let target = release.clone();
         let can_fetch = self.strategy.can_check_and_fetch(&self.identity);
-        let state_change = actix::fut::wrap_future::<_, Self>(can_fetch)
-            .then(|can_fetch, actor, _ctx| actor.locked_upgrade(can_fetch, release))
-            .map(|res, actor, _ctx| res.map(|release| actor.state.update_staged(release)));
+        let deploy_outcome = actix::fut::wrap_future::<_, Self>(can_fetch)
+            .then(|can_fetch, actor, _ctx| actor.attempt_deploy(can_fetch, target));
+        let state_change = deploy_outcome.map(move |res, actor, _ctx| {
+            match res {
+                Ok(_) => actor.state.update_staged(release),
+                Err(_) => actor.deploy_attempt_failed(release),
+            };
+            Ok(())
+        });
 
         Box::new(state_change)
     }
@@ -254,7 +261,7 @@ impl UpdateAgent {
     }
 
     /// Fetch and stage an update, in finalization-locked mode.
-    fn locked_upgrade(
+    fn attempt_deploy(
         &mut self,
         can_fetch: bool,
         release: Release,
@@ -264,7 +271,7 @@ impl UpdateAgent {
         }
 
         log::info!(
-            "new release '{}' selected, proceeding to stage it",
+            "target release '{}' selected, proceeding to stage it",
             release.version
         );
         let msg = rpm_ostree::StageDeployment {
@@ -279,6 +286,17 @@ impl UpdateAgent {
             .into_actor(self);
 
         Box::new(upgrade)
+    }
+
+    /// Record a failed deploy attempt.
+    fn deploy_attempt_failed(&mut self, release: Release) {
+        let is_abandoned = self.state.record_failed_deploy();
+        if is_abandoned {
+            log::warn!(
+                "persistent deploy failure detected, target release '{}' abandoned",
+                release.version
+            );
+        }
     }
 
     /// List local deployments.
