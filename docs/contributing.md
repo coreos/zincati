@@ -1,4 +1,10 @@
-# Development
+# Contributing
+
+## Project architecture
+
+[Development doc-pages][devdocs] cover several aspects of this project, both at low-level (code and logic) and high-level (architecture and design).
+
+[devdocs]: ./development/
 
 ## Release process
 
