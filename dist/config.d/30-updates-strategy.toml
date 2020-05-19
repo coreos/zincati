@@ -1,4 +1,4 @@
-# How to finalize update.
+# How to finalize updates.
 [updates]
 
 # String to customize update strategy.
@@ -10,3 +10,12 @@ strategy = "immediate"
 #strategy = "fleet_lock"
 # Base URL for the FleetLock service.
 #fleet_lock.base_url = "https://fleet-lock.example.com/"
+
+# Update strategy which uses a periodic schedule for reboot/maintenance
+# windows, on a weekly basis.
+#strategy = "periodic"
+# Example of reboot windows: weekend days, between 01:00 and 02:00 UTC.
+#[[updates.periodic.window]]
+#days = [ "Sat", "Sun" ]
+#start_time = "01:00"
+#length_minutes = 60
