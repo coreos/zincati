@@ -65,7 +65,7 @@ impl Handler<RefreshTick> for UpdateAgent {
             UpdateAgentState::Initialized => self.tick_report_steady(),
             UpdateAgentState::ReportedSteady => self.tick_check_updates(),
             UpdateAgentState::NoNewUpdate => self.tick_check_updates(),
-            UpdateAgentState::UpdateAvailable(release) => {
+            UpdateAgentState::UpdateAvailable((release, _)) => {
                 let update = release.clone();
                 self.tick_stage_update(update)
             }
@@ -81,18 +81,17 @@ impl Handler<RefreshTick> for UpdateAgent {
         };
 
         let update_machine = state_action.then(move |_r, actor, ctx| {
-            if prev_state != actor.state {
-                let update_timestamp = chrono::Utc::now();
-                actor.state_changed = update_timestamp;
-                Self::tick_now(ctx);
-            } else {
-                let interval = actor.refresh_delay();
+            if let Some(interval) = actor.refresh_delay(prev_state) {
                 let pause = Self::add_jitter(interval);
                 log::trace!(
                     "scheduling next agent refresh in {} seconds",
                     pause.as_secs()
                 );
                 Self::tick_later(ctx, pause);
+            } else {
+                let update_timestamp = chrono::Utc::now();
+                actor.state_changed = update_timestamp;
+                Self::tick_now(ctx);
             }
             actix::fut::ready(())
         });
@@ -120,15 +119,21 @@ impl UpdateAgent {
     /// This influences the pace of the update-agent refresh loop. Timing of the
     /// state machine is not uniform. Some states benefit from more/less
     /// frequent refreshes, or can be customized by the user.
-    fn refresh_delay(&self) -> Duration {
-        let default_delay = Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS);
+    fn refresh_delay(&self, prev_state: UpdateAgentState) -> Option<Duration> {
+        use std::mem::discriminant;
 
-        match self.state {
+        // State changes trigger immediate tick/action.
+        if discriminant(&prev_state) != discriminant(&self.state) {
+            return None;
+        }
+
+        let delay = match self.state {
             UpdateAgentState::ReportedSteady | UpdateAgentState::NoNewUpdate => {
                 self.steady_interval
             }
-            _ => default_delay,
-        }
+            _ => Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS),
+        };
+        Some(delay)
     }
 
     /// Add a small, random amount (0% to 10%) of jitter to a given period.
@@ -214,10 +219,17 @@ impl UpdateAgent {
     fn tick_stage_update(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to stage an update");
 
+        let target = release.clone();
         let can_fetch = self.strategy.can_check_and_fetch(&self.identity);
-        let state_change = actix::fut::wrap_future::<_, Self>(can_fetch)
-            .then(|can_fetch, actor, _ctx| actor.locked_upgrade(can_fetch, release))
-            .map(|res, actor, _ctx| res.map(|release| actor.state.update_staged(release)));
+        let deploy_outcome = actix::fut::wrap_future::<_, Self>(can_fetch)
+            .then(|can_fetch, actor, _ctx| actor.attempt_deploy(can_fetch, target));
+        let state_change = deploy_outcome.map(move |res, actor, _ctx| {
+            match res {
+                Ok(_) => actor.state.update_staged(release),
+                Err(_) => actor.deploy_attempt_failed(release),
+            };
+            Ok(())
+        });
 
         Box::new(state_change)
     }
@@ -249,7 +261,7 @@ impl UpdateAgent {
     }
 
     /// Fetch and stage an update, in finalization-locked mode.
-    fn locked_upgrade(
+    fn attempt_deploy(
         &mut self,
         can_fetch: bool,
         release: Release,
@@ -259,7 +271,7 @@ impl UpdateAgent {
         }
 
         log::info!(
-            "new release '{}' selected, proceeding to stage it",
+            "target release '{}' selected, proceeding to stage it",
             release.version
         );
         let msg = rpm_ostree::StageDeployment {
@@ -274,6 +286,17 @@ impl UpdateAgent {
             .into_actor(self);
 
         Box::new(upgrade)
+    }
+
+    /// Record a failed deploy attempt.
+    fn deploy_attempt_failed(&mut self, release: Release) {
+        let is_abandoned = self.state.record_failed_deploy();
+        if is_abandoned {
+            log::warn!(
+                "persistent deploy failure detected, target release '{}' abandoned",
+                release.version
+            );
+        }
     }
 
     /// List local deployments.

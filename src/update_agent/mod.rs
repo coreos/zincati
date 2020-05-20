@@ -12,10 +12,15 @@ use chrono::prelude::*;
 use prometheus::IntGauge;
 use std::time::Duration;
 
-/// Default tick/refresh period for the state machine (in seconds).
-const DEFAULT_REFRESH_PERIOD_SECS: u64 = 300; // 5 minutes.
 /// Default refresh interval for steady state (in seconds).
 pub(crate) const DEFAULT_STEADY_INTERVAL_SECS: u64 = 300; // 5 minutes.
+
+/// Default tick/refresh period for the state machine (in seconds).
+const DEFAULT_REFRESH_PERIOD_SECS: u64 = 300; // 5 minutes.
+
+/// Maximum failed deploy attempts in a row in `UpdateAvailable` state
+/// before abandoning a target update.
+const MAX_DEPLOY_ATTEMPTS: u8 = 12;
 
 lazy_static::lazy_static! {
     static ref LATEST_STATE_CHANGE: IntGauge = register_int_gauge!(opts!(
@@ -36,7 +41,11 @@ enum UpdateAgentState {
     /// No further updates available yet.
     NoNewUpdate,
     /// Update available from Cincinnati.
-    UpdateAvailable(Release),
+    ///
+    /// The integer counter keeps track of how many times in a row this
+    /// update was attempted, but deploying failed. At `MAX_DEPLOY_ATTEMPTS`
+    /// a state transition is triggered to abandon the target update.
+    UpdateAvailable((Release, u8)),
     /// Update staged by rpm-ostree.
     UpdateStaged(Release),
     /// Update finalized by rpm-ostree.
@@ -103,9 +112,9 @@ impl UpdateAgentState {
         self.transition_to(UpdateAgentState::NoNewUpdate);
     }
 
-    /// Transition to the UpdateAvailable state.
+    /// Transition to the UpdateAvailable state with a new release.
     fn update_available(&mut self, update: Release) {
-        let target = UpdateAgentState::UpdateAvailable(update);
+        let target = UpdateAgentState::UpdateAvailable((update, 0));
         // Allowed starting states.
         assert!(
             *self == UpdateAgentState::ReportedSteady || *self == UpdateAgentState::NoNewUpdate,
@@ -113,6 +122,41 @@ impl UpdateAgentState {
             self,
             target
         );
+
+        self.transition_to(target);
+    }
+
+    /// Record a failed deploy attempt in UpdateAvailable state.
+    ///
+    /// This returns whether a persistent deploy failure was detected
+    /// and the target update abandoned.
+    fn record_failed_deploy(&mut self) -> bool {
+        let (release, attempts) = match self.clone() {
+            UpdateAgentState::UpdateAvailable((r, a)) => (r, a),
+            _ => unreachable!("transition not allowed: record_failed_deploy on {:?}", self,),
+        };
+        let fail_count = attempts.saturating_add(1);
+        let persistent_err = fail_count >= MAX_DEPLOY_ATTEMPTS;
+
+        if persistent_err {
+            self.update_abandoned();
+        } else {
+            self.deploy_failed(release, fail_count);
+        }
+
+        persistent_err
+    }
+
+    /// Transition to the UpdateAvailable state after a deploy failure.
+    fn deploy_failed(&mut self, update: Release, fail_count: u8) {
+        let target = UpdateAgentState::UpdateAvailable((update, fail_count));
+
+        self.transition_to(target);
+    }
+
+    /// Transition to the NoNewUpdate state after persistent deploy failure.
+    fn update_abandoned(&mut self) {
+        let target = UpdateAgentState::NoNewUpdate;
 
         self.transition_to(target);
     }
@@ -218,7 +262,17 @@ mod tests {
             age_index: None,
         };
         machine.update_available(update.clone());
-        assert_eq!(machine, UpdateAgentState::UpdateAvailable(update.clone()));
+        assert_eq!(
+            machine,
+            UpdateAgentState::UpdateAvailable((update.clone(), 0))
+        );
+
+        let persistent_err = machine.record_failed_deploy();
+        assert_eq!(persistent_err, false);
+        assert_eq!(
+            machine,
+            UpdateAgentState::UpdateAvailable((update.clone(), 1))
+        );
 
         machine.update_staged(update.clone());
         assert_eq!(machine, UpdateAgentState::UpdateStaged(update.clone()));
@@ -228,5 +282,36 @@ mod tests {
 
         machine.end();
         assert_eq!(machine, UpdateAgentState::EndState);
+    }
+
+    #[test]
+    fn test_fsm_abandon_update() {
+        let update = Release {
+            version: "v1".to_string(),
+            checksum: "ostree-checksum".to_string(),
+            age_index: None,
+        };
+        let mut machine = UpdateAgentState::NoNewUpdate;
+
+        machine.update_available(update.clone());
+        assert_eq!(
+            machine,
+            UpdateAgentState::UpdateAvailable((update.clone(), 0))
+        );
+
+        // MAX-1 temporary failures.
+        for attempt in 1..MAX_DEPLOY_ATTEMPTS {
+            let persistent_err = machine.record_failed_deploy();
+            assert_eq!(persistent_err, false);
+            assert_eq!(
+                machine,
+                UpdateAgentState::UpdateAvailable((update.clone(), attempt as u8))
+            )
+        }
+
+        // Persistent error threshold reached.
+        let persistent_err = machine.record_failed_deploy();
+        assert_eq!(persistent_err, true);
+        assert_eq!(machine, UpdateAgentState::NoNewUpdate);
     }
 }
