@@ -1,0 +1,52 @@
+# Render with: `mscgen -T svg -i zincati-fleetlock.msc`
+
+msc {
+  "OS", "Zincati agent", "FleetLock service", "rpm-ostree daemon";
+
+  ...;
+  |||;
+  "Zincati agent" rbox "FleetLock service" [label="Reboot slot locked\n(possibly, from previous update)\n", textbgcolour="#cecece"],
+  |||;
+
+  |||;
+  --- [label="System boot"],
+  "OS" -> "Zincati agent" [label="Start zincati.service", arcskip=1];
+  |||;
+  "Zincati agent" => "FleetLock service" [label="POST /v1/steady-state", arcskip=1];
+  |||;
+  "Zincati agent" note "FleetLock service" [label="(Keep trying until steady-state is acknowledged...)\n"];
+  "FleetLock service" >> "Zincati agent" [label="OK", arcskip=1];
+  |||;
+  "Zincati agent" rbox "Zincati agent" [label="Released any owned reboot slot", textbgcolour="#46b8e3"],
+  "FleetLock service" rbox "FleetLock service" [label="Locked reboot slots: 0", textbgcolour="#ff7f7f"],
+  |||;
+
+  |||;
+  ... [label="New update target found (TargetRevision)"];
+  |||;
+
+  "Zincati agent" => "rpm-ostree daemon" [label="Deploy(TargetRevision)", arcskip=1];
+  |||;
+  "rpm-ostree daemon" >> "Zincati agent" [label="OK", arcskip=1];
+  |||;
+  "Zincati agent" => "FleetLock service" [label="POST /v1/pre-reboot", arcskip=1];
+  |||;
+  "Zincati agent" note "FleetLock service" [label="(Keep trying until a reboot slot is available...)\n"];
+  "FleetLock service" >> "Zincati agent" [label="OK", arcskip=1];
+  |||;
+  "Zincati agent" rbox "Zincati agent" [label="Owning a reboot slot", textbgcolour="#46b8e3"],
+  "FleetLock service" rbox "FleetLock service" [label="Locked reboot slots: 1", textbgcolour="#ff7f7f"],
+  |||;
+
+  |||;
+  "Zincati agent" => "rpm-ostree daemon" [label="Finalize(TargetRevision)", arcskip=1];
+  |||;
+  "rpm-ostree daemon" >> "Zincati agent" [label="OK", arcskip=1],
+  |||;
+  "rpm-ostree daemon" => "OS" [label="Reboot", arcskip=2];
+  |||;
+  --- [label="System reboot"];
+  |||;
+  "Zincati agent" rbox "FleetLock service" [label="Reboot slot locked\n(for current update)\n", textbgcolour="#cecece"];
+  ...;
+}
