@@ -35,7 +35,7 @@ In short, it consists of two operations:
  * unlock: after rebooting, any reboot slot owned by the node must be unlocked (and confirmed) by the lock-manager before proceeding further.
 
 This protocol is not coupled to any specific backend, and can be implemented on top of any suitable database.
-As an example, [airlock] is a free-software project which implements such protocol on top of [etcd3].
+As an example, [airlock](https://github.com/coreos/airlock) is a free-software project which implements such protocol on top of [etcd3](https://etcd.io/).
 
 For configuration purposes, such strategy is labeled `fleet_lock` and takes the following configuration parameters:
  * `base_url` (string, mandatory, non-empty): the base URL for the FleetLock service.
