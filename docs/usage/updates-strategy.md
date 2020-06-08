@@ -55,6 +55,7 @@ The `fleet_lock` strategy is a conservative method which is biased towards avoid
 Such an approach is only recommended where nodes are already grouped into an orchestrated cluster, which can thus provide better overall scheduling decisions.
 
 [fleet_lock]: https://github.com/coreos/airlock/pull/1 
+[airlock]: https://github.com/coreos/airlock
 [etcd3]: https://etcd.io/
 
 # Periodic strategy
