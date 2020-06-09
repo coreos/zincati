@@ -1,0 +1,42 @@
+{
+  "nodes": [
+    {
+      "version": "32.20200517.1.0",
+      "metadata": {
+        "org.fedoraproject.coreos.releases.age_index": "0",
+        "org.fedoraproject.coreos.scheme": "checksum"
+      },
+      "payload": "7c23c4735fb3c541586f0a4d3ca956ef93ef7d76f00a19bccf51460bafa7ee97"
+    },
+    {
+      "version": "32.20200601.1.0",
+      "metadata": {
+        "org.fedoraproject.coreos.scheme": "checksum",
+        "org.fedoraproject.coreos.releases.age_index": "1"
+      },
+      "payload": "8cffe35be831fa2601d315002cb39fb22509a4e7d3db10e61f880523f69b3bf6"
+    },
+    {
+      "version": "32.20200601.1.1",
+      "metadata": {
+        "org.fedoraproject.coreos.releases.age_index": "2",
+        "org.fedoraproject.coreos.scheme": "checksum",
+        "org.fedoraproject.coreos.updates.start_epoch": "1591279200",
+        "org.fedoraproject.coreos.updates.start_value": "0",
+        "org.fedoraproject.coreos.updates.rollout": "true",
+        "org.fedoraproject.coreos.updates.duration_minutes": "2880"
+      },
+      "payload": "08040bebbab87a3343a281f94bb68010df618eb6ce6ac3d4230d2595959b5da1"
+    }
+  ],
+  "edges": [
+    [
+      0,
+      2
+    ],
+    [
+      1,
+      2
+    ]
+  ]
+}
