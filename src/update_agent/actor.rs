@@ -299,7 +299,10 @@ impl UpdateAgent {
         }
     }
 
-    /// List local deployments.
+    /// List persistent (i.e. finalized) local deployments.
+    ///
+    /// This ignores deployments that have been only staged but not finalized in the
+    /// past, as they are acceptable as future update target.
     fn local_deployments(
         &mut self,
         can_fetch: bool,
@@ -308,7 +311,7 @@ impl UpdateAgent {
             return Box::new(actix::fut::ok((can_fetch, BTreeSet::new())));
         }
 
-        let msg = rpm_ostree::QueryLocalDeployments {};
+        let msg = rpm_ostree::QueryLocalDeployments { omit_staged: true };
         let depls = self
             .rpm_ostree_actor
             .send(msg)
