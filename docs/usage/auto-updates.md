@@ -46,6 +46,7 @@ For such reason, Zincati allows the user to control when a node is allowed to re
 The following finalization strategies are currently available:
  * immediately reboot to apply an update, as soon as it is downloaded and staged locally (`immediate` strategy, see [relevant documentation][strategy-immediate]).
  * use an external lock-manager to reboot a fleet of machines in a coordinated way (`fleet_lock` strategy, see [relevant documentation][strategy-fleet_lock]).
+ * allow reboots only within locally configured maintenance windows, defined on a weekly basis (`periodic` strategy, see [relevant documentation][strategy-periodic]).
 
 By default, the `immediate` strategy is used in order to proactively keep machines up-to-date.
 
@@ -53,6 +54,7 @@ For further documentation on configurations, check the [updates strategy][update
 
 [strategy-immediate]: updates-strategy.md#immediate-strategy
 [strategy-fleet_lock]: updates-strategy.md#lock-based-strategy
+[strategy-periodic]: updates-strategy.md#periodic-strategy
 [updates-strategy]: updates-strategy.md
 
 ## Updates ordering and downgrades
