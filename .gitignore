@@ -1,2 +1,5 @@
 /target
 **/*.rs.bk
+vendor
+jsonnetfile.lock.json
+dashboard_out
