@@ -7,6 +7,7 @@ use crate::identity::Identity;
 use failure::{bail, Fallible};
 use futures::prelude::*;
 use log::error;
+use prometheus::{IntGauge, IntGaugeVec};
 use serde::Serialize;
 
 mod fleet_lock;
@@ -18,6 +19,19 @@ pub(crate) use immediate::StrategyImmediate;
 mod periodic;
 pub(crate) use periodic::StrategyPeriodic;
 
+lazy_static::lazy_static! {
+    static ref STRATEGY_MODE: IntGaugeVec = register_int_gauge_vec!(
+        "zincati_updates_strategy_mode",
+        "Update strategy mode in use",
+        &["strategy"]
+    ).unwrap();
+
+    static ref PERIODIC_LENGTH: IntGauge = register_int_gauge!(
+        "zincati_updates_strategy_periodic_schedule_length_minutes",
+        "Total length of the periodic strategy schedule in use"
+    ).unwrap();
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub(crate) enum UpdateStrategy {
     FleetLock(StrategyFleetLock),
@@ -28,13 +42,24 @@ pub(crate) enum UpdateStrategy {
 impl UpdateStrategy {
     /// Try to parse config inputs into a valid strategy.
     pub(crate) fn with_config(cfg: inputs::UpdateInput, identity: &Identity) -> Fallible<Self> {
-        let strategy = match cfg.strategy.as_ref() {
+        let strategy_name = cfg.strategy.clone();
+        let strategy = match strategy_name.as_ref() {
             "fleet_lock" => UpdateStrategy::new_fleet_lock(cfg, identity)?,
             "immediate" => UpdateStrategy::new_immediate()?,
             "periodic" => UpdateStrategy::new_periodic(cfg)?,
             "" => UpdateStrategy::default(),
             x => bail!("unsupported strategy '{}'", x),
         };
+
+        // Export info-metrics with details about current strategy.
+        STRATEGY_MODE
+            .with_label_values(&[strategy_name.as_ref()])
+            .set(1);
+        if let UpdateStrategy::Periodic(p) = &strategy {
+            let sched_length = p.schedule_length_minutes();
+            PERIODIC_LENGTH.set(sched_length as i64);
+        };
+
         Ok(strategy)
     }
 
