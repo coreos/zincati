@@ -51,7 +51,7 @@ impl WeeklyCalendar {
         self.windows.query_point(timepoint).count() > 0
     }
 
-    /// Return the measured length of the calendar.
+    /// Return the measured length of the calendar, in minutes.
     ///
     /// In case of overlapping windows, measured length is the actual amount
     /// of weekly minutes in the calendar. Overlapped intervals are coalesced
@@ -87,7 +87,7 @@ impl WeeklyCalendar {
         u64::from(measured)
     }
 
-    /// Return total length of all windows in the calendar.
+    /// Return total length of all windows in the calendar, in minutes.
     ///
     /// In case of overlapping windows, total length can be larger than the
     /// actual amount of weekly minutes in the calendar.

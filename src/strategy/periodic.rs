@@ -42,6 +42,11 @@ impl StrategyPeriodic {
         Ok(strategy)
     }
 
+    /// Return the measured length of the schedule, in minutes.
+    pub(crate) fn schedule_length_minutes(&self) -> u64 {
+        self.schedule.length_minutes()
+    }
+
     /// Check if finalization is allowed.
     pub(crate) fn can_finalize(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         let datetime_now = chrono::Utc::now();
