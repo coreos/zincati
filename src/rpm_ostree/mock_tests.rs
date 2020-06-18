@@ -46,7 +46,7 @@ fn test_simple_graph() {
     let client = Cincinnati {
         base_url: mockito::server_url(),
     };
-    let update = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), true, false));
+    let update = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), false));
     m_graph.assert();
 
     let next = update.unwrap();
@@ -98,11 +98,11 @@ fn test_downgrade() {
     };
 
     // Downgrades denied.
-    let upgrade = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), true, false));
+    let upgrade = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), false));
     assert_eq!(upgrade, None);
 
     // Downgrades allowed.
-    let downgrade = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), true, true));
+    let downgrade = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), true));
 
     m_graph.assert();
     let next = downgrade.unwrap();

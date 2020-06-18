@@ -90,13 +90,8 @@ impl Cincinnati {
         &self,
         id: &Identity,
         deployments: BTreeSet<Release>,
-        can_check: bool,
         allow_downgrade: bool,
     ) -> Pin<Box<dyn Future<Output = Option<Release>>>> {
-        if !can_check {
-            return Box::pin(futures::future::ready(None));
-        }
-
         UPDATE_CHECKS.inc();
         log::trace!("checking upstream Cincinnati server for updates");
 

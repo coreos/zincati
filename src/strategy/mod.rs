@@ -1,7 +1,5 @@
 //! Update and reboot strategies.
 
-#![allow(unused)]
-
 use crate::config::inputs;
 use crate::identity::Identity;
 use failure::{bail, Fallible};
@@ -64,7 +62,7 @@ impl UpdateStrategy {
     }
 
     /// Check if finalization is allowed at this time.
-    pub(crate) fn can_finalize(&self, _identity: &Identity) -> impl Future<Output = bool> {
+    pub(crate) fn can_finalize(&self) -> impl Future<Output = bool> {
         let lock = match self {
             UpdateStrategy::FleetLock(s) => s.can_finalize(),
             UpdateStrategy::Immediate(s) => s.can_finalize(),
@@ -80,7 +78,7 @@ impl UpdateStrategy {
     }
 
     /// Try to report and enter steady state.
-    pub(crate) fn report_steady(&self, _identity: &Identity) -> impl Future<Output = bool> {
+    pub(crate) fn report_steady(&self) -> impl Future<Output = bool> {
         let unlock = match self {
             UpdateStrategy::FleetLock(s) => s.report_steady(),
             UpdateStrategy::Immediate(s) => s.report_steady(),
@@ -89,22 +87,6 @@ impl UpdateStrategy {
 
         async {
             unlock.await.unwrap_or_else(|e| {
-                error!("{}", e);
-                false
-            })
-        }
-    }
-
-    /// Check if this agent is allowed to check for updates at this time.
-    pub(crate) fn can_check_and_fetch(&self, _identity: &Identity) -> impl Future<Output = bool> {
-        let can_check = match self {
-            UpdateStrategy::FleetLock(s) => s.can_check_and_fetch(),
-            UpdateStrategy::Immediate(s) => s.can_check_and_fetch(),
-            UpdateStrategy::Periodic(s) => s.can_check_and_fetch(),
-        };
-
-        async {
-            can_check.await.unwrap_or_else(|e| {
                 error!("{}", e);
                 false
             })

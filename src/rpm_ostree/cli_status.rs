@@ -1,7 +1,5 @@
 //! Interface to `rpm-ostree status --json`.
 
-#![allow(unused)]
-
 use super::Release;
 use failure::{bail, ensure, format_err, Fallible, ResultExt};
 use serde::Deserialize;
@@ -142,7 +140,7 @@ mod tests {
 
     fn mock_status(path: &str) -> Fallible<StatusJSON> {
         let fp = std::fs::File::open(path).unwrap();
-        let mut bufrd = std::io::BufReader::new(fp);
+        let bufrd = std::io::BufReader::new(fp);
         let status: StatusJSON = serde_json::from_reader(bufrd)?;
         Ok(status)
     }
