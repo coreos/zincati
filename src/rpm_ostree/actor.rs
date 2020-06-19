@@ -65,7 +65,10 @@ impl Handler<FinalizeDeployment> for RpmOstreeClient {
 
 /// Request: query local deployments.
 #[derive(Debug, Clone)]
-pub struct QueryLocalDeployments {}
+pub struct QueryLocalDeployments {
+    /// Whether to include staged (i.e. not finalized) deployments in query result.
+    pub(crate) omit_staged: bool,
+}
 
 impl Message for QueryLocalDeployments {
     type Result = Fallible<BTreeSet<Release>>;
@@ -74,8 +77,12 @@ impl Message for QueryLocalDeployments {
 impl Handler<QueryLocalDeployments> for RpmOstreeClient {
     type Result = Fallible<BTreeSet<Release>>;
 
-    fn handle(&mut self, _msg: QueryLocalDeployments, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(
+        &mut self,
+        query_msg: QueryLocalDeployments,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
         trace!("request to list local deployments");
-        super::cli_status::local_deployments()
+        super::cli_status::local_deployments(query_msg.omit_staged)
     }
 }

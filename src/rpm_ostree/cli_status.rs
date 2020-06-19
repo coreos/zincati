@@ -22,6 +22,9 @@ pub struct DeploymentJSON {
     #[serde(rename = "base-commit-meta")]
     base_metadata: BaseCommitMetaJSON,
     checksum: String,
+    // NOTE(lucab): missing field means "not staged".
+    #[serde(default)]
+    staged: bool,
     version: String,
 }
 
@@ -67,14 +70,9 @@ pub fn booted() -> Fallible<Release> {
 }
 
 /// Return local deployments.
-pub fn local_deployments() -> Fallible<BTreeSet<Release>> {
+pub fn local_deployments(omit_staged: bool) -> Fallible<BTreeSet<Release>> {
     let status = status_json(false)?;
-    let mut deployments = BTreeSet::<Release>::new();
-    for entry in status.deployments {
-        let release = entry.into_release();
-        deployments.insert(release);
-    }
-    Ok(deployments)
+    parse_local_deployments(status, omit_staged)
 }
 
 /// Return updates stream for booted deployment.
@@ -83,6 +81,20 @@ pub fn updates_stream() -> Fallible<String> {
     let json = booted_json(status)?;
     ensure!(!json.base_metadata.stream.is_empty(), "empty stream value");
     Ok(json.base_metadata.stream)
+}
+
+/// Parse local deployments from a status object.
+fn parse_local_deployments(status: StatusJSON, omit_staged: bool) -> Fallible<BTreeSet<Release>> {
+    let mut deployments = BTreeSet::<Release>::new();
+    for entry in status.deployments {
+        if omit_staged && entry.staged {
+            continue;
+        }
+
+        let release = entry.into_release();
+        deployments.insert(release);
+    }
+    Ok(deployments)
 }
 
 /// Return JSON object for booted deployment.
@@ -128,23 +140,42 @@ fn status_json(booted_only: bool) -> Fallible<StatusJSON> {
 mod tests {
     use super::*;
 
-    fn mock_status() -> Fallible<StatusJSON> {
-        let fp = std::fs::File::open("tests/fixtures/rpm-ostree-status.json").unwrap();
+    fn mock_status(path: &str) -> Fallible<StatusJSON> {
+        let fp = std::fs::File::open(path).unwrap();
         let mut bufrd = std::io::BufReader::new(fp);
         let status: StatusJSON = serde_json::from_reader(bufrd)?;
         Ok(status)
     }
 
     #[test]
+    fn mock_deployments() {
+        {
+            let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
+            let deployments = parse_local_deployments(status, false).unwrap();
+            assert_eq!(deployments.len(), 1);
+        }
+        {
+            let status = mock_status("tests/fixtures/rpm-ostree-staged.json").unwrap();
+            let deployments = parse_local_deployments(status, false).unwrap();
+            assert_eq!(deployments.len(), 2);
+        }
+        {
+            let status = mock_status("tests/fixtures/rpm-ostree-staged.json").unwrap();
+            let deployments = parse_local_deployments(status, true).unwrap();
+            assert_eq!(deployments.len(), 1);
+        }
+    }
+
+    #[test]
     fn mock_booted_basearch() {
-        let status = mock_status().unwrap();
+        let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
         let booted = booted_json(status).unwrap();
         assert_eq!(booted.base_metadata.basearch, "x86_64");
     }
 
     #[test]
     fn mock_booted_updates_stream() {
-        let status = mock_status().unwrap();
+        let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
         let booted = booted_json(status).unwrap();
         assert_eq!(booted.base_metadata.stream, "testing-devel");
     }

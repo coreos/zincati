@@ -1,0 +1,150 @@
+{
+  "deployments" : [
+    {
+      "unlocked" : "none",
+      "requested-local-packages" : [
+      ],
+      "base-commit-meta" : {
+        "coreos-assembler.config-gitrev" : "e0a85592cf67d075e510f1ed29a40957aeca3617",
+        "coreos-assembler.config-dirty" : "false",
+        "rpmostree.inputhash" : "77dbde3d9502f2f87757d2b68b93b52efa2c65fb7b1fc317e0ffc50b483a3a52",
+        "coreos-assembler.basearch" : "x86_64",
+        "fedora-coreos.stream" : "stable",
+        "version" : "31.20200517.3.0",
+        "rpmostree.initramfs-args" : [
+          "--add=ignition",
+          "--no-hostonly",
+          "--omit=nfs",
+          "--omit=lvm",
+          "--omit=multipath",
+          "--omit=iscsi"
+        ],
+        "rpmostree.rpmmd-repos" : [
+          {
+            "id" : "fedora-coreos-pool",
+            "timestamp" : 1590960454
+          }
+        ]
+      },
+      "base-removals" : [
+      ],
+      "gpg-enabled" : true,
+      "origin" : "fedora:fedora/x86_64/coreos/stable",
+      "osname" : "fedora-coreos",
+      "pinned" : false,
+      "requested-base-local-replacements" : [
+      ],
+      "checksum" : "967b7b8d624e6d10ff51c2e81ef198fae966c567ac2e9b479771c693d0987949",
+      "booted" : false,
+      "regenerate-initramfs" : false,
+      "id" : "fedora-coreos-967b7b8d624e6d10ff51c2e81ef198fae966c567ac2e9b479771c693d0987949.0",
+      "version" : "31.20200517.3.0",
+      "requested-packages" : [
+      ],
+      "requested-base-removals" : [
+      ],
+      "signatures" : [
+        [
+          true,
+          false,
+          false,
+          false,
+          false,
+          "7D22D5867F2A4236474BF7B850CB390B3C3359C4",
+          1591031924,
+          0,
+          "RSA",
+          "SHA256",
+          "Fedora",
+          "fedora-31-primary@fedoraproject.org",
+          "7D22D5867F2A4236474BF7B850CB390B3C3359C4",
+          1866067200,
+          1866067200
+        ]
+      ],
+      "serial" : 0,
+      "timestamp" : 1591031729,
+      "staged" : true,
+      "finalization-locked" : true,
+      "packages" : [
+      ],
+      "base-local-replacements" : [
+      ]
+    },
+    {
+      "unlocked" : "none",
+      "pending-base-version" : "31.20200517.3.0",
+      "base-commit-meta" : {
+        "coreos-assembler.config-gitrev" : "a333cfdcf02c622883e08f99d08745430c5e93eb",
+        "coreos-assembler.config-dirty" : "false",
+        "rpmostree.inputhash" : "3efbafd926cbd112d0049aaebf5c025812229ab23fc84bd6800d959ac919b03a",
+        "coreos-assembler.basearch" : "x86_64",
+        "fedora-coreos.stream" : "stable",
+        "version" : "31.20200505.3.0",
+        "rpmostree.initramfs-args" : [
+          "--add=ignition",
+          "--no-hostonly",
+          "--omit=nfs",
+          "--omit=lvm",
+          "--omit=multipath",
+          "--omit=iscsi"
+        ],
+        "rpmostree.rpmmd-repos" : [
+          {
+            "id" : "fedora-coreos-pool",
+            "timestamp" : 1589664881
+          }
+        ]
+      },
+      "requested-local-packages" : [
+      ],
+      "base-removals" : [
+      ],
+      "gpg-enabled" : true,
+      "origin" : "fedora:fedora/x86_64/coreos/stable",
+      "osname" : "fedora-coreos",
+      "pinned" : false,
+      "requested-base-local-replacements" : [
+      ],
+      "checksum" : "01f074cc6cd88d8d2b43f821da692f2367c101eb4377802cb35092bde0ef02f7",
+      "regenerate-initramfs" : false,
+      "id" : "fedora-coreos-01f074cc6cd88d8d2b43f821da692f2367c101eb4377802cb35092bde0ef02f7.0",
+      "version" : "31.20200505.3.0",
+      "requested-packages" : [
+      ],
+      "requested-base-removals" : [
+      ],
+      "signatures" : [
+        [
+          true,
+          false,
+          false,
+          false,
+          false,
+          "7D22D5867F2A4236474BF7B850CB390B3C3359C4",
+          1589895778,
+          0,
+          "RSA",
+          "SHA256",
+          "Fedora",
+          "fedora-31-primary@fedoraproject.org",
+          "7D22D5867F2A4236474BF7B850CB390B3C3359C4",
+          1866067200,
+          1866067200
+        ]
+      ],
+      "serial" : 0,
+      "timestamp" : 1589895586,
+      "base-local-replacements" : [
+      ],
+      "packages" : [
+      ],
+      "pending-base-timestamp" : 1591031729,
+      "booted" : true,
+      "pending-base-checksum" : "967b7b8d624e6d10ff51c2e81ef198fae966c567ac2e9b479771c693d0987949"
+    }
+  ],
+  "transaction" : null,
+  "cached-update" : null
+}
+
