@@ -31,6 +31,9 @@ pub(crate) struct StrategyFleetLock {
 }
 
 impl StrategyFleetLock {
+    /// Strategy label/name.
+    pub const LABEL: &'static str = "fleet_lock";
+
     /// Build a new FleetLock strategy.
     pub fn new(cfg: inputs::UpdateInput, identity: &Identity) -> Fallible<Self> {
         // Substitute templated key with agent runtime values.
