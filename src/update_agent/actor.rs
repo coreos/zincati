@@ -171,7 +171,7 @@ impl UpdateAgent {
     fn tick_report_steady(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to report steady state");
 
-        let report_steady = self.strategy.report_steady(&self.identity);
+        let report_steady = self.strategy.report_steady();
         let state_change =
             actix::fut::wrap_future::<_, Self>(report_steady).map(|is_steady, actor, _ctx| {
                 if is_steady {
@@ -188,18 +188,16 @@ impl UpdateAgent {
     fn tick_check_updates(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to check for updates");
 
-        let can_check = self.strategy.can_check_and_fetch(&self.identity);
-        let state_change = actix::fut::wrap_future::<_, Self>(can_check)
-            .then(|can_check, actor, _ctx| actor.local_deployments(can_check))
+        let state_change = self
+            .local_deployments()
             .then(|res, actor, _ctx| {
                 let allow_downgrade = actor.allow_downgrade;
                 let release = match res {
-                    Ok((can_check, depls)) => actor.cincinnati.fetch_update_hint(
-                        &actor.identity,
-                        depls,
-                        can_check,
-                        allow_downgrade,
-                    ),
+                    Ok(depls) => {
+                        actor
+                            .cincinnati
+                            .fetch_update_hint(&actor.identity, depls, allow_downgrade)
+                    }
                     _ => Box::pin(futures::future::ready(None)),
                 };
                 release.into_actor(actor)
@@ -220,9 +218,7 @@ impl UpdateAgent {
         trace!("trying to stage an update");
 
         let target = release.clone();
-        let can_fetch = self.strategy.can_check_and_fetch(&self.identity);
-        let deploy_outcome = actix::fut::wrap_future::<_, Self>(can_fetch)
-            .then(|can_fetch, actor, _ctx| actor.attempt_deploy(can_fetch, target));
+        let deploy_outcome = self.attempt_deploy(target);
         let state_change = deploy_outcome.map(move |res, actor, _ctx| {
             match res {
                 Ok(_) => actor.state.update_staged(release),
@@ -241,7 +237,7 @@ impl UpdateAgent {
     ) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to finalize an update");
 
-        let can_finalize = self.strategy.can_finalize(&self.identity);
+        let can_finalize = self.strategy.can_finalize();
         let state_change = actix::fut::wrap_future::<_, Self>(can_finalize)
             .then(|can_finalize, actor, _ctx| actor.finalize_deployment(can_finalize, release))
             .map(|res, actor, _ctx| res.map(|release| actor.state.update_finalized(release)));
@@ -261,15 +257,7 @@ impl UpdateAgent {
     }
 
     /// Fetch and stage an update, in finalization-locked mode.
-    fn attempt_deploy(
-        &mut self,
-        can_fetch: bool,
-        release: Release,
-    ) -> ResponseActFuture<Self, Result<Release, ()>> {
-        if !can_fetch {
-            return Box::new(actix::fut::err(()));
-        }
-
+    fn attempt_deploy(&mut self, release: Release) -> ResponseActFuture<Self, Result<Release, ()>> {
         log::info!(
             "target release '{}' selected, proceeding to stage it",
             release.version
@@ -303,14 +291,7 @@ impl UpdateAgent {
     ///
     /// This ignores deployments that have been only staged but not finalized in the
     /// past, as they are acceptable as future update target.
-    fn local_deployments(
-        &mut self,
-        can_fetch: bool,
-    ) -> ResponseActFuture<Self, Result<(bool, BTreeSet<Release>), ()>> {
-        if !can_fetch {
-            return Box::new(actix::fut::ok((can_fetch, BTreeSet::new())));
-        }
-
+    fn local_deployments(&mut self) -> ResponseActFuture<Self, Result<BTreeSet<Release>, ()>> {
         let msg = rpm_ostree::QueryLocalDeployments { omit_staged: true };
         let depls = self
             .rpm_ostree_actor
@@ -319,7 +300,7 @@ impl UpdateAgent {
             .map_err(|e| log::error!("failed to query local deployments: {}", e))
             .map_ok(move |depls| {
                 log::trace!("found {} local deployments", depls.len());
-                (can_fetch, depls)
+                depls
             })
             .into_actor(self);
 

@@ -61,15 +61,6 @@ impl StrategyPeriodic {
     pub(crate) fn report_steady(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         trace!("periodic strategy, report steady: {}", true);
 
-        // TODO(lucab): https://github.com/coreos/zincati/issues/35
-        let res = future::ok(true);
-        Box::pin(res)
-    }
-
-    pub(crate) fn can_check_and_fetch(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
-        trace!("periodic strategy, can check updates: {}", true);
-
-        // TODO(lucab): https://github.com/coreos/zincati/issues/35
         let res = future::ok(true);
         Box::pin(res)
     }
@@ -101,14 +92,6 @@ mod tests {
         let default = StrategyPeriodic::default();
         let mut runtime = rt::Runtime::new().unwrap();
         let steady = runtime.block_on(default.report_steady()).unwrap();
-        assert_eq!(steady, true);
-    }
-
-    #[test]
-    fn test_can_check_and_fetch() {
-        let default = StrategyPeriodic::default();
-        let mut runtime = rt::Runtime::new().unwrap();
-        let steady = runtime.block_on(default.can_check_and_fetch()).unwrap();
         assert_eq!(steady, true);
     }
 

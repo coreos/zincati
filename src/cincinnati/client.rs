@@ -6,10 +6,7 @@
 
 // TODO(lucab): eventually move to its own "cincinnati client library" crate
 
-#![allow(unused)]
-
-use failure::{format_err, Error, Fail, Fallible, ResultExt};
-use futures::future;
+use failure::{Fail, Fallible, ResultExt};
 use futures::prelude::*;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
@@ -154,7 +151,7 @@ impl Client {
     }
 
     /// Map an HTTP response to a service result.
-    async fn map_response(mut response: reqwest::Response) -> Result<Graph, CincinnatiError> {
+    async fn map_response(response: reqwest::Response) -> Result<Graph, CincinnatiError> {
         let status = response.status();
 
         // On success, try to decode graph.
@@ -201,13 +198,6 @@ impl ClientBuilder {
     pub fn query_params(self, params: Option<HashMap<String, String>>) -> Self {
         let mut builder = self;
         builder.query_params = params;
-        builder
-    }
-
-    /// Set (or reset) the HTTP client to use.
-    pub fn http_client(self, hclient: Option<reqwest::Client>) -> Self {
-        let mut builder = self;
-        builder.hclient = hclient;
         builder
     }
 

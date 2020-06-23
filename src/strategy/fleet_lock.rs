@@ -4,7 +4,6 @@ use crate::config::inputs;
 use crate::fleet_lock::{Client, ClientBuilder};
 use crate::identity::Identity;
 use failure::{format_err, Error, Fallible};
-use futures::future;
 use futures::prelude::*;
 use log::trace;
 use prometheus::IntCounterVec;
@@ -81,15 +80,6 @@ impl StrategyFleetLock {
                 .inc();
             format_err!("lock-manager {} failure: {}", api, e)
         });
-        Box::pin(res)
-    }
-
-    /// Check if fetching updates is allowed
-    pub(crate) fn can_check_and_fetch(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
-        trace!("fleet_lock strategy, can check updates: {}", true);
-
-        // TODO(lucab): https://github.com/coreos/zincati/issues/35
-        let res = future::ok(true);
         Box::pin(res)
     }
 }
