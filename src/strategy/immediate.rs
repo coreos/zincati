@@ -12,6 +12,9 @@ use std::pin::Pin;
 pub(crate) struct StrategyImmediate {}
 
 impl StrategyImmediate {
+    /// Strategy label/name.
+    pub const LABEL: &'static str = "immediate";
+
     /// Check if finalization is allowed.
     pub(crate) fn can_finalize(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         trace!("immediate strategy, can finalize updates: {}", true);

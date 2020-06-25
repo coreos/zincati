@@ -42,16 +42,16 @@ impl UpdateStrategy {
     pub(crate) fn with_config(cfg: inputs::UpdateInput, identity: &Identity) -> Fallible<Self> {
         let strategy_name = cfg.strategy.clone();
         let strategy = match strategy_name.as_ref() {
-            "fleet_lock" => UpdateStrategy::new_fleet_lock(cfg, identity)?,
-            "immediate" => UpdateStrategy::new_immediate()?,
-            "periodic" => UpdateStrategy::new_periodic(cfg)?,
+            StrategyFleetLock::LABEL => UpdateStrategy::new_fleet_lock(cfg, identity)?,
+            StrategyImmediate::LABEL => UpdateStrategy::new_immediate()?,
+            StrategyPeriodic::LABEL => UpdateStrategy::new_periodic(cfg)?,
             "" => UpdateStrategy::default(),
             x => bail!("unsupported strategy '{}'", x),
         };
 
         // Export info-metrics with details about current strategy.
         STRATEGY_MODE
-            .with_label_values(&[strategy_name.as_ref()])
+            .with_label_values(&[strategy.configuration_label()])
             .set(1);
         if let UpdateStrategy::Periodic(p) = &strategy {
             let sched_length = p.schedule_length_minutes();
@@ -59,6 +59,18 @@ impl UpdateStrategy {
         };
 
         Ok(strategy)
+    }
+
+    /// Return the configuration label/name for this update strategy.
+    ///
+    /// This can be used to match back an instantiated strategy to the mode label
+    /// from configuration.
+    pub(crate) fn configuration_label(&self) -> &'static str {
+        match self {
+            UpdateStrategy::FleetLock(_) => StrategyFleetLock::LABEL,
+            UpdateStrategy::Immediate(_) => StrategyImmediate::LABEL,
+            UpdateStrategy::Periodic(_) => StrategyPeriodic::LABEL,
+        }
     }
 
     /// Check if finalization is allowed at this time.

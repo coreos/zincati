@@ -18,6 +18,9 @@ pub(crate) struct StrategyPeriodic {
 }
 
 impl StrategyPeriodic {
+    /// Strategy label/name.
+    pub const LABEL: &'static str = "periodic";
+
     /// Build a new periodic strategy.
     pub fn new(cfg: inputs::UpdateInput) -> Fallible<Self> {
         let mut intervals = Vec::with_capacity(cfg.periodic.intervals.len());
