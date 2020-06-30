@@ -1,6 +1,6 @@
 # Release process
 
-This project uses [cargo-release][cargo-release] in order to prepare new releases, tag and sign relevant git commit, and publish the resulting artifacts to [crates.io][crates-io].
+This project uses [cargo-release][cargo-release] in order to prepare new releases, tag and sign the relevant git commit, and publish the resulting artifacts to [crates.io][crates-io].
 The release process follows the usual PR-and-review flow, allowing an external reviewer to have a final check before publishing.
 
 ## Requirements
@@ -24,8 +24,8 @@ Push access to the upstream repository is required in order to publish the new t
   - [ ] `cargo test`
   - [ ] `cargo clean`
   - [ ] `git clean -fd`
-  - [ ] `export RELEASE_VER=x.y.z`
-  - [ ] `export UPSTREAM_REMOTE=origin`
+  - [ ] `RELEASE_VER=x.y.z`
+  - [ ] `UPSTREAM_REMOTE=origin`
 
 :warning:: `UPSTREAM_REMOTE` should reference the locally configured remote that points to the upstream git repository.
 
@@ -33,7 +33,7 @@ Push access to the upstream repository is required in order to publish the new t
   - [ ] `git checkout -b release-${RELEASE_VER}`
   - [ ] `cargo release` (and confirm the version when prompted)
 
-- open a PR for this release
+- open a PR for this release:
   - [ ] `git push ${UPSTREAM_REMOTE} release-${RELEASE_VER}`
   - [ ] open a web browser and create a PR for the branch above
   - [ ] make sure the resulting PR contains exactly two commits
@@ -41,11 +41,10 @@ Push access to the upstream repository is required in order to publish the new t
 
 - [ ] get the PR reviewed, approved and merged
 
-- publish the artifacts (tag and crate)
-  - [ ] `git push ${UPSTREAM_REMOTE} v${RELEASE_VER}`
-  - [ ] make sure the upstream tag matches the local tag: `git fetch --tags --verbose ${UPSTREAM_REMOTE} 2>&1 | grep v${RELEASE_VER}`
+- publish the artifacts (tag and crate):
   - [ ] `git checkout v${RELEASE_VER}`
-  - [ ]  make sure the tag is what you intend to release; if so this will show an empty output: `git diff release-${RELEASE_VER}~1 v${RELEASE_VER}`
+  - [ ] verify that `grep "^version = \"${RELEASE_VER}\"$" Cargo.toml` produces output
+  - [ ] `git push ${UPSTREAM_REMOTE} v${RELEASE_VER}`
   - [ ] `cargo publish`
 
 - publish the release:
@@ -57,8 +56,7 @@ Push access to the upstream repository is required in order to publish the new t
   - [ ] `git checkout master`
   - [ ] `git pull ${UPSTREAM_REMOTE} master`
   - [ ] `git push ${UPSTREAM_REMOTE} :release-${RELEASE_VER}`
-  - [ ] `unset RELEASE_VER`
-  - [ ] `unset UPSTREAM_REMOTE`
+  - [ ] `git branch -d release-${RELEASE_VER}`
 
 [cargo-release]: https://github.com/sunng87/cargo-release
 [rustup]: https://rustup.rs/
