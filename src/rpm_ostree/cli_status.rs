@@ -112,7 +112,7 @@ fn booted_json(status: StatusJSON) -> Fallible<DeploymentJSON> {
 /// Introspect deployments (rpm-ostree status).
 fn status_json(booted_only: bool) -> Fallible<StatusJSON> {
     let mut cmd = std::process::Command::new("rpm-ostree");
-    cmd.arg("status");
+    cmd.arg("status").env("RPMOSTREE_CLIENT_ID", "zincati");
 
     // Try to request the minimum scope we need.
     if booted_only {

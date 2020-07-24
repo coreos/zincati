@@ -35,7 +35,8 @@ fn invoke_cli(release: Release, allow_downgrade: bool) -> Fallible<Release> {
     let mut cmd = std::process::Command::new("rpm-ostree");
     cmd.arg("deploy")
         .arg("--lock-finalization")
-        .arg(format!("revision={}", release.checksum));
+        .arg(format!("revision={}", release.checksum))
+        .env("RPMOSTREE_CLIENT_ID", "zincati");
     if !allow_downgrade {
         cmd.arg("--disallow-downgrade");
     }
