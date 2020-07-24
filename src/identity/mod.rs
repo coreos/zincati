@@ -25,7 +25,7 @@ lazy_static::lazy_static! {
     static ref OS_INFO: IntGaugeVec = register_int_gauge_vec!(
         "zincati_identity_os_info",
         "Information about the underlying booted OS",
-        &["os_version"]
+        &["os_version", "basearch", "stream", "platform"]
     ).unwrap();
 }
 
@@ -72,7 +72,14 @@ impl Identity {
         }
 
         // Export info-metrics with details about booted deployment.
-        OS_INFO.with_label_values(&[&id.current_os.version]).set(1);
+        OS_INFO
+            .with_label_values(&[
+                &id.current_os.version,
+                &id.basearch,
+                &id.stream,
+                &id.platform,
+            ])
+            .set(1);
 
         Ok(id)
     }
