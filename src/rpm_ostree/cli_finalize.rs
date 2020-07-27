@@ -21,6 +21,7 @@ pub fn finalize_deployment(release: Release) -> Fallible<Release> {
     let cmd = std::process::Command::new("rpm-ostree")
         .arg("finalize-deployment")
         .arg(&release.checksum)
+        .env("RPMOSTREE_CLIENT_ID", "zincati")
         .output()
         .with_context(|e| format_err!("failed to run rpm-ostree: {}", e))?;
 
