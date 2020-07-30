@@ -1,0 +1,40 @@
+title: coreos/zincati
+description: Zincati documentation
+# Temporary baseurl
+baseurl: "/zincati"
+url: "https://coreos.github.io"
+# Comment above and use below for local development
+# url: "http://localhost:4000"
+permalink: /:title/
+
+remote_theme: pmarsceill/just-the-docs
+plugins:
+  - jekyll-remote-theme
+
+color_scheme: coreos
+
+# Aux links for the upper right navigation
+aux_links:
+  "Zincati on GitHub":
+    - "https://github.com/coreos/zincati"
+
+footer_content: "Copyright &copy; <a href=\"https://github.com/coreos\">CoreOS</a>."
+
+# Footer last edited timestamp
+last_edit_timestamp: true
+last_edit_time_format: "%b %e %Y at %I:%M %p"
+
+# Footer "Edit this page on GitHub" link text
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/coreos/zincati"
+gh_edit_branch: "master"
+gh_edit_view_mode: "tree"
+
+compress_html:
+  clippings: all
+  comments: all
+  endings: all
+  startings: []
+  blanklines: false
+  profile: false
