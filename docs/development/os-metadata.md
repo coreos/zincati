@@ -1,3 +1,10 @@
+---
+title: OS metadata and agent identity
+parent: Development
+nav_order: 1
+layout: default
+---
+
 # OS metadata and agent identity
 
 The agent needs to derive its own identity from several aspects of the underlying OS.

@@ -1,3 +1,9 @@
+---
+title: Auto-updates
+parent: Usage
+layout: default
+---
+
 # Auto-updates
 
 Available updates are discovered by periodically polling a [Cincinnati] server.

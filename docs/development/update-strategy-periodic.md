@@ -1,4 +1,11 @@
-# Periodic update strategy 
+---
+title: Periodic update strategy
+parent: Development
+nav_order: 2
+layout: default
+---
+
+# Periodic update strategy
 
 The agent supports a `periodic` strategy, which allows gating reboots based on "reboot windows", defined on weekly basis.
 
