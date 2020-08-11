@@ -1,3 +1,9 @@
+---
+title: Updates strategy
+parent: Usage
+layout: default
+---
+
 # Updates strategy
 
 To minimize service disruption, Zincati allows administrators to control when machines are allowed to reboot and finalize auto-updates.

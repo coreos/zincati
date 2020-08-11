@@ -1,3 +1,9 @@
+---
+title: Configuration
+parent: Usage
+layout: default
+---
+
 # Configuration
 
 Zincati supports runtime customization via configuration fragments (dropins), allowing users and distributions to tweak the agent behavior by writing plain-text files.

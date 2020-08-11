@@ -1,3 +1,9 @@
+---
+title: Metrics
+parent: Usage
+layout: default
+---
+
 # Metrics
 
 Zincati tracks and exposes some of its internal metrics, in order to ease monitoring tasks across a large fleet of nodes.

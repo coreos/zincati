@@ -1,3 +1,10 @@
+---
+title: Cincinnati for Fedora CoreOS
+parent: Development
+nav_order: 3
+layout: default
+---
+
 # Cincinnati for Fedora CoreOS
 
 Cincinnati is a protocol to provide "update hints" to clients, and it builds upon experiences with the [Omaha update protocol][google-omaha].

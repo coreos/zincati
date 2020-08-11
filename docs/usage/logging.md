@@ -1,3 +1,9 @@
+---
+title: Logging
+parent: Usage
+layout: default
+---
+
 # Logging
 
 Zincati supports logging at multiple levels (trace, debug, info, warning, error). Usually only log messages at or above `info` level are emitted.
