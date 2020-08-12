@@ -56,6 +56,7 @@ impl WeeklyCalendar {
     /// In case of overlapping windows, measured length is the actual amount
     /// of weekly minutes in the calendar. Overlapped intervals are coalesced
     /// in order to avoid double-counting.
+    #[allow(clippy::reversed_empty_ranges)]
     pub fn length_minutes(&self) -> u64 {
         let mut measured = 0u32;
         let mut last_range = Range {
