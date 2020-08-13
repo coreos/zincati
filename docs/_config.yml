@@ -17,7 +17,7 @@ aux_links:
   "Zincati on GitHub":
     - "https://github.com/coreos/zincati"
 
-footer_content: "Copyright &copy; <a href=\"https://github.com/coreos\">CoreOS</a>."
+footer_content: "Copyright &copy; <a href=\"https://www.redhat.com\">Red Hat, Inc.</a> and <a href=\"https://github.com/coreos\">others</a>."
 
 # Footer last edited timestamp
 last_edit_timestamp: true
