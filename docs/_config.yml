@@ -1,13 +1,12 @@
 title: coreos/zincati
 description: Zincati documentation
-# Temporary baseurl
 baseurl: "/zincati"
 url: "https://coreos.github.io"
 # Comment above and use below for local development
 # url: "http://localhost:4000"
 permalink: /:title/
 
-remote_theme: pmarsceill/just-the-docs
+remote_theme: coreos/just-the-docs
 plugins:
   - jekyll-remote-theme
 
@@ -18,7 +17,7 @@ aux_links:
   "Zincati on GitHub":
     - "https://github.com/coreos/zincati"
 
-footer_content: "Copyright &copy; <a href=\"https://github.com/coreos\">CoreOS</a>."
+footer_content: "Copyright &copy; <a href=\"https://www.redhat.com\">Red Hat, Inc.</a> and <a href=\"https://github.com/coreos\">others</a>."
 
 # Footer last edited timestamp
 last_edit_timestamp: true
