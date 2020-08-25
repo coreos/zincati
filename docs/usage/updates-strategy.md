@@ -1,7 +1,6 @@
 ---
-title: Updates strategy
-parent: Usage
 layout: default
+parent: Usage
 ---
 
 # Updates strategy
