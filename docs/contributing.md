@@ -1,3 +1,8 @@
+---
+layout: default
+nav_order: 9
+---
+
 # Contributing
 
 ## Project architecture
