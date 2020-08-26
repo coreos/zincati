@@ -1,8 +1,7 @@
 ---
-title: OS metadata and agent identity
-parent: Development
-nav_order: 1
 layout: default
+nav_order: 1
+parent: Development
 ---
 
 # OS metadata and agent identity

@@ -1,7 +1,6 @@
 ---
-title: Configuration
-parent: Usage
 layout: default
+parent: Usage
 ---
 
 # Configuration

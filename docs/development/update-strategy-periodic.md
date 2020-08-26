@@ -1,8 +1,7 @@
 ---
-title: Periodic update strategy
-parent: Development
-nav_order: 2
 layout: default
+nav_order: 2
+parent: Development
 ---
 
 # Periodic update strategy

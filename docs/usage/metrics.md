@@ -1,7 +1,6 @@
 ---
-title: Metrics
-parent: Usage
 layout: default
+parent: Usage
 ---
 
 # Metrics

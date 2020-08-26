@@ -1,7 +1,6 @@
 ---
-title: Auto-updates
-parent: Usage
 layout: default
+parent: Usage
 ---
 
 # Auto-updates
