@@ -9,7 +9,7 @@ nav_order: 9
 
 [Development doc-pages][devdocs] cover several aspects of this project, both at low-level (code and logic) and high-level (architecture and design).
 
-[devdocs]: ./development/
+[devdocs]: development.md
 
 ## Release process
 
