@@ -32,8 +32,16 @@ mod weekly;
 use actix::Actor;
 use failure::ResultExt;
 use log::{info, trace};
+use prometheus::IntGauge;
 use structopt::clap::{crate_name, crate_version};
 use structopt::StructOpt;
+
+lazy_static::lazy_static! {
+    static ref PROCESS_START_TIME: IntGauge = register_int_gauge!(opts!(
+        "process_start_time_seconds",
+        "Start time of the process since unix epoch in seconds."
+    )).unwrap();
+}
 
 fn main() -> failure::Fallible<()> {
     // Parse command-line options.
@@ -68,6 +76,10 @@ fn run_agent() -> failure::Fallible<()> {
         settings.identity.node_uuid.lower_hex(),
         settings.identity.group
     );
+
+    // Expose process start timestamp.
+    let start_time = chrono::Utc::now();
+    PROCESS_START_TIME.set(start_time.timestamp());
 
     trace!("creating actor system");
     let sys = actix::System::builder()
