@@ -19,7 +19,8 @@ At an high level, the client can perform two operations:
  * `RecursiveLock`: try to reserve (lock) a slot for rebooting
  * `UnlockIfHeld`: try to release (unlock) a slot that it was previously holding
 
-Semaphore locks are owned, so that only the client that created a lock can release it. All operations are recursive, so that multiple unbalanced lock/unlock actions are allowed.
+Semaphore locks are owned, so that only the client that created a lock can release it.
+All operations are recursive, meaning that multiple unbalanced lock/unlock actions by a client are allowed.
 
 ## Client state-machine
 
