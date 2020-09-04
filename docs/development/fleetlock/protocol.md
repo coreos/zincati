@@ -47,7 +47,9 @@ All POST requests contain well-formed JSON body according to the following schem
    * `group` (string, mandatory, non-empty): reboot-group of the client
 
 Client ID is a case-sensitive textual label that uniquely identifies a lock holder. It is generated and persisted by each client.
-Client group is a textual label conforming to the regexp `^[a-zA-Z0-9.-]+$`. The recommended default group name is "`default`".
+Client group is a mandatory textual label, conforming to the regexp `^[a-zA-Z0-9.-]+$`. This labels can be configured on each client. A server SHOULD check this value and MAY use it to provide multiple reboot buckets (sorting a fleet of nodes into reboot tiers).
+
+By default, Zincati uses the group name "`default`" unless explicitly configured otherwise.
 
 ### Headers
 
