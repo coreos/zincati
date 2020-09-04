@@ -11,7 +11,7 @@ It is modeled after a distributed counting semaphore with recursive locking and 
 
 ## Overview
 
-This is a request-response protocol, where operations are always initiated by the client (i.e. Zincati).
+The FleetLock protocol is a request-response protocol where operations are always initiated by the client (i.e. Zincati).
 Each operation consists of a JSON payload sent as a POST request to the server.
 
 At an high level, the client can perform two operations:
