@@ -24,7 +24,7 @@ All operations are recursive, meaning that multiple unbalanced lock/unlock actio
 
 ## Client state-machine
 
-When a client starts it proceeds into either "initialization" or "finalization" state, based on system condition (i.e. whether a finalization is already in progress).
+Clients start off in one of two states based on the system condition: "initialization" or "finalization". There are a number of states between "initialization" and "finalization" as well.
 In the "**initialization**" state, the client tries to release any reboot slot it may have previously held.
 A successful unlock operation means that the client can proceed into its "**steady**" state and look for further updates.
 When an update is found and locally staged, the client proceed into its "**pre-reboot**" state and tries to lock a reboot slot.
