@@ -95,3 +95,16 @@ Error values carry a type-identifier and a textual description, according to the
 | value  | required | human-friendly error description, as a non-empty JSON string |
 
 This allows clients to show more specific error details to cluster administrators, instead of generic HTTP errors.
+
+For example, an error value like the following could be returned on `/v1/pre-reboot` when all available slots are already in use:
+
+```json
+{
+  "kind": "failed_lock_semaphore_full",
+  "value": "semaphore currently full, all slots are locked already"
+}
+```
+
+Zincati will log this error using the content of `value`, and it will track the `kind` label in metrics.
+
+A server MUST ensure that possible values for `kind` have a bounded/small cardinality.
