@@ -30,7 +30,7 @@ jobs:
         - cargo test --features failpoints
     - name: "Test with minimum supported toolchain"
       arch: amd64
-      rust: 1.39.0
+      rust: 1.40.0
       script:
         - cargo test --release
     - name: "Lints with pinned toolchain"
