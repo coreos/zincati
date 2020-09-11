@@ -39,8 +39,10 @@ In short, it consists of two operations:
  * lock: before rebooting, a reboot slot must be locked (and confirmed) by the lock-manager.
  * unlock: after rebooting, any reboot slot owned by the node must be unlocked (and confirmed) by the lock-manager before proceeding further.
 
-This protocol is not coupled to any specific backend, and can be implemented on top of any suitable database.
-As an example, [airlock] is a free-software project which implements such protocol on top of [etcd3].
+This protocol is not coupled to any specific backend, and can be implemented on top of any suitable infrastructure:
+ * [airlock] is a free-software project which implements such protocol on top of [etcd3].
+ * a Kubernetes-based reboot-manager is provided as part of [Typhoon](https://github.com/poseidon/fleetlock).
+ * <https://github.com/opencounter/terraform-fleet-lock-dynamodb> is a serverless implementation via AWS API Gateway and DynamoDB.
 
 For configuration purposes, such strategy is labeled `fleet_lock` and takes the following configuration parameters:
  * `base_url` (string, mandatory, non-empty): the base URL for the FleetLock service.
@@ -59,7 +61,7 @@ The `fleet_lock` strategy is a conservative method which is biased towards avoid
 
 Such an approach is only recommended where nodes are already grouped into an orchestrated cluster, which can thus provide better overall scheduling decisions.
 
-[fleet_lock]: https://github.com/coreos/airlock/pull/1 
+[fleet_lock]: ../development/fleetlock/protocol.md
 [airlock]: https://github.com/coreos/airlock
 [etcd3]: https://etcd.io/
 
