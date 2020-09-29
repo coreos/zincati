@@ -1,7 +1,7 @@
 //! Interface to `rpm-ostree deploy --lock-finalization`.
 
 use super::Release;
-use failure::{bail, format_err, Fallible, ResultExt};
+use failure::{bail, Fallible, ResultExt};
 use prometheus::IntCounter;
 
 lazy_static::lazy_static! {
@@ -43,7 +43,7 @@ fn invoke_cli(release: Release, allow_downgrade: bool) -> Fallible<Release> {
 
     let out = cmd
         .output()
-        .with_context(|e| format_err!("failed to run rpm-ostree: {}", e))?;
+        .with_context(|_| "failed to run 'rpm-ostree' binary")?;
 
     if !out.status.success() {
         bail!(

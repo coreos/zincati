@@ -1,7 +1,7 @@
 //! Interface to `rpm-ostree finalize-deployment`.
 
 use super::Release;
-use failure::{bail, format_err, Fallible, ResultExt};
+use failure::{bail, Fallible, ResultExt};
 use prometheus::IntCounter;
 
 lazy_static::lazy_static! {
@@ -23,7 +23,7 @@ pub fn finalize_deployment(release: Release) -> Fallible<Release> {
         .arg(&release.checksum)
         .env("RPMOSTREE_CLIENT_ID", "zincati")
         .output()
-        .with_context(|e| format_err!("failed to run rpm-ostree: {}", e))?;
+        .with_context(|_| "failed to run 'rpm-ostree' binary")?;
 
     if !cmd.status.success() {
         FINALIZE_FAILURES.inc();
