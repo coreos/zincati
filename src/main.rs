@@ -43,7 +43,14 @@ lazy_static::lazy_static! {
     )).unwrap();
 }
 
-fn main() -> failure::Fallible<()> {
+/// Binary entrypoint, for all CLI subcommands.
+fn main() {
+    let exit_code = run();
+    std::process::exit(exit_code);
+}
+
+// Run till completion or failure, pretty-printing termination errors if any.
+fn run() -> i32 {
     // Parse command-line options.
     let cli_opts = cli::CliOptions::from_args();
 
@@ -52,12 +59,28 @@ fn main() -> failure::Fallible<()> {
         .format_timestamp(None)
         .format_module_path(false)
         .filter(Some(crate_name!()), cli_opts.loglevel())
-        .try_init()
-        .context("failed to initialize logging")?;
+        .init();
 
     // Dispatch CLI subcommand.
-    match cli_opts.cmd {
+    let exit = match cli_opts.cmd {
         cli::CliCommand::Agent => run_agent(),
+    };
+
+    match exit {
+        Ok(_) => libc::EXIT_SUCCESS,
+        Err(e) => {
+            let mut err_chain = e.iter_chain();
+            let top_err = match err_chain.next() {
+                Some(e) => e.to_string(),
+                None => "(unspecified failure)".to_string(),
+            };
+            log::error!("critical error: {}", top_err);
+            for err in err_chain {
+                log::error!(" -> {}", err);
+            }
+
+            libc::EXIT_FAILURE
+        }
     }
 }
 
