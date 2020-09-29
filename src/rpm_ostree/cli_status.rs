@@ -122,7 +122,7 @@ fn status_json(booted_only: bool) -> Fallible<StatusJSON> {
     let cmdrun = cmd
         .arg("--json")
         .output()
-        .with_context(|e| format_err!("failed to run rpm-ostree: {}", e))?;
+        .with_context(|_| "failed to run 'rpm-ostree' binary")?;
 
     if !cmdrun.status.success() {
         bail!(
