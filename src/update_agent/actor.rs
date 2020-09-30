@@ -99,7 +99,7 @@ impl Handler<RefreshTick> for UpdateAgent {
         // Process state machine refresh ticks sequentially.
         ctx.wait(update_machine);
 
-        Box::new(actix::fut::ok(()))
+        Box::pin(actix::fut::ok(()))
     }
 }
 
@@ -164,7 +164,7 @@ impl UpdateAgent {
             Ok(())
         });
 
-        Box::new(initialization)
+        Box::pin(initialization)
     }
 
     /// Try to report steady state.
@@ -181,7 +181,7 @@ impl UpdateAgent {
                 Ok(())
             });
 
-        Box::new(state_change)
+        Box::pin(state_change)
     }
 
     /// Try to check for updates.
@@ -210,7 +210,7 @@ impl UpdateAgent {
                 Ok(())
             });
 
-        Box::new(state_change)
+        Box::pin(state_change)
     }
 
     /// Try to stage an update.
@@ -227,7 +227,7 @@ impl UpdateAgent {
             Ok(())
         });
 
-        Box::new(state_change)
+        Box::pin(state_change)
     }
 
     /// Try to finalize an update.
@@ -242,7 +242,7 @@ impl UpdateAgent {
             .then(|can_finalize, actor, _ctx| actor.finalize_deployment(can_finalize, release))
             .map(|res, actor, _ctx| res.map(|release| actor.state.update_finalized(release)));
 
-        Box::new(state_change)
+        Box::pin(state_change)
     }
 
     /// Actor job is done.
@@ -253,7 +253,7 @@ impl UpdateAgent {
             Ok(())
         });
 
-        Box::new(state_change)
+        Box::pin(state_change)
     }
 
     /// Fetch and stage an update, in finalization-locked mode.
@@ -273,7 +273,7 @@ impl UpdateAgent {
             .map_err(|e| log::error!("failed to stage deployment: {}", e))
             .into_actor(self);
 
-        Box::new(upgrade)
+        Box::pin(upgrade)
     }
 
     /// Record a failed deploy attempt.
@@ -304,7 +304,7 @@ impl UpdateAgent {
             })
             .into_actor(self);
 
-        Box::new(depls)
+        Box::pin(depls)
     }
 
     /// Finalize a deployment (unlock and reboot).
@@ -314,7 +314,7 @@ impl UpdateAgent {
         release: Release,
     ) -> ResponseActFuture<Self, Result<Release, ()>> {
         if !can_finalize {
-            return Box::new(actix::fut::err(()));
+            return Box::pin(actix::fut::err(()));
         }
 
         log::info!(
@@ -329,12 +329,12 @@ impl UpdateAgent {
             .map_err(|e| log::error!("failed to finalize deployment: {}", e))
             .into_actor(self);
 
-        Box::new(upgrade)
+        Box::pin(upgrade)
     }
 
     /// Do nothing, without errors.
     fn nop(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         let nop = actix::fut::ok(());
-        Box::new(nop)
+        Box::pin(nop)
     }
 }
