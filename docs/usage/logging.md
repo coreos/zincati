@@ -19,7 +19,7 @@ For example, debug logging (`-vv`) can be enabled by creating a drop-in file at 
 Environment=ZINCATI_VERBOSITY="-vv"
 ```
 
-The maximum level (`-vvv`) goes up to trace-log messages and can be very verbose. It is only meant for development/debugging and for short timespans.
+The maximum level (`-vvv`) equates to trace and can be very verbose. It is only meant for development/debugging and for short timespans.
 It is recommended to not max out log level in production and for long periods of time, as it reduces the signal-to-noise ratio and can easily saturate further log-persisting systems.
 
 ## Inspecting logs
