@@ -20,7 +20,7 @@ Environment=ZINCATI_VERBOSITY="-vv"
 ```
 
 The maximum level (`-vvv`) equates to trace and can be very verbose. It is only meant for development/debugging and for short timespans.
-It is recommended to not max out log level in production and for long periods of time, as it reduces the signal-to-noise ratio and can easily saturate further log-persisting systems.
+It is recommended to not use the trace log level in production or for long periods of time as it reduces the signal-to-noise ratio and can easily saturate further log-persisting systems.
 
 ## Inspecting logs
 
