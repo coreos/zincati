@@ -13,9 +13,9 @@ pub struct StatusJSON {
 
 /// Partial deployment object (only fields relevant to zincati).
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct DeploymentJSON {
     booted: bool,
-    #[serde(rename = "base-checksum")]
     base_checksum: Option<String>,
     #[serde(rename = "base-commit-meta")]
     base_metadata: BaseCommitMetaJSON,
