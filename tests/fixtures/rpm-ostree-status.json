@@ -39,6 +39,7 @@
       "requested-base-local-replacements" : [
       ],
       "checksum" : "ce718b90ce19c2cac07fa45efdce91aad208a508c98e9f7f572f5aaba76f569a",
+      "base-checksum" : "41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3",
       "regenerate-initramfs" : false,
       "id" : "fedora-coreos-ce718b90ce19c2cac07fa45efdce91aad208a508c98e9f7f572f5aaba76f569a.0",
       "version" : "30.1",
