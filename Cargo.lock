@@ -2248,6 +2248,7 @@ dependencies = [
  "serde",
  "serde_json",
  "structopt",
+ "tempfile",
  "tokio",
  "toml",
  "url",

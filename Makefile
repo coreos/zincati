@@ -20,6 +20,7 @@ install:
 	install -D -m 644 -t ${DESTDIR}/usr/lib/sysusers.d dist/sysusers.d/*.conf
 	install -D -m 644 -t ${DESTDIR}/usr/lib/tmpfiles.d dist/tmpfiles.d/*.conf
 	install -D -m 644 -t ${DESTDIR}/usr/share/polkit-1/rules.d dist/polkit-1/rules.d/*.rules
+	install -D -m 644 -t ${DESTDIR}/usr/share/polkit-1/actions dist/polkit-1/actions/*.policy
 
 .PHONY: check
 check:
