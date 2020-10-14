@@ -1,4 +1,7 @@
-//! Command-line interface (CLI) logic.
+//! Command-Line Interface (CLI) logic.
+
+mod agent;
+mod deadend;
 
 use log::LevelFilter;
 use structopt::StructOpt;
@@ -23,6 +26,14 @@ impl CliOptions {
             1 => LevelFilter::Info,
             2 => LevelFilter::Debug,
             _ => LevelFilter::Trace,
+        }
+    }
+
+    /// Dispatch CLI subcommand.
+    pub(crate) fn run(self) -> failure::Fallible<()> {
+        match self.cmd {
+            CliCommand::Agent => agent::run_agent(),
+            CliCommand::Deadend { reason } => deadend::run_deadend(reason),
         }
     }
 }
