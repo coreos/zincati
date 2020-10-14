@@ -32,4 +32,6 @@ impl CliOptions {
 pub(crate) enum CliCommand {
     #[structopt(name = "agent")]
     Agent,
+    #[structopt(name = "deadend")]
+    Deadend { reason: Option<String> },
 }

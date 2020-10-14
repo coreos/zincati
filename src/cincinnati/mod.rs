@@ -10,13 +10,14 @@ mod mock_tests;
 use crate::config::inputs;
 use crate::identity::Identity;
 use crate::rpm_ostree::Release;
-use failure::{bail, Fallible};
+use failure::{bail, Fallible, ResultExt};
 use futures::prelude::*;
 use futures::TryFutureExt;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use serde::Serialize;
 use std::collections::BTreeSet;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 /// Metadata key for payload scheme.
 pub static AGE_INDEX_KEY: &str = "org.fedoraproject.coreos.releases.age_index";
@@ -55,8 +56,37 @@ lazy_static::lazy_static! {
         "Total number of errors while checking for updates.",
         &["kind"]
     ).unwrap();
+    static ref DEADEND_STATE : DeadEndState = DeadEndState::default();
 }
 
+/// For tracking a dead-end release.
+pub struct DeadEndState(AtomicU8);
+
+impl Default for DeadEndState {
+    fn default() -> Self {
+        Self(AtomicU8::new(DeadEndState::UNKNOWN))
+    }
+}
+
+impl DeadEndState {
+    const FALSE: u8 = 0;
+    const TRUE: u8 = 1;
+    const UNKNOWN: u8 = 2;
+    pub fn is_not_deadend(&self) -> bool {
+        self.0.load(Ordering::SeqCst) == Self::FALSE
+            || self.0.load(Ordering::SeqCst) == Self::UNKNOWN
+    }
+    pub fn is_deadend(&self) -> bool {
+        self.0.load(Ordering::SeqCst) == Self::TRUE
+            || self.0.load(Ordering::SeqCst) == Self::UNKNOWN
+    }
+    pub fn set_deadend(&self) {
+        self.0.store(Self::TRUE, Ordering::SeqCst);
+    }
+    pub fn set_not_deadend(&self) {
+        self.0.store(Self::FALSE, Ordering::SeqCst);
+    }
+}
 /// Cincinnati configuration.
 #[derive(Debug, Serialize)]
 pub struct Cincinnati {
@@ -130,6 +160,39 @@ impl Cincinnati {
     }
 }
 
+/// Evaluate and record whether booted OS is a dead-end release, and
+/// log that information in a MOTD file.
+fn refresh_deadend_status(node: &Node) -> failure::Fallible<()> {
+    let deadend_reason = evaluate_deadend(node);
+    match &deadend_reason {
+        Some(reason) => {
+            if DEADEND_STATE.is_not_deadend() {
+                DEADEND_STATE.set_deadend();
+                log::info!("dead-end release detected: {}", reason);
+                std::process::Command::new("pkexec")
+                    .arg("/usr/libexec/zincati")
+                    .arg("deadend")
+                    .arg(reason)
+                    .output()
+                    .with_context(|_| "failed to write dead-end release information")?;
+            }
+            BOOTED_DEADEND.set(1);
+        }
+        None => {
+            if DEADEND_STATE.is_deadend() {
+                DEADEND_STATE.set_not_deadend();
+                std::process::Command::new("pkexec")
+                    .arg("/usr/libexec/zincati")
+                    .arg("deadend")
+                    .output()
+                    .with_context(|_| "failed to remove dead-end release MOTD file")?;
+            }
+            BOOTED_DEADEND.set(0);
+        }
+    };
+    Ok(())
+}
+
 /// Walk the graph, looking for an update reachable from the given digest.
 fn find_update(
     graph: client::Graph,
@@ -159,6 +222,9 @@ fn find_update(
     let cur_release = Release::from_cincinnati(cur_node.clone())
         .map_err(|e| CincinnatiError::FailedNodeParsing(e.to_string()))?;
 
+    if let Err(e) = refresh_deadend_status(&cur_node) {
+        log::warn!("failed to refresh dead-end status: {}", e);
+    }
     // Evaluate and record whether booted OS is a dead-end release.
     // TODO(lucab): consider exposing this information in more places
     // (e.g. logs, motd, env/json file in a well-known location).

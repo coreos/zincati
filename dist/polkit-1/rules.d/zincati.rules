@@ -5,4 +5,13 @@ polkit.addRule(function(action, subject) {
         subject.user == "zincati") {
         return polkit.Result.YES;
     }
-})
+});
+
+// Allow Zincati to write dead-end release information as an MOTD fragment.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.coreos.zincati.deadend" &&  
+        subject.user == "zincati") {
+        return polkit.Result.YES;
+    }
+});
+
