@@ -72,21 +72,26 @@ impl DeadEndState {
     const FALSE: u8 = 0;
     const TRUE: u8 = 1;
     const UNKNOWN: u8 = 2;
-    pub fn is_not_deadend(&self) -> bool {
-        self.0.load(Ordering::SeqCst) == Self::FALSE
-            || self.0.load(Ordering::SeqCst) == Self::UNKNOWN
-    }
+
+    /// Return whether this is in a known dead-end state.
     pub fn is_deadend(&self) -> bool {
         self.0.load(Ordering::SeqCst) == Self::TRUE
-            || self.0.load(Ordering::SeqCst) == Self::UNKNOWN
     }
+
+    /// Return whether this is in a known NOT dead-end state.
+    pub fn is_no_deadend(&self) -> bool {
+        self.0.load(Ordering::SeqCst) == Self::FALSE
+    }
+
     pub fn set_deadend(&self) {
         self.0.store(Self::TRUE, Ordering::SeqCst);
     }
-    pub fn set_not_deadend(&self) {
+
+    pub fn set_no_deadend(&self) {
         self.0.store(Self::FALSE, Ordering::SeqCst);
     }
 }
+
 /// Cincinnati configuration.
 #[derive(Debug, Serialize)]
 pub struct Cincinnati {
@@ -163,31 +168,33 @@ impl Cincinnati {
 /// Evaluate and record whether booted OS is a dead-end release, and
 /// log that information in a MOTD file.
 fn refresh_deadend_status(node: &Node) -> failure::Fallible<()> {
-    let deadend_reason = evaluate_deadend(node);
-    match &deadend_reason {
+    match evaluate_deadend(node) {
         Some(reason) => {
-            if DEADEND_STATE.is_not_deadend() {
-                DEADEND_STATE.set_deadend();
-                log::info!("dead-end release detected: {}", reason);
+            BOOTED_DEADEND.set(1);
+            if !DEADEND_STATE.is_deadend() {
+                log::warn!("current release detected as dead-end, reason: {}", reason);
                 std::process::Command::new("pkexec")
                     .arg("/usr/libexec/zincati")
                     .arg("deadend")
                     .arg(reason)
                     .output()
                     .with_context(|_| "failed to write dead-end release information")?;
+                DEADEND_STATE.set_deadend();
+                log::debug!("MOTD updated with dead-end state");
             }
-            BOOTED_DEADEND.set(1);
         }
         None => {
-            if DEADEND_STATE.is_deadend() {
-                DEADEND_STATE.set_not_deadend();
+            BOOTED_DEADEND.set(0);
+            if !DEADEND_STATE.is_no_deadend() {
+                log::info!("current release detected as not a dead-end");
                 std::process::Command::new("pkexec")
                     .arg("/usr/libexec/zincati")
                     .arg("deadend")
                     .output()
                     .with_context(|_| "failed to remove dead-end release MOTD file")?;
+                DEADEND_STATE.set_no_deadend();
+                log::debug!("MOTD updated with no dead-end state");
             }
-            BOOTED_DEADEND.set(0);
         }
     };
     Ok(())
@@ -315,7 +322,7 @@ fn is_same_checksum(node: &Node, checksum: &str) -> bool {
     payload_is_checksum && node.payload == checksum
 }
 
-/// Check and record whether input node is a dead-end.
+/// Check whether input node is a dead-end; if so, return the reason.
 ///
 /// Note: this is usually only called on the node
 /// corresponding to the booted deployment.
