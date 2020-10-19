@@ -70,7 +70,7 @@ Request body:
 
 {
   "client_params": {
-    "group": "default",
+    "group": "workers",
     "id": "c988d2509fdf5cdcbed39037c56406fb"
   }
 }

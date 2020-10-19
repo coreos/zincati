@@ -2,8 +2,8 @@
 //!
 //! This module implements a client for FleetLock, a bare HTTP
 //! protocol for managing cluster-wide reboot via a remote
-//! lock manager. Protocol specification is currently in progress at
-//! https://github.com/coreos/airlock/pull/1.
+//! lock manager. Protocol specification is available at
+//! https://coreos.github.io/zincati/development/fleetlock/protocol/ .
 
 use crate::identity::Identity;
 use failure::{Fail, Fallible, ResultExt};
