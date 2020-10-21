@@ -1,0 +1,60 @@
+# Render with: `dot -T png -o zincati-actors.png zincati-actors.dot`
+
+digraph actors_messages {
+    newrank = true;
+    fontsize=11;
+    node [shape=box, style="rounded", color=lightgrey; fontname="Arial"; fontsize=11;];
+    edge[arrowhead="vee"; fontcolor=darkgoldenrod; fontsize=8;];
+
+
+    subgraph cluster_metrics_service {
+        label = "Actor:\nmetrics service";
+        style = dashed;
+        color = deepskyblue;
+
+        ConnectionStream [label=<StreamHandler<br/>&lt;<b>Connection</b>&gt;>;];
+        
+        # Invisble placeholders.
+        InvisMetricsClient:s [style=invis];
+        InvisBottom [style=invis];
+        ConnectionStream:s -> InvisBottom:n [style=invis];
+    }
+
+    subgraph cluster_update_agent {
+        label = "Actor:\nupdate agent";
+        style = dashed;
+        color = deepskyblue;
+
+        AsyncLocalDeployments [label="async fn\nlocal_deployments()"];
+        AsyncAttemptDeploy [label="async fn\nattempt_deploy()"];
+        AsyncFinalizeDeployment [label="async fn\nfinalize_deployment()"];
+        RefreshTick [label=<Handler<br/>&lt;<b>RefreshTick</b>&gt;>];
+        
+    }
+    
+    subgraph cluster_rpm_ostree_client {
+        label = "Actor:\nrpm-ostree client";
+        style = dashed;
+        color = deepskyblue;
+
+        QueryLocalDeployments [label=<Handler<br/>&lt;<b>QueryLocalDeployments</b>&gt;>];
+        StageDeployment [label=<Handler<br/>&lt;<b>StageDeployment</b>&gt;>];
+        FinalizeDeployment [label=<Handler<br/>&lt;<b>FinalizeDeployment</b>&gt;>];
+       
+        # Invisble placeholders.
+        QueryLocalDeployments:s -> StageDeployment:n [style=invis];
+        StageDeployment:s -> FinalizeDeployment:n [style=invis];
+    }
+    
+    # Organize nodes in rows.
+    { rank = same; InvisMetricsClient; AsyncLocalDeployments; QueryLocalDeployments }
+    { rank = same; ConnectionStream; RefreshTick; AsyncAttemptDeploy; StageDeployment }
+    { rank = same; InvisBottom; AsyncFinalizeDeployment; FinalizeDeployment; }
+
+    # Edges.
+    InvisMetricsClient:s -> ConnectionStream:n [label="Metrics\nsocket\n connection"];
+    RefreshTick:ne -> RefreshTick:se;
+    { rank = same; AsyncLocalDeployments:ne -> QueryLocalDeployments:nw; QueryLocalDeployments:sw -> AsyncLocalDeployments:se; }
+    { rank = same; AsyncAttemptDeploy:ne -> StageDeployment:nw; StageDeployment:sw -> AsyncAttemptDeploy:se; }
+    { rank = same; AsyncFinalizeDeployment:ne -> FinalizeDeployment:nw; FinalizeDeployment:sw -> AsyncFinalizeDeployment:se; }
+}
