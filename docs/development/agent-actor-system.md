@@ -6,7 +6,7 @@ parent: Development
 
 # Actor model and agent subsystems
 
-Zincati `agent` command provides a long-running background service which drives the OS through auto-updates.
+The Zincati `agent` command provides a long-running background service which drives the OS through auto-updates.
 It comprises several logical subsystems which can run in parallel and are arranged following the [actor model][wiki-actors].
 
 The goal of this design is manifold:
