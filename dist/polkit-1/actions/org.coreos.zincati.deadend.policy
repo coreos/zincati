@@ -11,6 +11,6 @@
       <allow_active>no</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/zincati</annotate>
-    <annotate key="org.freedesktop.policykit.exec.argv1">deadend</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">deadend-motd</annotate>
   </action>
 </policyconfig>

@@ -175,7 +175,9 @@ fn refresh_deadend_status(node: &Node) -> failure::Fallible<()> {
                 log::warn!("current release detected as dead-end, reason: {}", reason);
                 std::process::Command::new("pkexec")
                     .arg("/usr/libexec/zincati")
-                    .arg("deadend")
+                    .arg("deadend-motd")
+                    .arg("set")
+                    .arg("--reason")
                     .arg(reason)
                     .output()
                     .with_context(|_| "failed to write dead-end release information")?;
@@ -189,7 +191,8 @@ fn refresh_deadend_status(node: &Node) -> failure::Fallible<()> {
                 log::info!("current release detected as not a dead-end");
                 std::process::Command::new("pkexec")
                     .arg("/usr/libexec/zincati")
-                    .arg("deadend")
+                    .arg("deadend-motd")
+                    .arg("unset")
                     .output()
                     .with_context(|_| "failed to remove dead-end release MOTD file")?;
                 DEADEND_STATE.set_no_deadend();

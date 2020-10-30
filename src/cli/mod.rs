@@ -4,6 +4,7 @@ mod agent;
 mod deadend;
 
 use log::LevelFilter;
+use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
 /// CLI configuration options.
@@ -33,7 +34,7 @@ impl CliOptions {
     pub(crate) fn run(self) -> failure::Fallible<()> {
         match self.cmd {
             CliCommand::Agent => agent::run_agent(),
-            CliCommand::Deadend { reason } => deadend::run_deadend(reason),
+            CliCommand::DeadendMotd(cmd) => cmd.run(),
         }
     }
 }
@@ -41,8 +42,10 @@ impl CliOptions {
 /// CLI sub-commands.
 #[derive(Debug, StructOpt)]
 pub(crate) enum CliCommand {
+    /// Long-running agent for auto-updates.
     #[structopt(name = "agent")]
     Agent,
-    #[structopt(name = "deadend")]
-    Deadend { reason: Option<String> },
+    /// Set or unset deadend MOTD state.
+    #[structopt(name = "deadend-motd", setting = AppSettings::Hidden)]
+    DeadendMotd(deadend::Cmd),
 }
