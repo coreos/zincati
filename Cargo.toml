@@ -1,6 +1,6 @@
 [package]
 name = "zincati"
-version = "0.0.14-alpha.0"
+version = "0.0.15-alpha.0"
 description = "Update agent for Fedora CoreOS"
 homepage = "https://coreos.github.io/zincati"
 license = "Apache-2.0"
