@@ -37,7 +37,7 @@ tempfile = "^3.1"
 structopt = "0.3"
 tokio = "0.2"
 toml = "0.5"
-url = { version = "2.0", features = ["serde"] }
+url = { version = "2.2", features = ["serde"] }
 
 [dev-dependencies]
 http = "0.2"
