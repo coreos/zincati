@@ -1,0 +1,25 @@
+---
+name: Containers
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  container-dev:
+    name: "Dev container"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Assemble dev-container
+        run: docker build -f contrib/Dockerfile.dev -t coreos/zincati:dev .
+      - name: Run dev-container
+        run: docker run --rm -v "$(pwd):/source" -v "/tmp/assembler:/assembler" coreos/zincati:dev
+      - name: Archive artifacts (overrides/rootfs)
+        uses: actions/upload-artifact@v2
+        with:
+          name: zincati-overrides-rootfs
+          path: /tmp/assembler/overrides/rootfs/

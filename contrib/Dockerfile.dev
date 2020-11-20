@@ -1,0 +1,7 @@
+FROM registry.fedoraproject.org/fedora:33
+RUN dnf install -y cargo openssl-devel make
+WORKDIR /source
+ENV DESTDIR="/assembler/overrides/rootfs"
+ENV TARGETDIR="/assembler/tmp/zincati/target"
+
+ENTRYPOINT ["/usr/bin/make", "all", "install"]
