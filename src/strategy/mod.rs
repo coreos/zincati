@@ -49,27 +49,47 @@ impl UpdateStrategy {
             x => bail!("unsupported strategy '{}'", x),
         };
 
+        Ok(strategy)
+    }
+
+    /// Record strategy details to metrics and logs.
+    pub(crate) fn record_details(&self) {
         // Export info-metrics with details about current strategy.
         STRATEGY_MODE
-            .with_label_values(&[strategy.configuration_label()])
+            .with_label_values(&[self.configuration_label()])
             .set(1);
-        if let UpdateStrategy::Periodic(p) = &strategy {
+
+        if let UpdateStrategy::Periodic(p) = self {
             let sched_length = p.schedule_length_minutes();
             PERIODIC_LENGTH.set(sched_length as i64);
         };
 
-        Ok(strategy)
+        log::info!("update strategy: {}", self.human_description());
     }
 
     /// Return the configuration label/name for this update strategy.
     ///
     /// This can be used to match back an instantiated strategy to the mode label
     /// from configuration.
-    pub(crate) fn configuration_label(&self) -> &'static str {
+    fn configuration_label(&self) -> &'static str {
         match self {
             UpdateStrategy::FleetLock(_) => StrategyFleetLock::LABEL,
             UpdateStrategy::Immediate(_) => StrategyImmediate::LABEL,
             UpdateStrategy::Periodic(_) => StrategyPeriodic::LABEL,
+        }
+    }
+
+    /// Return the human description for this strategy.
+    pub(crate) fn human_description(&self) -> String {
+        match self {
+            UpdateStrategy::FleetLock(_) => self.configuration_label().to_string(),
+            UpdateStrategy::Immediate(_) => self.configuration_label().to_string(),
+            UpdateStrategy::Periodic(p) => format!(
+                "{}, total schedule length {} minutes (next window {})",
+                self.configuration_label(),
+                p.schedule_length_minutes(),
+                p.human_remaining()
+            ),
         }
     }
 
