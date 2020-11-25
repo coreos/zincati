@@ -13,6 +13,7 @@ use failure::Fallible;
 use intervaltree::{Element, IntervalTree};
 use serde::{Serialize, Serializer};
 use std::cmp::Ordering;
+use std::fmt::Write;
 use std::iter::FromIterator;
 use std::ops::Range;
 use std::time::Duration;
@@ -51,6 +52,68 @@ impl WeeklyCalendar {
         self.windows.query_point(timepoint).count() > 0
     }
 
+    /// Return the duration remaining till the next window containing the given datetime.
+    ///
+    /// This returns `None` if no windows are reachable.
+    pub fn remaining_to_datetime(&self, datetime: &DateTime<Utc>) -> Option<chrono::Duration> {
+        if self.is_empty() {
+            return None;
+        }
+
+        // Already in a window, zero minutes.
+        if self.contains_datetime(&datetime) {
+            return Some(chrono::Duration::zero());
+        }
+
+        let timepoint = utils::datetime_as_weekly_minute(datetime);
+        // Next window is this week, just subtract remaining minutes.
+        if let Some(next) = self
+            .windows
+            .iter_sorted()
+            .find(|x| x.range.start >= timepoint)
+        {
+            let remaining_mins = next.range.start.saturating_sub(timepoint);
+            return Some(chrono::Duration::minutes(i64::from(remaining_mins)));
+        };
+
+        // Next window is not this week, wrap remaining minutes to the first
+        // window of the next week (calendar has been already verified non-empty).
+        let remaining_mins = {
+            let remaining_this_week: i64 = MAX_WEEKLY_MINS.saturating_sub(timepoint).into();
+            let first_window_next_week = self
+                .windows
+                .iter_sorted()
+                .next()
+                .expect("unexpected empty weekly calendar");
+            remaining_this_week.saturating_add(first_window_next_week.range.start.into())
+        };
+        Some(chrono::Duration::minutes(remaining_mins))
+    }
+
+    /// Format remaining duration till the next window in human terms.
+    pub fn human_remaining_duration(remaining: &chrono::Duration) -> Fallible<String> {
+        if remaining.is_zero() {
+            return Ok("now".to_string());
+        }
+
+        let mut human_readable = "in".to_string();
+        let days = remaining.num_days() % 7;
+        let earlier_output = if days > 0 {
+            write!(&mut human_readable, " {}d", days)?;
+            true
+        } else {
+            false
+        };
+        let hours = remaining.num_hours() % 24;
+        if hours > 0 || earlier_output {
+            write!(&mut human_readable, " {}h", hours)?;
+        }
+        let minutes = remaining.num_minutes() % 60;
+        write!(&mut human_readable, " {}m", minutes)?;
+
+        Ok(human_readable)
+    }
+
     /// Return the measured length of the calendar, in minutes.
     ///
     /// In case of overlapping windows, measured length is the actual amount
@@ -86,6 +149,11 @@ impl WeeklyCalendar {
         measured = measured.saturating_add(last_length);
 
         u64::from(measured)
+    }
+
+    /// Return true if the calendar contains no time-windows.
+    pub fn is_empty(&self) -> bool {
+        self.windows.iter().next().is_none()
     }
 
     /// Return total length of all windows in the calendar, in minutes.
@@ -408,5 +476,56 @@ mod tests {
 
         assert_eq!(calendar.total_length_minutes(), 165);
         assert_eq!(calendar.length_minutes(), 150);
+    }
+
+    #[test]
+    fn datetime_remaining() {
+        let length = utils::check_minutes(15).unwrap();
+        let w1 = WeeklyWindow::parse_timespan(chrono::Weekday::Mon, 1, 30, length).unwrap();
+        let calendar = WeeklyCalendar::new(w1);
+
+        let cases = vec![
+            ("2020-11-23T00:15:00+00:00", 60 + 15),
+            ("2020-11-23T01:29:30+00:00", 1),
+            ("2020-11-23T01:30:00+00:00", 0),
+            ("2020-11-23T01:45:00+00:00", 0),
+            ("2020-11-23T02:00:00+00:00", 60 * 24 * 7 - 120 + 90),
+            ("2020-11-22T01:30:00+00:00", 60 * 24),
+        ];
+        for (input, remaining) in cases {
+            let datetime = DateTime::parse_from_rfc3339(input).unwrap();
+            let output = calendar
+                .remaining_to_datetime(&datetime.into())
+                .unwrap()
+                .num_minutes();
+            assert_eq!(output, remaining, "{}", input);
+        }
+    }
+
+    #[test]
+    fn human_remaining() {
+        use chrono::Duration;
+
+        let cases = vec![
+            (0, "now"),
+            (1, "in 1m"),
+            (59, "in 59m"),
+            (60, "in 1h 0m"),
+            (61, "in 1h 1m"),
+            (120, "in 2h 0m"),
+            (1439, "in 23h 59m"),
+            (1440, "in 1d 0h 0m"),
+            (1441, "in 1d 0h 1m"),
+            (1501, "in 1d 1h 1m"),
+            (2879, "in 1d 23h 59m"),
+            (2880, "in 2d 0h 0m"),
+            (4503, "in 3d 3h 3m"),
+        ];
+
+        for (mins, human) in cases {
+            let remaining = Duration::minutes(mins);
+            let output = WeeklyCalendar::human_remaining_duration(&remaining).unwrap();
+            assert_eq!(output, human, "{}", mins);
+        }
     }
 }

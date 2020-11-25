@@ -157,6 +157,7 @@ impl UpdateAgent {
             if actor.enabled {
                 log::info!("initialization complete, auto-updates logic enabled");
                 actor.state.initialized();
+                actor.strategy.record_details();
             } else {
                 log::warn!("initialization complete, auto-updates logic disabled by configuration");
                 actor.state.end();

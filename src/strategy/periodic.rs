@@ -50,6 +50,17 @@ impl StrategyPeriodic {
         self.schedule.length_minutes()
     }
 
+    /// Return the remaining duration to next window, in human terms.
+    pub(crate) fn human_remaining(&self) -> String {
+        let datetime = chrono::Utc::now();
+        let remaining = self.schedule.remaining_to_datetime(&datetime);
+        match remaining {
+            None => "not found".to_string(),
+            Some(ref d) => WeeklyCalendar::human_remaining_duration(d)
+                .unwrap_or_else(|_| "unknown".to_string()),
+        }
+    }
+
     /// Check if finalization is allowed.
     pub(crate) fn can_finalize(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>>>> {
         let datetime_now = chrono::Utc::now();
