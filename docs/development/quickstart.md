@@ -1,3 +1,9 @@
+---
+layout: default
+nav_order: 1
+parent: Development
+---
+
 # Development quickstart
 
 This is quick start guide for developing and building this project from source on a Linux machine.
@@ -45,6 +51,9 @@ docker build -f contrib/Dockerfile.dev -t coreos/zincati:dev .
 docker run --rm -v "$(pwd):/source" -v "/tmp/assembler:/assembler" coreos/zincati:dev
 ```
 
+There is also a larger buildroot image at `registry.svc.ci.openshift.org/coreos/cosa-buildroot:latest`, which is used by integration jobs in CI.
+It contains all the required dependencies and can be used to build other CoreOS projects too (not only Zincati).
+
 ## Assemble custom OS images
 
 `coreos-assembler` ([`cosa`](https://github.com/coreos/coreos-assembler)) makes it very handy to embed build artifacts in a custom OS image, in order to test patches in the final environment.
@@ -63,3 +72,5 @@ pushd /tmp/test-image
 cosa fetch
 cosa build
 ```
+
+For more details, see `coreos-assembler` [overrides documentation](https://coreos.github.io/coreos-assembler/working/#using-overrides).
