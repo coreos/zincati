@@ -14,6 +14,7 @@ pub(crate) mod inputs;
 use crate::cincinnati::Cincinnati;
 use crate::identity::Identity;
 use crate::strategy::UpdateStrategy;
+use crate::update_agent;
 use failure::{Fallible, ResultExt};
 use serde::Serialize;
 use std::num::NonZeroU64;
@@ -50,6 +51,15 @@ impl Settings {
         let extensions = vec!["toml".to_string()];
         let cfg = inputs::ConfigInput::read_configs(prefixes, &common_path, extensions)?;
         Self::validate(cfg)
+    }
+
+    /// Refresh settings-related metrics values.
+    pub(crate) fn refresh_metrics(&self) {
+        // TODO(lucab): consider adding more metrics here (e.g. steady interval).
+        update_agent::UPDATES_ENABLED.set(i64::from(self.enabled));
+        update_agent::ALLOW_DOWNGRADE.set(i64::from(self.allow_downgrade));
+
+        self.strategy.refresh_metrics();
     }
 
     /// Validate config and return a valid agent settings.

@@ -23,9 +23,17 @@ const DEFAULT_REFRESH_PERIOD_SECS: u64 = 300; // 5 minutes.
 const MAX_DEPLOY_ATTEMPTS: u8 = 12;
 
 lazy_static::lazy_static! {
+    pub(crate) static ref ALLOW_DOWNGRADE: IntGauge = register_int_gauge!(opts!(
+        "zincati_update_agent_updates_allow_downgrade",
+        "Whether downgrades via auto-updates logic are allowed."
+    )).unwrap();
     static ref LATEST_STATE_CHANGE: IntGauge = register_int_gauge!(opts!(
         "zincati_update_agent_latest_state_change_timestamp",
         "UTC timestamp of update-agent last state change."
+    )).unwrap();
+    pub(crate) static ref UPDATES_ENABLED: IntGauge = register_int_gauge!(opts!(
+        "zincati_update_agent_updates_enabled",
+        "Whether auto-updates logic is enabled."
     )).unwrap();
 }
 
