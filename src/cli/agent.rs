@@ -24,6 +24,7 @@ pub(crate) fn run_agent() -> Fallible<()> {
 
     let settings =
         config::Settings::assemble().context("failed to assemble configuration settings")?;
+    settings.refresh_metrics();
     info!(
         "agent running on node '{}', in update group '{}'",
         settings.identity.node_uuid.lower_hex(),

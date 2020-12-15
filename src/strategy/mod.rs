@@ -54,6 +54,12 @@ impl UpdateStrategy {
 
     /// Record strategy details to metrics and logs.
     pub(crate) fn record_details(&self) {
+        self.refresh_metrics();
+        log::info!("update strategy: {}", self.human_description());
+    }
+
+    /// Refresh strategy-related metrics values.
+    pub(crate) fn refresh_metrics(&self) {
         // Export info-metrics with details about current strategy.
         STRATEGY_MODE
             .with_label_values(&[self.configuration_label()])
@@ -63,8 +69,6 @@ impl UpdateStrategy {
             let sched_length = p.schedule_length_minutes();
             PERIODIC_LENGTH.set(sched_length as i64);
         };
-
-        log::info!("update strategy: {}", self.human_description());
     }
 
     /// Return the configuration label/name for this update strategy.

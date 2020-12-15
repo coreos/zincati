@@ -11,17 +11,9 @@ use std::collections::BTreeSet;
 use std::time::Duration;
 
 lazy_static::lazy_static! {
-    static ref ALLOW_DOWNGRADE: IntGauge = register_int_gauge!(opts!(
-        "zincati_update_agent_updates_allow_downgrade",
-        "Whether downgrades via auto-updates logic are allowed."
-    )).unwrap();
     static ref LAST_REFRESH: IntGauge = register_int_gauge!(opts!(
         "zincati_update_agent_last_refresh_timestamp",
         "UTC timestamp of update-agent last refresh tick."
-    )).unwrap();
-    static ref UPDATES_ENABLED: IntGauge = register_int_gauge!(opts!(
-        "zincati_update_agent_updates_enabled",
-        "Whether auto-updates logic is enabled."
     )).unwrap();
 }
 
@@ -31,11 +23,7 @@ impl Actor for UpdateAgent {
     fn started(&mut self, ctx: &mut Self::Context) {
         trace!("update agent started");
 
-        // TODO(lucab): consider adding more metrics here (e.g. steady interval).
-        UPDATES_ENABLED.set(i64::from(self.enabled));
-
         if self.allow_downgrade {
-            ALLOW_DOWNGRADE.set(1);
             log::warn!("client configuration allows (possibly vulnerable) downgrades via auto-updates logic");
         }
 
