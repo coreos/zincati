@@ -5,7 +5,7 @@ parent: Usage
 
 # Agent identity
 
-Zincati agent tries to derive an unique identity for the machine it is running on, by introspecting the underlying OS and reading user configuration.
+Zincati agent tries to derive a unique identity for the machine it is running on by introspecting the underlying OS and reading user configuration.
 This includes assigning an ID and a group label specific to the agent, so that cluster-wide upgrades can be orchestrated via [phased rollouts][phased] and [lock-based][fleetlock-strategy] reboots.
 
 [phased]: auto-updates.md#phased-rollouts-client-wariness-canaries
@@ -13,7 +13,7 @@ This includes assigning an ID and a group label specific to the agent, so that c
 
 ## Identity configuration
 
-All agent identity values are normally auto-detected at startup, and do not require user intervention.
+All agent identity values are normally auto-detected at startup and do not require user intervention.
 
 However, the following settings can be overridden through configuration fragments in the `identity` section:
  * `group`: group label, used for graph fetching ([Cincinnati][cincinnati]) and reboot orchestration ([FleetLock][fleetlock])
