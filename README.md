@@ -1,6 +1,6 @@
 # Zincati
 
-[![Build status](https://travis-ci.org/coreos/zincati.svg?branch=master)](https://travis-ci.org/coreos/zincati)
+![Checks status](https://img.shields.io/github/checks-status/coreos/zincati/master)
 [![crates.io](https://img.shields.io/crates/v/zincati.svg)](https://crates.io/crates/zincati)
 
 Zincati is an auto-update agent for Fedora CoreOS hosts.
