@@ -2,10 +2,12 @@ mod platform;
 
 use crate::config::inputs;
 use crate::rpm_ostree;
-use failure::{ensure, format_err, Fallible, ResultExt};
+use failure::{bail, ensure, format_err, Fallible, ResultExt};
+use lazy_static::lazy_static;
 use libsystemd::id128;
 use ordered_float::NotNan;
 use prometheus::{Gauge, IntGaugeVec};
+use regex::Regex;
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -56,6 +58,7 @@ impl Identity {
         if !cfg.group.is_empty() {
             id.group = cfg.group;
         };
+        id.validate_group_label()?;
 
         if !cfg.node_uuid.is_empty() {
             id.node_uuid = id128::Id128::parse_str(&cfg.node_uuid)
@@ -154,6 +157,26 @@ impl Identity {
             stream: "mock-stable".to_string(),
         }
     }
+
+    /// Validate the group label value in current identity.
+    ///
+    /// Group setting can be transmitted to external backends (Cincinnati and FleetLock).
+    /// This ensures that label value is compliant to specs regex:
+    ///  - https://coreos.github.io/zincati/development/fleetlock/protocol/#body
+    fn validate_group_label(&self) -> Fallible<()> {
+        static VALID_GROUP: &str = "^[a-zA-Z0-9.-]+$";
+        lazy_static! {
+            static ref VALID_GROUP_REGEX: Regex = Regex::new(VALID_GROUP).unwrap();
+        }
+        if !VALID_GROUP_REGEX.is_match(&self.group) {
+            bail!(
+                "invalid group label '{}': not conforming to expression '{}'",
+                self.group,
+                VALID_GROUP
+            );
+        }
+        Ok(())
+    }
 }
 
 fn compute_node_uuid(app_id: &id128::Id128) -> Fallible<id128::Id128> {
@@ -182,6 +205,35 @@ mod tests {
 
     #[test]
     fn identity_cincinnati_params() {
+        let mut id = Identity::mock_default();
+        id.validate_group_label().unwrap();
+
+        {
+            let valid = vec![
+                "default",
+                "worker",
+                "01",
+                "group-A",
+                "infra.01",
+                "example.com",
+            ];
+            for entry in valid {
+                id.group = entry.to_string();
+                id.validate_group_label().unwrap();
+            }
+        }
+
+        {
+            let invalid = vec!["", "intránët"];
+            for entry in invalid {
+                id.group = entry.to_string();
+                id.validate_group_label().unwrap_err();
+            }
+        }
+    }
+
+    #[test]
+    fn identity_validate_group() {
         let id = Identity::mock_default();
         let vars = id.cincinnati_params();
 
