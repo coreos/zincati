@@ -136,9 +136,10 @@ impl UpdateAgentState {
 
     /// Record a failed deploy attempt in UpdateAvailable state.
     ///
-    /// This returns whether a persistent deploy failure was detected
-    /// and the target update abandoned.
-    fn record_failed_deploy(&mut self) -> bool {
+    /// This returns a tuple containing a bool representing whether the target
+    /// update was abandoned and the total number of failed deployment attempts
+    /// (including the newly recorded failed attempt).
+    fn record_failed_deploy(&mut self) -> (bool, u8) {
         let (release, attempts) = match self.clone() {
             UpdateAgentState::UpdateAvailable((r, a)) => (r, a),
             _ => unreachable!("transition not allowed: record_failed_deploy on {:?}", self,),
@@ -152,7 +153,7 @@ impl UpdateAgentState {
             self.deploy_failed(release, fail_count);
         }
 
-        persistent_err
+        (persistent_err, fail_count)
     }
 
     /// Transition to the UpdateAvailable state after a deploy failure.
@@ -275,7 +276,7 @@ mod tests {
             UpdateAgentState::UpdateAvailable((update.clone(), 0))
         );
 
-        let persistent_err = machine.record_failed_deploy();
+        let (persistent_err, _) = machine.record_failed_deploy();
         assert_eq!(persistent_err, false);
         assert_eq!(
             machine,
@@ -309,7 +310,7 @@ mod tests {
 
         // MAX-1 temporary failures.
         for attempt in 1..MAX_DEPLOY_ATTEMPTS {
-            let persistent_err = machine.record_failed_deploy();
+            let (persistent_err, _) = machine.record_failed_deploy();
             assert_eq!(persistent_err, false);
             assert_eq!(
                 machine,
@@ -318,7 +319,7 @@ mod tests {
         }
 
         // Persistent error threshold reached.
-        let persistent_err = machine.record_failed_deploy();
+        let (persistent_err, _) = machine.record_failed_deploy();
         assert_eq!(persistent_err, true);
         assert_eq!(machine, UpdateAgentState::NoNewUpdate);
     }
