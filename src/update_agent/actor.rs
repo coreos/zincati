@@ -5,6 +5,7 @@ use crate::rpm_ostree::{self, Release};
 use actix::prelude::*;
 use failure::Error;
 use futures::prelude::*;
+use libsystemd::daemon::*;
 use log::trace;
 use prometheus::IntGauge;
 use std::collections::BTreeSet;
@@ -142,14 +143,19 @@ impl UpdateAgent {
         trace!("update agent in start state");
 
         let initialization = self.nop().map(|_r, actor, _ctx| {
+            let status;
             if actor.enabled {
-                log::info!("initialization complete, auto-updates logic enabled");
+                status = "initialization complete, auto-updates logic enabled";
+                log::info!("{}", status);
                 actor.state.initialized();
                 actor.strategy.record_details();
             } else {
-                log::warn!("initialization complete, auto-updates logic disabled by configuration");
+                status = "initialization complete, auto-updates logic disabled by configuration";
+                log::warn!("{}", status);
                 actor.state.end();
             };
+            update_unit_status(status);
+            notify_ready();
             Ok(())
         });
 
@@ -165,6 +171,7 @@ impl UpdateAgent {
             actix::fut::wrap_future::<_, Self>(report_steady).map(|is_steady, actor, _ctx| {
                 if is_steady {
                     log::debug!("reached steady state, periodically polling for updates");
+                    update_unit_status("periodically polling for updates");
                     actor.state.reported_steady();
                 }
                 Ok(())
@@ -193,8 +200,17 @@ impl UpdateAgent {
             })
             .map(|res, actor, _ctx| {
                 match res {
-                    Some(release) => actor.state.update_available(release),
-                    None => actor.state.no_new_update(),
+                    Some(release) => {
+                        update_unit_status(&format!("found update on remote: {}", release.version));
+                        actor.state.update_available(release);
+                    }
+                    None => {
+                        actor.state.no_new_update();
+                        update_unit_status(&format!(
+                            "periodically polling for updates (last checked {})",
+                            &actor.state_changed.format("%a %Y-%m-%d %H:%M:%S %Z")
+                        ));
+                    }
                 };
                 Ok(())
             });
@@ -210,8 +226,20 @@ impl UpdateAgent {
         let deploy_outcome = self.attempt_deploy(target);
         let state_change = deploy_outcome.map(move |res, actor, _ctx| {
             match res {
-                Ok(_) => actor.state.update_staged(release),
-                Err(_) => actor.deploy_attempt_failed(release),
+                Ok(_) => {
+                    update_unit_status(&format!("update staged: {}", release.version));
+                    actor.state.update_staged(release);
+                }
+                Err(_) => {
+                    let release_ver = release.version.clone();
+                    let fail_count = actor.deploy_attempt_failed(release);
+                    update_unit_status(&format!(
+                        "trying to stage {} ({} failed deployment attempt{})",
+                        release_ver,
+                        fail_count,
+                        if fail_count > 1 { "s" } else { "" }
+                    ));
+                }
             };
             Ok(())
         });
@@ -229,16 +257,23 @@ impl UpdateAgent {
         let can_finalize = self.strategy.can_finalize();
         let state_change = actix::fut::wrap_future::<_, Self>(can_finalize)
             .then(|can_finalize, actor, _ctx| actor.finalize_deployment(can_finalize, release))
-            .map(|res, actor, _ctx| res.map(|release| actor.state.update_finalized(release)));
+            .map(|res, actor, _ctx| {
+                res.map(|release| {
+                    update_unit_status(&format!("update finalized: {}", release.version));
+                    actor.state.update_finalized(release);
+                })
+            });
 
         Box::pin(state_change)
     }
 
     /// Actor job is done.
     fn tick_end(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
-        log::info!("update applied, waiting for reboot: {}", release.version);
-        let state_change = self.nop().map(|_r, actor, _ctx| {
+        let status = format!("update applied, waiting for reboot: {}", release.version);
+        log::info!("{}", status);
+        let state_change = self.nop().map(move |_r, actor, _ctx| {
             actor.state.end();
+            update_unit_status(&status);
             Ok(())
         });
 
@@ -265,15 +300,17 @@ impl UpdateAgent {
         Box::pin(upgrade)
     }
 
-    /// Record a failed deploy attempt.
-    fn deploy_attempt_failed(&mut self, release: Release) {
-        let is_abandoned = self.state.record_failed_deploy();
+    /// Record a failed deploy attempt and return the total number of
+    /// failed deployment attempts.
+    fn deploy_attempt_failed(&mut self, release: Release) -> u8 {
+        let (is_abandoned, fail_count) = self.state.record_failed_deploy();
         if is_abandoned {
             log::warn!(
                 "persistent deploy failure detected, target release '{}' abandoned",
                 release.version
             );
         }
+        fail_count
     }
 
     /// List persistent (i.e. finalized) local deployments.
@@ -325,5 +362,39 @@ impl UpdateAgent {
     fn nop(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         let nop = actix::fut::ok(());
         Box::pin(nop)
+    }
+}
+
+/// Helper function to send notification to the service manager about service status changes.
+/// Log errors if unsuccessful.
+fn update_unit_status(status: &str) {
+    match notify(false, &[NotifyState::Status(status.to_string())]) {
+        Err(e) => log::error!(
+            "failed to notify service manager about service status change: {}",
+            e
+        ),
+        Ok(sent) => {
+            if !sent {
+                log::error!(
+                    "update_unit_status: status notifications not supported for this service"
+                );
+            }
+        }
+    }
+}
+
+/// Helper function to tell the service manager that Zincati start up is finished and
+/// configuration is loaded.
+fn notify_ready() {
+    match notify(false, &[NotifyState::Ready]) {
+        Err(e) => log::error!(
+            "failed to notify service manager that service is ready: {}",
+            e
+        ),
+        Ok(sent) => {
+            if !sent {
+                log::error!("notify_ready: status notifications not supported for this service");
+            }
+        }
     }
 }

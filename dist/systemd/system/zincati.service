@@ -17,6 +17,7 @@ After=systemd-machine-id-commit.service
 User=zincati
 Group=zincati
 Environment=ZINCATI_VERBOSITY="-v"
+Type=notify
 ExecStart=/usr/libexec/zincati agent ${ZINCATI_VERBOSITY}
 Restart=on-failure
 RestartSec=10s
