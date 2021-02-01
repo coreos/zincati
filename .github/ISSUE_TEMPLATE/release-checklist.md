@@ -3,6 +3,8 @@
 This project uses [cargo-release][cargo-release] in order to prepare new releases, tag and sign the relevant git commit, and publish the resulting artifacts to [crates.io][crates-io].
 The release process follows the usual PR-and-review flow, allowing an external reviewer to have a final check before publishing.
 
+In order to ease downstream packaging of Rust binaries, an archive of vendored dependencies is also provided (only relevant for offline builds).
+
 ## Requirements
 
 This guide requires:
@@ -47,12 +49,22 @@ Push access to the upstream repository is required in order to publish the new t
   - [ ] `git push ${UPSTREAM_REMOTE} v${RELEASE_VER}`
   - [ ] `cargo publish`
 
+- assemble vendor archive:
+  - [ ] `cargo vendor`
+  - [ ] `tar -czf target/zincati-${RELEASE_VER}-vendor.tar.gz vendor`
+
 - publish the release:
   - [ ] find the new tag in the [GitHub tag list](https://github.com/coreos/zincati/tags) and click the triple dots menu, and create a release for it
   - [ ] write a short changelog (i.e. re-use the PR content) and publish the release
+  - [ ] upload `target/zincati-${RELEASE_VER}-vendor.tar.gz`
+  - [ ] record digests of local artifacts:
+    - `sha256sum target/package/zincati-${RELEASE_VER}.crate`
+    - `sha256sum target/zincati-${RELEASE_VER}-vendor.tar.gz`
+  - [ ] publish release
 
 - clean up the local environment (optional, but recommended):
   - [ ] `cargo clean`
+  - [ ] `rm -rf vendor`
   - [ ] `git checkout master`
   - [ ] `git pull ${UPSTREAM_REMOTE} master`
   - [ ] `git push ${UPSTREAM_REMOTE} :release-${RELEASE_VER}`
