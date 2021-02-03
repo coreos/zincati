@@ -33,6 +33,8 @@ jobs:
         run: cargo test --features failpoints
       - name: cargo build (release)
         run: cargo build --release
+      - name: cargo package
+        run: cargo package
   tests-minimum-toolchain:
     name: "Tests, minimum supported toolchain (MSRV)"
     runs-on: ubuntu-latest
