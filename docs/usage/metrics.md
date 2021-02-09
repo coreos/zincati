@@ -7,7 +7,7 @@ parent: Usage
 
 Zincati tracks and exposes some of its internal metrics, in order to ease monitoring tasks across a large fleet of nodes.
 
-Metrics are collected and exported according to [Prometheus] [textual format][prom-text], over a local endpoint.
+Metrics are collected and exported according to [Prometheus][Prometheus] [textual format][prom-text], over a local endpoint.
 
 [Prometheus]: https://prometheus.io/
 [prom-text]: https://prometheus.io/docs/instrumenting/exposition_formats/
