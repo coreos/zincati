@@ -89,17 +89,20 @@ impl Identity {
 
     /// Try to build default agent identity.
     pub fn try_default() -> Fallible<Self> {
-        let basearch =
-            rpm_ostree::basearch().context("failed to introspect OS base architecture")?;
-        let current_os = rpm_ostree::booted().context("failed to introspect booted OS image")?;
+        // Invoke rpm-ostree to get the status of the currently booted deployment.
+        let status = rpm_ostree::invoke_cli_status(true)?;
+        let basearch = rpm_ostree::parse_basearch(&status)
+            .context("failed to introspect OS base architecture")?;
+        let current_os =
+            rpm_ostree::parse_booted(&status).context("failed to introspect booted OS image")?;
         let node_uuid = {
             let app_id = id128::Id128::try_from_slice(APP_ID)
                 .map_err(|e| format_err!("failed to parse application ID: {}", e))?;
             compute_node_uuid(&app_id)?
         };
         let platform = platform::read_id("/proc/cmdline")?;
-        let stream =
-            rpm_ostree::updates_stream().context("failed to introspect OS updates stream")?;
+        let stream = rpm_ostree::parse_updates_stream(&status)
+            .context("failed to introspect OS updates stream")?;
 
         let id = Self {
             basearch,

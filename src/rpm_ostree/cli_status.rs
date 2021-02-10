@@ -1,18 +1,27 @@
 //! Interface to `rpm-ostree status --json`.
 
+use super::actor::{RpmOstreeClient, StatusCache};
 use super::Release;
 use failure::{bail, ensure, format_err, Fallible, ResultExt};
+use filetime::FileTime;
+use log::trace;
 use serde::Deserialize;
 use std::collections::BTreeSet;
+use std::fs;
+
+/// Path to local OSTree deployments. We use its mtime to check for modifications (e.g. new deployments)
+/// to local deployments that might warrant querying `rpm-ostree status` again to update our knowledge
+/// of the current state of deployments.
+const OSTREE_DEPLS_PATH: &str = "/ostree/deploy";
 
 /// JSON output from `rpm-ostree status --json`
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct StatusJSON {
     deployments: Vec<DeploymentJSON>,
 }
 
 /// Partial deployment object (only fields relevant to zincati).
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DeploymentJSON {
     booted: bool,
@@ -27,7 +36,7 @@ pub struct DeploymentJSON {
 }
 
 /// Metadata from base commit (only fields relevant to zincati).
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct BaseCommitMetaJSON {
     #[serde(rename = "coreos-assembler.basearch")]
     basearch: String,
@@ -53,51 +62,54 @@ impl DeploymentJSON {
     }
 }
 
-/// Return base architecture for booted deployment.
-pub fn basearch() -> Fallible<String> {
-    let status = status_json(true)?;
+/// Parse base architecture for booted deployment from status object.
+pub fn parse_basearch(status: &StatusJSON) -> Fallible<String> {
     let json = booted_json(status)?;
     Ok(json.base_metadata.basearch)
 }
 
-/// Find the booted deployment.
-pub fn booted() -> Fallible<Release> {
-    let status = status_json(true)?;
+/// Parse the booted deployment from status object.
+pub fn parse_booted(status: &StatusJSON) -> Fallible<Release> {
     let json = booted_json(status)?;
     Ok(json.into_release())
 }
 
-/// Return local deployments.
-pub fn local_deployments(omit_staged: bool) -> Fallible<BTreeSet<Release>> {
-    let status = status_json(false)?;
-    parse_local_deployments(status, omit_staged)
-}
-
-/// Return updates stream for booted deployment.
-pub fn updates_stream() -> Fallible<String> {
-    let status = status_json(true)?;
+/// Parse updates stream for booted deployment from status object.
+pub fn parse_updates_stream(status: &StatusJSON) -> Fallible<String> {
     let json = booted_json(status)?;
     ensure!(!json.base_metadata.stream.is_empty(), "empty stream value");
     Ok(json.base_metadata.stream)
 }
 
 /// Parse local deployments from a status object.
-fn parse_local_deployments(status: StatusJSON, omit_staged: bool) -> Fallible<BTreeSet<Release>> {
+fn parse_local_deployments(status: &StatusJSON, omit_staged: bool) -> Fallible<BTreeSet<Release>> {
     let mut deployments = BTreeSet::<Release>::new();
-    for entry in status.deployments {
+    for entry in &status.deployments {
         if omit_staged && entry.staged {
             continue;
         }
 
-        let release = entry.into_release();
+        let release = entry.clone().into_release();
         deployments.insert(release);
     }
     Ok(deployments)
 }
 
+/// Return local deployments, using client's cache if possible.
+pub fn local_deployments(
+    client: &mut RpmOstreeClient,
+    omit_staged: bool,
+) -> Fallible<BTreeSet<Release>> {
+    let status = status_json(client)?;
+    let local_depls = parse_local_deployments(&status, omit_staged)?;
+
+    Ok(local_depls)
+}
+
 /// Return JSON object for booted deployment.
-fn booted_json(status: StatusJSON) -> Fallible<DeploymentJSON> {
+fn booted_json(status: &StatusJSON) -> Fallible<DeploymentJSON> {
     let booted = status
+        .clone()
         .deployments
         .into_iter()
         .find(|d| d.booted)
@@ -109,8 +121,32 @@ fn booted_json(status: StatusJSON) -> Fallible<DeploymentJSON> {
     Ok(booted)
 }
 
-/// Introspect deployments (rpm-ostree status).
-fn status_json(booted_only: bool) -> Fallible<StatusJSON> {
+/// Introspect deployments (rpm-ostree status) using rpm-ostree client actor client's
+/// cache if possible.
+fn status_json(client: &mut RpmOstreeClient) -> Fallible<StatusJSON> {
+    let ostree_depls_data = fs::metadata(OSTREE_DEPLS_PATH)
+        .with_context(|e| format_err!("failed to query directory {}: {}", OSTREE_DEPLS_PATH, e))?;
+    let ostree_depls_data_mtime = FileTime::from_last_modification_time(&ostree_depls_data);
+
+    if let Some(cache) = &client.status_cache {
+        if cache.mtime == ostree_depls_data_mtime {
+            trace!("cache fresh, using cached rpm-ostree status");
+            return Ok(cache.status.clone());
+        }
+    }
+
+    trace!("cache stale, invoking rpm-ostree to retrieve local deployments");
+    let status = invoke_cli_status(false)?;
+    client.status_cache = Some(StatusCache {
+        status: status.clone(),
+        mtime: ostree_depls_data_mtime,
+    });
+
+    Ok(status)
+}
+
+/// CLI executor for `rpm-ostree status --json`.
+pub fn invoke_cli_status(booted_only: bool) -> Fallible<StatusJSON> {
     let mut cmd = std::process::Command::new("rpm-ostree");
     cmd.arg("status").env("RPMOSTREE_CLIENT_ID", "zincati");
 
@@ -149,17 +185,17 @@ mod tests {
     fn mock_deployments() {
         {
             let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
-            let deployments = parse_local_deployments(status, false).unwrap();
+            let deployments = parse_local_deployments(&status, false).unwrap();
             assert_eq!(deployments.len(), 1);
         }
         {
             let status = mock_status("tests/fixtures/rpm-ostree-staged.json").unwrap();
-            let deployments = parse_local_deployments(status, false).unwrap();
+            let deployments = parse_local_deployments(&status, false).unwrap();
             assert_eq!(deployments.len(), 2);
         }
         {
             let status = mock_status("tests/fixtures/rpm-ostree-staged.json").unwrap();
-            let deployments = parse_local_deployments(status, true).unwrap();
+            let deployments = parse_local_deployments(&status, true).unwrap();
             assert_eq!(deployments.len(), 1);
         }
     }
@@ -167,14 +203,14 @@ mod tests {
     #[test]
     fn mock_booted_basearch() {
         let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
-        let booted = booted_json(status).unwrap();
+        let booted = booted_json(&status).unwrap();
         assert_eq!(booted.base_metadata.basearch, "x86_64");
     }
 
     #[test]
     fn mock_booted_updates_stream() {
         let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
-        let booted = booted_json(status).unwrap();
+        let booted = booted_json(&status).unwrap();
         assert_eq!(booted.base_metadata.stream, "testing-devel");
     }
 }
