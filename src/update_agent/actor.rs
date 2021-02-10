@@ -138,17 +138,52 @@ impl UpdateAgent {
         std::time::Duration::from_secs(secs.saturating_add(jitter))
     }
 
+    /// Log at INFO level how many and which deployments will be excluded from being
+    /// future update targets.
+    fn log_excluded_depls(depls: &BTreeSet<Release>, actor: &UpdateAgent) {
+        // Exclude booted deployment.
+        let mut other_depls = depls.clone();
+        if !other_depls.remove(&actor.identity.current_os) {
+            log::error!("could not find booted deployment in deployments");
+            return; // Early return since this really should not happen.
+        }
+
+        let excluded_depls_count = other_depls.len();
+        if excluded_depls_count > 0 {
+            log::info!(
+                "found {} other finalized deployment{}",
+                excluded_depls_count,
+                if excluded_depls_count > 1 { "s" } else { "" }
+            );
+            for release in other_depls {
+                log::info!(
+                    "deployment {} ({}) will be excluded from being a future update target",
+                    release.version,
+                    release.checksum
+                );
+            }
+        } else {
+            log::debug!(
+                "no other local finalized deployments found; no update targets will be excluded."
+            );
+        }
+    }
+
     /// Initialize the update agent.
     fn tick_initialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("update agent in start state");
 
-        let initialization = self.nop().map(|_r, actor, _ctx| {
+        let initialization = self.local_deployments().map(|res, actor, _ctx| {
             let status;
             if actor.enabled {
                 status = "initialization complete, auto-updates logic enabled";
                 log::info!("{}", status);
                 actor.state.initialized();
                 actor.strategy.record_details();
+                // Report non-future update target deployments.
+                if let Ok(depls) = res {
+                    Self::log_excluded_depls(&depls, actor);
+                }
             } else {
                 status = "initialization complete, auto-updates logic disabled by configuration";
                 log::warn!("{}", status);

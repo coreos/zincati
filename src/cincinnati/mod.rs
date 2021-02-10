@@ -276,6 +276,16 @@ fn find_update(
     // Exclude target already deployed locally in the past.
     let new_updates = updates.difference(&local_releases);
 
+    // Log that we will avoid updating to already deployed releases.
+    let prev_deployed_excluded = updates.intersection(&local_releases).count();
+    if prev_deployed_excluded > 0 {
+        log::debug!(
+            "Found {} possible update target{} already deployed locally in the past; ignoring",
+            prev_deployed_excluded,
+            if prev_deployed_excluded > 1 { "s" } else { "" }
+        );
+    }
+
     // Pick highest available updates target (based on age-index).
     let next = match new_updates.last().cloned() {
         Some(rel) => rel,
