@@ -1,14 +1,27 @@
 //! rpm-ostree client actor.
 
+use super::cli_status::StatusJSON;
 use super::Release;
 use actix::prelude::*;
 use failure::Fallible;
+use filetime::FileTime;
 use log::trace;
 use std::collections::BTreeSet;
 
+/// Cache of local deployments.
+#[derive(Clone, Debug)]
+pub struct StatusCache {
+    pub status: StatusJSON,
+    pub mtime: FileTime,
+}
+
 /// Client actor for rpm-ostree.
 #[derive(Debug, Default, Clone)]
-pub struct RpmOstreeClient {}
+pub struct RpmOstreeClient {
+    // NB: This is OK for now because `rpm-ostree` actor is curently spawned on a single thread,
+    // but if we move to a larger threadpool, each actor thread will have its own cache.
+    pub status_cache: Option<StatusCache>,
+}
 
 impl Actor for RpmOstreeClient {
     type Context = SyncContext<Self>;
@@ -83,6 +96,6 @@ impl Handler<QueryLocalDeployments> for RpmOstreeClient {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         trace!("request to list local deployments");
-        super::cli_status::local_deployments(query_msg.omit_staged)
+        super::cli_status::local_deployments(self, query_msg.omit_staged)
     }
 }
