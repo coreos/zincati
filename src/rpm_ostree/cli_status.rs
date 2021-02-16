@@ -5,6 +5,7 @@ use super::Release;
 use failure::{bail, ensure, format_err, Fallible, ResultExt};
 use filetime::FileTime;
 use log::trace;
+use prometheus::IntCounter;
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::fs;
@@ -13,6 +14,27 @@ use std::fs;
 /// to local deployments that might warrant querying `rpm-ostree status` again to update our knowledge
 /// of the current state of deployments.
 const OSTREE_DEPLS_PATH: &str = "/ostree/deploy";
+
+lazy_static::lazy_static! {
+    static ref STATUS_CACHE_ATTEMPTS: IntCounter = register_int_counter!(opts!(
+        "zincati_rpm_ostree_status_cache_requests_total",
+        "Total number of attempts to query rpm-ostree actor's cached status."
+    )).unwrap();
+    static ref STATUS_CACHE_MISSES: IntCounter = register_int_counter!(opts!(
+        "zincati_rpm_ostree_status_cache_misses_total",
+        "Total number of times rpm-ostree actor's cached status is stale during queries."
+    )).unwrap();
+    // This is not equivalent to `zincati_rpm_ostree_status_cache_misses_total` as there
+    // are cases where `rpm-ostree status` is called directly without checking the cache.
+    static ref RPM_OSTREE_STATUS_ATTEMPTS: IntCounter = register_int_counter!(opts!(
+        "zincati_rpm_ostree_status_attempts_total",
+        "Total number of 'rpm-ostree status' attempts."
+    )).unwrap();
+    static ref RPM_OSTREE_STATUS_FAILURES: IntCounter = register_int_counter!(opts!(
+        "zincati_rpm_ostree_status_failures_total",
+        "Total number of 'rpm-ostree status' failures."
+    )).unwrap();
+}
 
 /// JSON output from `rpm-ostree status --json`
 #[derive(Clone, Debug, Deserialize)]
@@ -124,6 +146,7 @@ fn booted_json(status: &StatusJSON) -> Fallible<DeploymentJSON> {
 /// Introspect deployments (rpm-ostree status) using rpm-ostree client actor client's
 /// cache if possible.
 fn status_json(client: &mut RpmOstreeClient) -> Fallible<StatusJSON> {
+    STATUS_CACHE_ATTEMPTS.inc();
     let ostree_depls_data = fs::metadata(OSTREE_DEPLS_PATH)
         .with_context(|e| format_err!("failed to query directory {}: {}", OSTREE_DEPLS_PATH, e))?;
     let ostree_depls_data_mtime = FileTime::from_last_modification_time(&ostree_depls_data);
@@ -135,6 +158,7 @@ fn status_json(client: &mut RpmOstreeClient) -> Fallible<StatusJSON> {
         }
     }
 
+    STATUS_CACHE_MISSES.inc();
     trace!("cache stale, invoking rpm-ostree to retrieve local deployments");
     let status = invoke_cli_status(false)?;
     client.status_cache = Some(StatusCache {
@@ -147,6 +171,8 @@ fn status_json(client: &mut RpmOstreeClient) -> Fallible<StatusJSON> {
 
 /// CLI executor for `rpm-ostree status --json`.
 pub fn invoke_cli_status(booted_only: bool) -> Fallible<StatusJSON> {
+    RPM_OSTREE_STATUS_ATTEMPTS.inc();
+
     let mut cmd = std::process::Command::new("rpm-ostree");
     cmd.arg("status").env("RPMOSTREE_CLIENT_ID", "zincati");
 
@@ -161,6 +187,7 @@ pub fn invoke_cli_status(booted_only: bool) -> Fallible<StatusJSON> {
         .with_context(|_| "failed to run 'rpm-ostree' binary")?;
 
     if !cmdrun.status.success() {
+        RPM_OSTREE_STATUS_FAILURES.inc();
         bail!(
             "rpm-ostree status failed:\n{}",
             String::from_utf8_lossy(&cmdrun.stderr)
