@@ -47,6 +47,10 @@ lazy_static::lazy_static! {
         "zincati_cincinnati_booted_release_is_deadend",
         "Whether currently booted OS release is a dead-end."
     ).unwrap();
+    static ref UPDATE_TARGETS_IGNORED: IntGauge = register_int_gauge!(
+        "zincati_cincinnati_ignored_update_targets",
+        "Number of ignored targets among update targets found."
+    ).unwrap();
     static ref UPDATE_CHECKS: IntCounter = register_int_counter!(opts!(
         "zincati_cincinnati_update_checks_total",
         "Total number of checks for updates to the upstream Cincinnati server."
@@ -275,6 +279,17 @@ fn find_update(
 
     // Exclude target already deployed locally in the past.
     let new_updates = updates.difference(&local_releases);
+
+    // Log that we will avoid updating to already deployed releases.
+    let prev_deployed_excluded = updates.intersection(&local_releases).count();
+    if prev_deployed_excluded > 0 {
+        log::debug!(
+            "Found {} possible update target{} already deployed locally in the past; ignoring",
+            prev_deployed_excluded,
+            if prev_deployed_excluded > 1 { "s" } else { "" }
+        );
+    }
+    UPDATE_TARGETS_IGNORED.set(prev_deployed_excluded as i64);
 
     // Pick highest available updates target (based on age-index).
     let next = match new_updates.last().cloned() {
