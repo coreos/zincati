@@ -1,6 +1,6 @@
 //! Update agent actor.
 
-use super::{UpdateAgent, UpdateAgentState};
+use super::{broadcast, UpdateAgent, UpdateAgentState};
 use crate::rpm_ostree::{self, Release};
 use actix::prelude::*;
 use failure::Error;
@@ -379,10 +379,27 @@ impl UpdateAgent {
             return Box::pin(actix::fut::err(()));
         }
 
-        log::info!(
-            "staged deployment '{}' available, proceeding to finalize it",
+        // Warn logged in users of imminent reboot.
+        let msg = format!(
+            "staged deployment '{}' available, proceeding to finalize it and reboot",
             release.version
         );
+        log::info!("{}", &msg);
+        match broadcast(&msg) {
+            Ok((sessions_total, sessions_broadcasted)) => {
+                if sessions_total != sessions_broadcasted {
+                    log::warn!(
+                        "{} sessions found, but only broadcasted to {}",
+                        sessions_total,
+                        sessions_broadcasted
+                    );
+                }
+            }
+            Err(e) => {
+                log::error!("failed to broadcast to user sessions: {}", e);
+            }
+        }
+
         let msg = rpm_ostree::FinalizeDeployment { release };
         let upgrade = self
             .rpm_ostree_actor
