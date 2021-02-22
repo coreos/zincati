@@ -222,6 +222,11 @@ impl UpdateAgent {
         let state_change = self
             .local_deployments()
             .then(|res, actor, _ctx| {
+                let timestamp_now = chrono::Utc::now();
+                update_unit_status(&format!(
+                    "periodically polling for updates (last checked {})",
+                    timestamp_now.format("%a %Y-%m-%d %H:%M:%S %Z")
+                ));
                 let allow_downgrade = actor.allow_downgrade;
                 let release = match res {
                     Ok(depls) => {
@@ -241,10 +246,6 @@ impl UpdateAgent {
                     }
                     None => {
                         actor.state.no_new_update();
-                        update_unit_status(&format!(
-                            "periodically polling for updates (last checked {})",
-                            &actor.state_changed.format("%a %Y-%m-%d %H:%M:%S %Z")
-                        ));
                     }
                 };
                 Ok(())
