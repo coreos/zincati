@@ -113,7 +113,12 @@ impl UpdateAgent {
 
         // State changes trigger immediate tick/action.
         if discriminant(&prev_state) != discriminant(&self.state) {
-            return None;
+            // Unless we're transitioning from ReportedSteady to NoNewUpdate.
+            if !(prev_state == UpdateAgentState::ReportedSteady
+                && self.state == UpdateAgentState::NoNewUpdate)
+            {
+                return None;
+            }
         }
 
         let delay = match self.state {
