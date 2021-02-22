@@ -44,7 +44,7 @@ url = { version = "2.2", features = ["serde"] }
 [dev-dependencies]
 http = "0.2"
 mockito = "0.29"
-proptest = "0.10"
+proptest = "1.0"
 
 [features]
 failpoints = [ "fail/failpoints" ]
