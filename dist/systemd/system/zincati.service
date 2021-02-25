@@ -16,6 +16,7 @@ After=systemd-machine-id-commit.service
 [Service]
 User=zincati
 Group=zincati
+SupplementaryGroups=tty
 Environment=ZINCATI_VERBOSITY="-v"
 Type=notify
 ExecStart=/usr/libexec/zincati agent ${ZINCATI_VERBOSITY}

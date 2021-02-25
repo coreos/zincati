@@ -9,7 +9,10 @@ use crate::rpm_ostree::{Release, RpmOstreeClient};
 use crate::strategy::UpdateStrategy;
 use actix::Addr;
 use chrono::prelude::*;
+use failure::{bail, Fallible, ResultExt};
 use prometheus::IntGauge;
+use serde::{Deserialize, Deserializer};
+use std::fs;
 use std::time::Duration;
 
 /// Default refresh interval for steady state (in seconds).
@@ -35,6 +38,28 @@ lazy_static::lazy_static! {
         "zincati_update_agent_updates_enabled",
         "Whether auto-updates logic is enabled."
     )).unwrap();
+}
+
+/// JSON output from `loginctl list-sessions --output=json`
+#[derive(Debug, Deserialize)]
+pub struct SessionsJSON {
+    user: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    tty: Option<String>,
+}
+
+/// Function to deserialize field to `Option<String>`, where empty strings are
+/// deserialized into `None`.
+fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(s))
+    }
 }
 
 /// State machine for the agent.
@@ -236,6 +261,78 @@ impl UpdateAgent {
 
         Ok(agent)
     }
+}
+
+/// Attempt to broadcast msg to all sessions registered in systemd's login manager.
+/// Returns a Result with a tuple of total sessions found and sessions broadcasted to,
+/// if no error.
+fn broadcast(msg: &str) -> Fallible<(usize, usize)> {
+    let sessions = get_user_sessions()?;
+    let sessions_total = sessions.len();
+    let mut sessions_broadcasted: usize = 0;
+
+    let broadcast_msg = format!(
+        "\nBroadcast message from Zincati at {}:\n{}\n",
+        chrono::Utc::now().format("%a %Y-%m-%d %H:%M:%S %Z"),
+        msg
+    );
+
+    // Iterate over sessions and attempt to write to each session's tty.
+    for session in sessions.into_iter() {
+        let user = session.user;
+        let tty_dev = match session.tty {
+            Some(mut tty) => {
+                tty.insert_str(0, "/dev/");
+                tty
+            }
+            None => {
+                log::debug!(
+                    "found user {} with no tty, skipping broadcast to this user",
+                    user
+                );
+                continue;
+            }
+        };
+
+        log::trace!(
+            "Attempting to broadcast a message to user {} at {}",
+            user,
+            tty_dev
+        );
+
+        {
+            if let Err(e) = fs::write(&tty_dev, &broadcast_msg) {
+                log::error!("failed to write to {}: {}", &tty_dev, e);
+                continue;
+            };
+        }
+
+        sessions_broadcasted = sessions_broadcasted.saturating_add(1);
+    }
+
+    Ok((sessions_total, sessions_broadcasted))
+}
+
+/// Get sessions with users logged in using `loginctl`.
+/// Returns a Result with vector of `SessionsJSON`, if no error.
+fn get_user_sessions() -> Fallible<Vec<SessionsJSON>> {
+    let cmdrun = std::process::Command::new("loginctl")
+        .arg("list-sessions")
+        .arg("--output=json")
+        .output()
+        .context("failed to run `loginctl` binary")?;
+
+    if !cmdrun.status.success() {
+        bail!(
+            "`loginctl` failed to list current sessions: {}",
+            String::from_utf8_lossy(&cmdrun.stderr)
+        );
+    }
+
+    let sessions = serde_json::from_slice(&cmdrun.stdout)
+        .context("failed to deserialize output of `loginctl`")?;
+
+    Ok(sessions)
 }
 
 #[cfg(test)]
