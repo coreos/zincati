@@ -98,7 +98,10 @@ impl Default for UpdateAgentState {
 impl UpdateAgentState {
     /// Progress the machine to a new state.
     fn transition_to(&mut self, state: Self) {
-        LATEST_STATE_CHANGE.set(chrono::Utc::now().timestamp());
+        use std::mem::discriminant;
+        if discriminant(self) != discriminant(&state) {
+            LATEST_STATE_CHANGE.set(chrono::Utc::now().timestamp());
+        }
 
         *self = state;
     }
@@ -339,6 +342,7 @@ fn get_user_sessions() -> Fallible<Vec<SessionsJSON>> {
 mod tests {
     use super::*;
     use crate::rpm_ostree::Release;
+    use std::{thread, time};
 
     #[test]
     fn default_state() {
@@ -356,11 +360,20 @@ mod tests {
         machine.reported_steady();
         assert_eq!(machine, UpdateAgentState::ReportedSteady);
 
-        machine.no_new_update();
+        let state_change_time_before = LATEST_STATE_CHANGE.get();
+        thread::sleep(time::Duration::from_secs(1));
+        machine.no_new_update(); // ReportedSteady to NoNewUpdate.
+        let state_change_time_after = LATEST_STATE_CHANGE.get();
         assert_eq!(machine, UpdateAgentState::NoNewUpdate);
+        assert_ne!(state_change_time_before, state_change_time_after);
 
-        machine.no_new_update();
+        let state_change_time_before = LATEST_STATE_CHANGE.get();
+        thread::sleep(time::Duration::from_secs(1));
+        machine.no_new_update(); // NoNewUpdate to NoNewUpdate.
+        let state_change_time_after = LATEST_STATE_CHANGE.get();
         assert_eq!(machine, UpdateAgentState::NoNewUpdate);
+        // Transitioning to own state not considered state change.
+        assert_eq!(state_change_time_before, state_change_time_after);
 
         let update = Release {
             version: "v1".to_string(),
