@@ -45,6 +45,7 @@ url = { version = "2.2", features = ["serde"] }
 http = "0.2"
 mockito = "0.29"
 proptest = "1.0"
+tempfile = "^3.2"
 
 [features]
 failpoints = [ "fail/failpoints" ]
