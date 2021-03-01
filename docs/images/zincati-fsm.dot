@@ -1,4 +1,5 @@
 # Render with: `dot -T png -o zincati-fsm.png zincati-fsm.dot`
+# The `dot` program is included in Graphviz: https://graphviz.org/download/
 
 digraph finite_state_machine {
     rankdir=LR;
@@ -30,6 +31,7 @@ digraph finite_state_machine {
     UpdateAvailable -> UpdateStaged [label="update_staged()"];
 
     UpdateStaged -> UpdateFinalized [label="update_finalized()"];
+    UpdateStaged -> UpdateStaged [label="reboot_postponed()"];
 
     UpdateFinalized -> EndState [label="end()"];
 }
