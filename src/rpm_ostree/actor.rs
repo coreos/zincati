@@ -1,6 +1,5 @@
 //! rpm-ostree client actor.
 
-use super::cli_status::StatusJSON;
 use super::Release;
 use actix::prelude::*;
 use failure::Fallible;
@@ -12,7 +11,7 @@ use std::rc::Rc;
 /// Cache of local deployments.
 #[derive(Clone, Debug)]
 pub struct StatusCache {
-    pub status: Rc<StatusJSON>,
+    pub status: Rc<rpmostree_client::Status>,
     pub mtime: FileTime,
 }
 

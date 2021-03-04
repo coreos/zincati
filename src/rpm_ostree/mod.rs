@@ -1,7 +1,8 @@
 mod cli_deploy;
 mod cli_finalize;
 mod cli_status;
-pub use cli_status::{invoke_cli_status, parse_basearch, parse_booted, parse_updates_stream};
+pub use cli_status::query_status;
+use lazy_static::lazy_static;
 
 mod actor;
 pub use actor::{
@@ -15,6 +16,16 @@ use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, SCHEME_KEY};
 use failure::{ensure, format_err, Fallible, ResultExt};
 use serde::Serialize;
 use std::cmp::Ordering;
+
+/// Metadata key the base (RPM) architecture; injected by coreos-assembler
+pub(crate) const COSA_BASEARCH: &str = "coreos-assembler.basearch";
+/// Metadata key for the Fedora CoreOS stream, injected by FCOS tooling via cosa.
+pub(crate) const FCOS_STREAM: &str = "fedora-coreos.stream";
+
+lazy_static! {
+    pub(crate) static ref CLI_CLIENT: rpmostree_client::CliClient =
+        rpmostree_client::CliClient::new("zincati");
+}
 
 /// An OS release.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]

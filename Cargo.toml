@@ -33,6 +33,8 @@ prometheus = { version = "0.11", default-features = false }
 rand = "0.8"
 regex = "1.4"
 reqwest = { version = "0.10", features = ["json"] }
+# Not published to crates.io right now
+rpmostree-client = { git = "https://github.com/coreos/rpm-ostree", rev = "3041d648bbce3beaef2d6b69c8461532e508329d" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tempfile = "^3.2"
