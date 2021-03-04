@@ -9,6 +9,7 @@ use prometheus::IntCounter;
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::fs;
+use std::rc::Rc;
 
 /// Path to local OSTree deployments. We use its mtime to check for modifications (e.g. new deployments)
 /// to local deployments that might warrant querying `rpm-ostree status` again to update our knowledge
@@ -143,9 +144,8 @@ fn booted_json(status: &StatusJSON) -> Fallible<DeploymentJSON> {
     Ok(booted)
 }
 
-/// Introspect deployments (rpm-ostree status) using rpm-ostree client actor client's
-/// cache if possible.
-fn status_json(client: &mut RpmOstreeClient) -> Fallible<StatusJSON> {
+/// Ensure our status cache is up to date; if empty or out of date, run `rpm-ostree status` to populate it.
+fn status_json(client: &mut RpmOstreeClient) -> Fallible<Rc<StatusJSON>> {
     STATUS_CACHE_ATTEMPTS.inc();
     let ostree_depls_data = fs::metadata(OSTREE_DEPLS_PATH)
         .with_context(|e| format_err!("failed to query directory {}: {}", OSTREE_DEPLS_PATH, e))?;
@@ -153,16 +153,16 @@ fn status_json(client: &mut RpmOstreeClient) -> Fallible<StatusJSON> {
 
     if let Some(cache) = &client.status_cache {
         if cache.mtime == ostree_depls_data_mtime {
-            trace!("cache fresh, using cached rpm-ostree status");
+            trace!("status cache is up to date");
             return Ok(cache.status.clone());
         }
     }
 
     STATUS_CACHE_MISSES.inc();
     trace!("cache stale, invoking rpm-ostree to retrieve local deployments");
-    let status = invoke_cli_status(false)?;
+    let status = Rc::new(invoke_cli_status(false)?);
     client.status_cache = Some(StatusCache {
-        status: status.clone(),
+        status: Rc::clone(&status),
         mtime: ostree_depls_data_mtime,
     });
 
