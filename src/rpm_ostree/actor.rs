@@ -99,3 +99,20 @@ impl Handler<QueryLocalDeployments> for RpmOstreeClient {
         super::cli_status::local_deployments(self, query_msg.omit_staged)
     }
 }
+
+/// Request: Register as the update driver for rpm-ostree.
+#[derive(Debug, Clone)]
+pub struct RegisterAsDriver {}
+
+impl Message for RegisterAsDriver {
+    type Result = Fallible<()>;
+}
+
+impl Handler<RegisterAsDriver> for RpmOstreeClient {
+    type Result = Fallible<()>;
+
+    fn handle(&mut self, _msg: RegisterAsDriver, _ctx: &mut Self::Context) -> Self::Result {
+        trace!("request to register as rpm-ostree update driver");
+        super::cli_deploy::deploy_register_driver()
+    }
+}

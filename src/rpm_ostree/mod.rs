@@ -4,7 +4,9 @@ mod cli_status;
 pub use cli_status::{invoke_cli_status, parse_basearch, parse_booted, parse_updates_stream};
 
 mod actor;
-pub use actor::{FinalizeDeployment, QueryLocalDeployments, RpmOstreeClient, StageDeployment};
+pub use actor::{
+    FinalizeDeployment, QueryLocalDeployments, RegisterAsDriver, RpmOstreeClient, StageDeployment,
+};
 
 #[cfg(test)]
 mod mock_tests;

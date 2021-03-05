@@ -178,17 +178,24 @@ impl UpdateAgent {
     fn tick_initialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("update agent in start state");
 
-        let initialization = self.local_deployments().map(|res, actor, _ctx| {
+        // Only register as the updates driver for rpm-ostree if auto-updates logic enabled.
+        let initialization = if self.enabled {
+            self.register_as_driver()
+        } else {
+            self.nop()
+        }
+        .then(|_r, actor, _ctx| actor.local_deployments())
+        .map(|res, actor, _ctx| {
+            // Report non-future update target deployments.
+            if let Ok(depls) = res {
+                Self::log_excluded_depls(&depls, actor);
+            }
             let status;
             if actor.enabled {
                 status = "initialization complete, auto-updates logic enabled";
                 log::info!("{}", status);
                 actor.state.initialized();
                 actor.strategy.record_details();
-                // Report non-future update target deployments.
-                if let Ok(depls) = res {
-                    Self::log_excluded_depls(&depls, actor);
-                }
             } else {
                 status = "initialization complete, auto-updates logic disabled by configuration";
                 log::warn!("{}", status);
@@ -414,6 +421,21 @@ impl UpdateAgent {
             .into_actor(self);
 
         Box::pin(upgrade)
+    }
+
+    /// Attempt to register as the update driver for rpm-ostree.
+    fn register_as_driver(&mut self) -> ResponseActFuture<UpdateAgent, Result<(), ()>> {
+        log::info!("registering as the update driver for rpm-ostree");
+
+        let msg = rpm_ostree::RegisterAsDriver {};
+        let result = self
+            .rpm_ostree_actor
+            .send(msg)
+            .unwrap_or_else(|e| Err(e.into()))
+            .map_err(|e| log::error!("failed to register as driver: {}", e))
+            .into_actor(self);
+
+        Box::pin(result)
     }
 
     /// Do nothing, without errors.

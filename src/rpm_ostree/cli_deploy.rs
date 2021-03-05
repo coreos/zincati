@@ -1,8 +1,11 @@
-//! Interface to `rpm-ostree deploy --lock-finalization`.
+//! Interface to `rpm-ostree deploy --lock-finalization` and
+//! `rpm-ostree deploy --register-driver`.
 
 use super::Release;
 use failure::{bail, Fallible, ResultExt};
 use prometheus::IntCounter;
+
+const DRIVER_NAME: &str = "Zincati";
 
 lazy_static::lazy_static! {
     static ref DEPLOY_ATTEMPTS: IntCounter = register_int_counter!(opts!(
@@ -19,7 +22,7 @@ lazy_static::lazy_static! {
 pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Fallible<Release> {
     DEPLOY_ATTEMPTS.inc();
 
-    let result = invoke_cli(release, allow_downgrade);
+    let result = invoke_cli_deploy(release, allow_downgrade);
     if result.is_err() {
         DEPLOY_FAILURES.inc();
     }
@@ -27,8 +30,36 @@ pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Fallible<Releas
     result
 }
 
-/// CLI executor.
-fn invoke_cli(release: Release, allow_downgrade: bool) -> Fallible<Release> {
+/// Register as the update driver.
+pub fn deploy_register_driver() -> Fallible<()> {
+    invoke_cli_register()?;
+    Ok(())
+}
+
+/// CLI executor for registering driver.
+fn invoke_cli_register() -> Fallible<()> {
+    let mut cmd = std::process::Command::new("rpm-ostree");
+    cmd.arg("deploy")
+        .arg("")
+        .arg(format!("--register-driver={}", DRIVER_NAME))
+        .env("RPMOSTREE_CLIENT_ID", "zincati");
+
+    let out = cmd
+        .output()
+        .with_context(|_| "failed to run 'rpm-ostree' binary")?;
+
+    if !out.status.success() {
+        bail!(
+            "rpm-ostree deploy --register-driver failed:\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    Ok(())
+}
+
+/// CLI executor for deploying upgrades.
+fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Fallible<Release> {
     fail_point!("deploy_locked_err", |_| bail!("deploy_locked_err"));
     fail_point!("deploy_locked_ok", |_| Ok(release.clone()));
 
