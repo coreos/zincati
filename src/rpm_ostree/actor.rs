@@ -7,11 +7,12 @@ use failure::Fallible;
 use filetime::FileTime;
 use log::trace;
 use std::collections::BTreeSet;
+use std::rc::Rc;
 
 /// Cache of local deployments.
 #[derive(Clone, Debug)]
 pub struct StatusCache {
-    pub status: StatusJSON,
+    pub status: Rc<StatusJSON>,
     pub mtime: FileTime,
 }
 
