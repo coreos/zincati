@@ -10,8 +10,9 @@ use crate::strategy::UpdateStrategy;
 use actix::Addr;
 use chrono::prelude::*;
 use failure::{bail, Fallible, ResultExt};
-use prometheus::IntGauge;
+use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
+use std::convert::TryInto;
 use std::fs;
 use std::time::Duration;
 
@@ -45,6 +46,14 @@ lazy_static::lazy_static! {
     pub(crate) static ref UPDATES_ENABLED: IntGauge = register_int_gauge!(opts!(
         "zincati_update_agent_updates_enabled",
         "Whether auto-updates logic is enabled."
+    )).unwrap();
+    static ref POSTPONED_FINALIZATIONS: IntCounter = register_int_counter!(opts!(
+        "zincati_update_agent_postponed_finalizations_total",
+        "Total number of update finalization postponements due to active users."
+    )).unwrap();
+    static ref DETECTED_ACTIVE_USERS: IntGauge = register_int_gauge!(opts!(
+        "zincati_update_agent_finalization_detected_active_users",
+        "Number of active users detected by the update-agent."
     )).unwrap();
 }
 
@@ -231,7 +240,10 @@ impl UpdateAgentState {
     /// Returns a boolean indicating whether a finalization is permitted.
     fn usersessions_can_finalize(&mut self) -> bool {
         match get_interactive_user_sessions() {
-            Ok(interactive_sessions) => self.handle_interactive_sessions(&interactive_sessions),
+            Ok(interactive_sessions) => {
+                DETECTED_ACTIVE_USERS.set(interactive_sessions.len().try_into().unwrap());
+                self.handle_interactive_sessions(&interactive_sessions)
+            }
             Err(e) => {
                 // If we failed to check for interactive sessions, just allow
                 // finalization.
@@ -288,6 +300,7 @@ impl UpdateAgentState {
             ),
         };
 
+        POSTPONED_FINALIZATIONS.inc();
         self.reboot_postponed(release, postponements_remaining.saturating_sub(1));
     }
 
