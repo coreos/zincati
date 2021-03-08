@@ -1,5 +1,6 @@
 //! Logic for the `deadend` subcommand.
 
+use super::ensure_zincati_user;
 use failure::{bail, Fallible, ResultExt};
 use std::fs::Permissions;
 use std::io::Write;
@@ -28,6 +29,7 @@ pub enum Cmd {
 impl Cmd {
     /// `deadend-motd` subcommand entry point.
     pub(crate) fn run(self) -> Fallible<()> {
+        ensure_zincati_user("deadend-motd subcommand must be run by `zincati` user")?;
         match self {
             Cmd::Set { reason } => refresh_motd_fragment(reason),
             Cmd::Unset => remove_motd_fragment(),

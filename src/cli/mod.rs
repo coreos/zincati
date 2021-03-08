@@ -6,6 +6,7 @@ mod deadend;
 use log::LevelFilter;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
+use users::get_current_username;
 
 /// CLI configuration options.
 #[derive(Debug, StructOpt)]
@@ -48,4 +49,16 @@ pub(crate) enum CliCommand {
     /// Set or unset deadend MOTD state.
     #[structopt(name = "deadend-motd", setting = AppSettings::Hidden)]
     DeadendMotd(deadend::Cmd),
+}
+
+/// Return Error with msg if not run by `zincati` user.
+fn ensure_zincati_user(msg: &str) -> failure::Fallible<()> {
+    if let Some(uname) = get_current_username() {
+        if uname == "zincati" {
+            return Ok(());
+        }
+    }
+
+    log::warn!("zincati binary should not be run directly");
+    failure::bail!("{}", msg)
 }
