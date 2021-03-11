@@ -1,5 +1,6 @@
 //! Logic for the `agent` subcommand.
 
+use super::ensure_zincati_user;
 use crate::{config, metrics, rpm_ostree, update_agent};
 use actix::Actor;
 use failure::{Fallible, ResultExt};
@@ -16,6 +17,7 @@ lazy_static::lazy_static! {
 
 /// Agent subcommand entry-point.
 pub(crate) fn run_agent() -> Fallible<()> {
+    ensure_zincati_user("update agent not running as `zincati` user")?;
     info!(
         "starting update agent ({} {})",
         crate_name!(),
