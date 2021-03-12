@@ -51,10 +51,10 @@ pub(crate) enum CliCommand {
     DeadendMotd(deadend::Cmd),
 }
 
-/// Return Error with msg if not run by `zincati` user.
-fn ensure_zincati_user(msg: &str) -> failure::Fallible<()> {
+/// Return Error with msg if not run by user.
+fn ensure_user(user: &str, msg: &str) -> failure::Fallible<()> {
     if let Some(uname) = get_current_username() {
-        if uname == "zincati" {
+        if uname == user {
             return Ok(());
         }
     }
