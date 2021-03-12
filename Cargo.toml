@@ -29,7 +29,7 @@ log = "0.4"
 maplit = "1.0"
 num-traits = "0.2"
 ordered-float = { version = "2.1", features = ["serde"] }
-prometheus = { version = "0.11", default-features = false }
+prometheus = { version = "0.12", default-features = false }
 rand = "0.8"
 regex = "1.4"
 reqwest = { version = "0.10", features = ["json"] }
