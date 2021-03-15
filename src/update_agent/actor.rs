@@ -1,6 +1,6 @@
 //! Update agent actor.
 
-use super::{broadcast, UpdateAgent, UpdateAgentState};
+use super::{UpdateAgent, UpdateAgentState};
 use crate::rpm_ostree::{self, Release};
 use actix::prelude::*;
 use failure::Error;
@@ -58,7 +58,7 @@ impl Handler<RefreshTick> for UpdateAgent {
                 let update = release.clone();
                 self.tick_stage_update(update)
             }
-            UpdateAgentState::UpdateStaged(release) => {
+            UpdateAgentState::UpdateStaged((release, _)) => {
                 let update = release.clone();
                 self.tick_finalize_update(update)
             }
@@ -125,9 +125,17 @@ impl UpdateAgent {
             UpdateAgentState::ReportedSteady | UpdateAgentState::NoNewUpdate => {
                 self.steady_interval
             }
+            UpdateAgentState::UpdateStaged((_, postponements)) => {
+                // Note: no jitter if postponing reboots.
+                if postponements > 0 {
+                    return Some(Duration::from_secs(super::DEFAULT_POSTPONEMENT_TIME_SECS));
+                } else {
+                    Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS)
+                }
+            }
             _ => Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS),
         };
-        Some(delay)
+        Some(Self::add_jitter(delay))
     }
 
     /// Add a small, random amount (0% to 10%) of jitter to a given period.
@@ -302,9 +310,33 @@ impl UpdateAgent {
     ) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to finalize an update");
 
-        let can_finalize = self.strategy.can_finalize();
-        let state_change = actix::fut::wrap_future::<_, Self>(can_finalize)
-            .then(|can_finalize, actor, _ctx| actor.finalize_deployment(can_finalize, release))
+        let strategy_can_finalize = self.strategy.can_finalize();
+        let state_change = actix::fut::wrap_future::<_, Self>(strategy_can_finalize)
+            .then(|strategy_can_finalize, actor, _ctx| {
+                if !strategy_can_finalize {
+                    update_unit_status(&format!(
+                        "update staged: {}; reboot pending due to update strategy",
+                        &release.version
+                    ));
+                    // Reset number of postponements to `MAX_FINALIZE_POSTPONEMENTS`
+                    // if strategy does not allow finalization.
+                    actor.state.update_staged(release);
+                    Box::pin(actix::fut::err(()))
+                } else {
+                    let usersessions_can_finalize = actor.state.usersessions_can_finalize();
+                    if !usersessions_can_finalize {
+                        update_unit_status(&format!(
+                            "update staged: {}; reboot delayed due to active user sessions",
+                            release.version
+                        ));
+                        // Record postponement and postpone finalization.
+                        actor.state.record_postponement();
+                        Box::pin(actix::fut::err(()))
+                    } else {
+                        actor.finalize_deployment(release)
+                    }
+                }
+            })
             .map(|res, actor, _ctx| {
                 res.map(|release| {
                     update_unit_status(&format!("update finalized: {}", release.version));
@@ -384,33 +416,12 @@ impl UpdateAgent {
     /// Finalize a deployment (unlock and reboot).
     fn finalize_deployment(
         &mut self,
-        can_finalize: bool,
         release: Release,
     ) -> ResponseActFuture<Self, Result<Release, ()>> {
-        if !can_finalize {
-            return Box::pin(actix::fut::err(()));
-        }
-
-        // Warn logged in users of imminent reboot.
-        let msg = format!(
-            "staged deployment '{}' available, proceeding to finalize it and reboot",
+        log::info!(
+            "staged deployment '{}' available, proceeding to finalize it",
             release.version
         );
-        log::info!("{}", &msg);
-        match broadcast(&msg) {
-            Ok((sessions_total, sessions_broadcasted)) => {
-                if sessions_total != sessions_broadcasted {
-                    log::warn!(
-                        "{} sessions found, but only broadcasted to {}",
-                        sessions_total,
-                        sessions_broadcasted
-                    );
-                }
-            }
-            Err(e) => {
-                log::error!("failed to broadcast to user sessions: {}", e);
-            }
-        }
 
         let msg = rpm_ostree::FinalizeDeployment { release };
         let upgrade = self
