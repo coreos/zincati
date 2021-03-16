@@ -1,0 +1,36 @@
+variant: fcos
+version: 1.1.0
+systemd:
+  units:
+    - name: kolet-httpd.path
+      enabled: true
+      contents: |
+        [Path]
+        PathExists=/var/home/core/kolet
+        [Install]
+        WantedBy=kola-runext.service
+    - name: kolet-httpd.service
+      contents: |
+        [Service]
+        ExecStart=/var/home/core/kolet httpd --path /var/www/ -v
+        [Install]
+        WantedBy=kola-runext.service
+    - name: zincati.service
+      dropins:
+        - name: verbose.conf
+          contents: |
+            [Service]
+            Environment=ZINCATI_VERBOSITY="-vvvv"
+storage:
+  files:
+    - path: /etc/zincati/config.d/99-cincinnati-url.toml
+      contents:
+        inline: cincinnati.base_url="http://localhost"
+      mode: 420
+  directories:
+    - path: /var/www
+      mode: 0666
+      user:
+        name: core
+      group:
+        name: core
