@@ -55,7 +55,7 @@ Push access to the upstream repository is required in order to publish the new t
 
 - publish the release:
   - [ ] find the new tag in the [GitHub tag list](https://github.com/coreos/zincati/tags), click the triple dots menu, and create a release for it
-  - [ ] write a short changelog (i.e. re-use the PR content) and publish the release
+  - [ ] write a short changelog (i.e. re-use the PR content)
   - [ ] upload `target/zincati-${RELEASE_VER}-vendor.tar.gz`
   - [ ] record digests of local artifacts:
     - `sha256sum target/package/zincati-${RELEASE_VER}.crate`
