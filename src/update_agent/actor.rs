@@ -33,6 +33,21 @@ impl Actor for UpdateAgent {
     }
 }
 
+pub struct LastRefresh {}
+
+impl Message for LastRefresh {
+    type Result = i64;
+}
+
+impl Handler<LastRefresh> for UpdateAgent {
+    type Result = i64;
+
+    fn handle(&mut self, _msg: LastRefresh, _ctx: &mut Self::Context) -> Self::Result {
+        trace!("agent: request to get last refresh time");
+        LAST_REFRESH.get()
+    }
+}
+
 pub(crate) struct RefreshTick {}
 
 impl Message for RefreshTick {

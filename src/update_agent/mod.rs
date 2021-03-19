@@ -1,6 +1,7 @@
 //! Update agent.
 
 mod actor;
+pub use actor::LastRefresh;
 
 use crate::cincinnati::Cincinnati;
 use crate::config::Settings;
