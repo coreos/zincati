@@ -29,3 +29,9 @@ last_refresh_time=$(echo "${response}" | sed 's/[^0-9]*//g')
 # Sanity check that the last refresh time is a reasonable time.
 test "${last_refresh_time}" -gt 1616414400 # 1616414400 is Monday, March 22, 2021 12:00:00 PM UTC.
 ok "LastRefreshTime method"
+
+# Check that CLI commands work.
+/usr/libexec/zincati ex moo --talkative > output.txt
+assert_file_has_content output.txt "Moooo mooo moooo!"
+test $(/usr/libexec/zincati ex last-refresh-time) -gt 1616414400
+ok "last-refresh-time CLI command"
