@@ -43,9 +43,9 @@ impl Cmd {
 }
 
 #[dbus_proxy(
-    interface = "org.coreos.zincati1.Experimental",
-    default_service = "org.coreos.zincati1",
-    default_path = "/org/coreos/zincati1"
+    interface = "org.coreos.zincati.Experimental",
+    default_service = "org.coreos.zincati",
+    default_path = "/org/coreos/zincati"
 )]
 trait Experimental {
     /// LastRefreshTime method

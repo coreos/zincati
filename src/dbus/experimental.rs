@@ -11,7 +11,7 @@ pub(crate) struct Experimental {
     pub(crate) agent_addr: Addr<UpdateAgent>,
 }
 
-#[dbus_interface(name = "org.coreos.zincati1.Experimental")]
+#[dbus_interface(name = "org.coreos.zincati.Experimental")]
 impl Experimental {
     /// Just a test method.
     fn moo(&self, talkative: bool) -> String {
