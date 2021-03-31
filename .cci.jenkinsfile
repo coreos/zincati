@@ -1,7 +1,22 @@
 // Documentation: https://github.com/coreos/coreos-ci/blob/master/README-upstream-ci.md
 
+buildPod {
+    checkout scm
+    stage("Build") {
+        shwrap("make && make install DESTDIR=install")
+        stash name: 'build', includes: 'install/**'
+    }
+
+    // XXX: uncomment once we have
+    // https://github.com/coreos/fedora-coreos-config/pull/917
+    // stage("Unit Test") {
+    //     shwrap("cargo test")
+    // }
+}
+
 cosaPod(buildroot: true) {
     checkout scm
 
-    fcosBuild(make: true)
+    unstash name: 'build'
+    fcosBuild(overlays: ["install"])
 }
