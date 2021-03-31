@@ -2,14 +2,15 @@
 
 use super::actor::{RpmOstreeClient, StatusCache};
 use super::Release;
-use failure::{bail, ensure, format_err, Fallible, ResultExt};
+use failure::{format_err, Fallible, ResultExt};
 use filetime::FileTime;
 use log::trace;
 use prometheus::IntCounter;
-use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::fs;
 use std::rc::Rc;
+
+use super::CLI_CLIENT;
 
 /// Path to local OSTree deployments. We use its mtime to check for modifications (e.g. new deployments)
 /// to local deployments that might warrant querying `rpm-ostree status` again to update our knowledge
@@ -37,83 +38,31 @@ lazy_static::lazy_static! {
     )).unwrap();
 }
 
-/// JSON output from `rpm-ostree status --json`
-#[derive(Clone, Debug, Deserialize)]
-pub struct StatusJSON {
-    deployments: Vec<DeploymentJSON>,
-}
-
-/// Partial deployment object (only fields relevant to zincati).
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct DeploymentJSON {
-    booted: bool,
-    base_checksum: Option<String>,
-    #[serde(rename = "base-commit-meta")]
-    base_metadata: BaseCommitMetaJSON,
-    checksum: String,
-    // NOTE(lucab): missing field means "not staged".
-    #[serde(default)]
-    staged: bool,
-    version: String,
-}
-
-/// Metadata from base commit (only fields relevant to zincati).
-#[derive(Clone, Debug, Deserialize)]
-struct BaseCommitMetaJSON {
-    #[serde(rename = "coreos-assembler.basearch")]
-    basearch: String,
-    #[serde(rename = "fedora-coreos.stream")]
-    stream: String,
-}
-
-impl DeploymentJSON {
-    /// Convert into `Release`.
-    pub fn into_release(self) -> Release {
+impl From<&rpmostree_client::Deployment> for Release {
+    fn from(d: &rpmostree_client::Deployment) -> Self {
         Release {
-            checksum: self.base_revision(),
-            version: self.version,
+            checksum: d
+                .base_checksum
+                .clone()
+                .unwrap_or_else(|| d.checksum.clone()),
+            version: d.version.clone().unwrap_or_default(),
             age_index: None,
         }
     }
-
-    /// Return the deployment base revision.
-    pub fn base_revision(&self) -> String {
-        self.base_checksum
-            .clone()
-            .unwrap_or_else(|| self.checksum.clone())
-    }
-}
-
-/// Parse base architecture for booted deployment from status object.
-pub fn parse_basearch(status: &StatusJSON) -> Fallible<String> {
-    let json = booted_json(status)?;
-    Ok(json.base_metadata.basearch)
-}
-
-/// Parse the booted deployment from status object.
-pub fn parse_booted(status: &StatusJSON) -> Fallible<Release> {
-    let json = booted_json(status)?;
-    Ok(json.into_release())
-}
-
-/// Parse updates stream for booted deployment from status object.
-pub fn parse_updates_stream(status: &StatusJSON) -> Fallible<String> {
-    let json = booted_json(status)?;
-    ensure!(!json.base_metadata.stream.is_empty(), "empty stream value");
-    Ok(json.base_metadata.stream)
 }
 
 /// Parse local deployments from a status object.
-fn parse_local_deployments(status: &StatusJSON, omit_staged: bool) -> Fallible<BTreeSet<Release>> {
+fn parse_local_deployments(
+    status: &rpmostree_client::Status,
+    omit_staged: bool,
+) -> Fallible<BTreeSet<Release>> {
     let mut deployments = BTreeSet::<Release>::new();
     for entry in &status.deployments {
-        if omit_staged && entry.staged {
+        if omit_staged && entry.staged.unwrap_or_default() {
             continue;
         }
 
-        let release = entry.clone().into_release();
-        deployments.insert(release);
+        deployments.insert(entry.into());
     }
     Ok(deployments)
 }
@@ -123,29 +72,14 @@ pub fn local_deployments(
     client: &mut RpmOstreeClient,
     omit_staged: bool,
 ) -> Fallible<BTreeSet<Release>> {
-    let status = status_json(client)?;
+    let status = query_status(client)?;
     let local_depls = parse_local_deployments(&status, omit_staged)?;
 
     Ok(local_depls)
 }
 
-/// Return JSON object for booted deployment.
-fn booted_json(status: &StatusJSON) -> Fallible<DeploymentJSON> {
-    let booted = status
-        .clone()
-        .deployments
-        .into_iter()
-        .find(|d| d.booted)
-        .ok_or_else(|| format_err!("no booted deployment found"))?;
-
-    ensure!(!booted.base_revision().is_empty(), "empty base revision");
-    ensure!(!booted.version.is_empty(), "empty version");
-    ensure!(!booted.base_metadata.basearch.is_empty(), "empty basearch");
-    Ok(booted)
-}
-
 /// Ensure our status cache is up to date; if empty or out of date, run `rpm-ostree status` to populate it.
-fn status_json(client: &mut RpmOstreeClient) -> Fallible<Rc<StatusJSON>> {
+fn query_status_inner(client: &mut RpmOstreeClient) -> Fallible<Rc<rpmostree_client::Status>> {
     STATUS_CACHE_ATTEMPTS.inc();
     let ostree_depls_data = fs::metadata(OSTREE_DEPLS_PATH)
         .with_context(|e| format_err!("failed to query directory {}: {}", OSTREE_DEPLS_PATH, e))?;
@@ -160,7 +94,9 @@ fn status_json(client: &mut RpmOstreeClient) -> Fallible<Rc<StatusJSON>> {
 
     STATUS_CACHE_MISSES.inc();
     trace!("cache stale, invoking rpm-ostree to retrieve local deployments");
-    let status = Rc::new(invoke_cli_status(false)?);
+    let status = Rc::new(
+        rpmostree_client::query_status(&*CLI_CLIENT).map_err(failure::Error::from_boxed_compat)?,
+    );
     client.status_cache = Some(StatusCache {
         status: Rc::clone(&status),
         mtime: ostree_depls_data_mtime,
@@ -170,41 +106,26 @@ fn status_json(client: &mut RpmOstreeClient) -> Fallible<Rc<StatusJSON>> {
 }
 
 /// CLI executor for `rpm-ostree status --json`.
-pub fn invoke_cli_status(booted_only: bool) -> Fallible<StatusJSON> {
+pub fn query_status(client: &mut RpmOstreeClient) -> Fallible<Rc<rpmostree_client::Status>> {
     RPM_OSTREE_STATUS_ATTEMPTS.inc();
 
-    let mut cmd = std::process::Command::new("rpm-ostree");
-    cmd.arg("status").env("RPMOSTREE_CLIENT_ID", "zincati");
-
-    // Try to request the minimum scope we need.
-    if booted_only {
-        cmd.arg("--booted");
+    match query_status_inner(client) {
+        Ok(s) => Ok(s),
+        Err(e) => {
+            RPM_OSTREE_STATUS_FAILURES.inc();
+            Err(e)
+        }
     }
-
-    let cmdrun = cmd
-        .arg("--json")
-        .output()
-        .with_context(|_| "failed to run 'rpm-ostree' binary")?;
-
-    if !cmdrun.status.success() {
-        RPM_OSTREE_STATUS_FAILURES.inc();
-        bail!(
-            "rpm-ostree status failed:\n{}",
-            String::from_utf8_lossy(&cmdrun.stderr)
-        );
-    }
-    let status: StatusJSON = serde_json::from_slice(&cmdrun.stdout)?;
-    Ok(status)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn mock_status(path: &str) -> Fallible<StatusJSON> {
+    fn mock_status(path: &str) -> Fallible<rpmostree_client::Status> {
         let fp = std::fs::File::open(path).unwrap();
         let bufrd = std::io::BufReader::new(fp);
-        let status: StatusJSON = serde_json::from_reader(bufrd)?;
+        let status = serde_json::from_reader(bufrd)?;
         Ok(status)
     }
 
@@ -225,19 +146,5 @@ mod tests {
             let deployments = parse_local_deployments(&status, true).unwrap();
             assert_eq!(deployments.len(), 1);
         }
-    }
-
-    #[test]
-    fn mock_booted_basearch() {
-        let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
-        let booted = booted_json(&status).unwrap();
-        assert_eq!(booted.base_metadata.basearch, "x86_64");
-    }
-
-    #[test]
-    fn mock_booted_updates_stream() {
-        let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
-        let booted = booted_json(&status).unwrap();
-        assert_eq!(booted.base_metadata.stream, "testing-devel");
     }
 }

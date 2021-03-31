@@ -110,6 +110,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.38"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afddf7f520a80dbf76e6f50a35bca42a2331ef227a28b3b6dc5c2e2338d114b1"
+
+[[package]]
 name = "assert-json-diff"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1589,6 +1595,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpmostree-client"
+version = "0.1.0"
+source = "git+https://github.com/coreos/rpm-ostree?rev=3041d648bbce3beaef2d6b69c8461532e508329d#3041d648bbce3beaef2d6b69c8461532e508329d"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2344,6 +2361,7 @@ dependencies = [
  "rand 0.8.3",
  "regex",
  "reqwest",
+ "rpmostree-client",
  "serde",
  "serde_json",
  "structopt",
