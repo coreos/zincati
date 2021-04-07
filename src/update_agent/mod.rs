@@ -1,14 +1,14 @@
 //! Update agent.
 
 mod actor;
-pub use actor::LastRefresh;
+pub use actor::{LastRefresh, RefreshTick, RefreshTickCommand};
 
 use crate::cincinnati::Cincinnati;
 use crate::config::Settings;
 use crate::identity::Identity;
 use crate::rpm_ostree::{Release, RpmOstreeClient};
 use crate::strategy::UpdateStrategy;
-use actix::Addr;
+use actix::{Addr, SpawnHandle};
 use chrono::prelude::*;
 use failure::{bail, Fallible, ResultExt};
 use prometheus::{IntCounter, IntGauge};
@@ -89,7 +89,7 @@ where
 
 /// State machine for the agent.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum UpdateAgentState {
+pub enum UpdateAgentState {
     /// Initial state upon actor start.
     StartState,
     /// Agent initialized.
@@ -349,6 +349,8 @@ pub(crate) struct UpdateAgent {
     state: UpdateAgentState,
     /// Timestamp of last state transition.
     state_changed: DateTime<Utc>,
+    /// Handle to future created by `tick_later`.
+    tick_later_handle: Option<SpawnHandle>,
 }
 
 impl UpdateAgent {
@@ -368,6 +370,7 @@ impl UpdateAgent {
             state: UpdateAgentState::default(),
             strategy: cfg.strategy,
             state_changed: chrono::Utc::now(),
+            tick_later_handle: None,
         };
 
         Ok(agent)

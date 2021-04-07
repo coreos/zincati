@@ -7,6 +7,8 @@
 extern crate fail;
 #[macro_use]
 extern crate prometheus;
+#[macro_use]
+extern crate failure_derive;
 
 // Cincinnati client.
 mod cincinnati;

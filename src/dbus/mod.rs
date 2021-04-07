@@ -2,6 +2,8 @@
 
 mod experimental;
 use experimental::Experimental;
+mod updates;
+use updates::Updates;
 
 use crate::update_agent::UpdateAgent;
 use actix::prelude::*;
@@ -11,6 +13,9 @@ use failure::Error;
 use log::trace;
 use zbus::fdo;
 use zvariant::ObjectPath;
+
+const ZINCATI_BUS_NAME: &str = "org.coreos.zincati";
+const ZINCATI_OBJECT_PATH: &str = "/org/coreos/zincati";
 
 pub struct DBusService {
     agent_addr: Addr<UpdateAgent>,
@@ -31,7 +36,7 @@ impl DBusService {
         let connection = zbus::Connection::new_system()?;
 
         fdo::DBusProxy::new(&connection)?.request_name(
-            "org.coreos.zincati",
+            ZINCATI_BUS_NAME,
             fdo::RequestNameFlags::ReplaceExisting.into(),
         )?;
 
@@ -40,8 +45,15 @@ impl DBusService {
             agent_addr: self.agent_addr.clone(),
         };
         object_server.at(
-            &ObjectPath::try_from("/org/coreos/zincati")?,
+            &ObjectPath::try_from(ZINCATI_OBJECT_PATH)?,
             experimental_interface,
+        )?;
+        let updates_interface = Updates {
+            agent_addr: self.agent_addr.clone(),
+        };
+        object_server.at(
+            &ObjectPath::try_from(ZINCATI_OBJECT_PATH)?,
+            updates_interface,
         )?;
 
         loop {
