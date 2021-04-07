@@ -25,6 +25,7 @@ install: build
 	install -D -m 644 -t ${DESTDIR}/usr/lib/tmpfiles.d dist/tmpfiles.d/*.conf
 	install -D -m 644 -t ${DESTDIR}/usr/share/polkit-1/rules.d dist/polkit-1/rules.d/*.rules
 	install -D -m 644 -t ${DESTDIR}/usr/share/polkit-1/actions dist/polkit-1/actions/*.policy
+	install -D -m 644 -t ${DESTDIR}/usr/share/dbus-1/system.d dist/dbus-1/system.d/*.conf
 
 .PHONY: check
 check:

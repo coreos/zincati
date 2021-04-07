@@ -2,6 +2,7 @@
 
 mod agent;
 mod deadend;
+mod ex;
 
 use log::LevelFilter;
 use structopt::clap::AppSettings;
@@ -36,19 +37,23 @@ impl CliOptions {
         match self.cmd {
             CliCommand::Agent => agent::run_agent(),
             CliCommand::DeadendMotd(cmd) => cmd.run(),
+            CliCommand::Ex(cmd) => cmd.run(),
         }
     }
 }
 
 /// CLI sub-commands.
 #[derive(Debug, StructOpt)]
+#[structopt(rename_all = "kebab-case")]
 pub(crate) enum CliCommand {
     /// Long-running agent for auto-updates.
-    #[structopt(name = "agent")]
     Agent,
     /// Set or unset deadend MOTD state.
-    #[structopt(name = "deadend-motd", setting = AppSettings::Hidden)]
+    #[structopt(setting = AppSettings::Hidden)]
     DeadendMotd(deadend::Cmd),
+    /// Print update agent state's last refresh time.
+    #[structopt(setting = AppSettings::Hidden)]
+    Ex(ex::Cmd),
 }
 
 /// Return Error with msg if not run by user.
@@ -59,6 +64,5 @@ fn ensure_user(user: &str, msg: &str) -> failure::Fallible<()> {
         }
     }
 
-    log::warn!("zincati binary should not be run directly");
     failure::bail!("{}", msg)
 }

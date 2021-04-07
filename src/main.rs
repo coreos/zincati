@@ -13,6 +13,8 @@ mod cincinnati;
 mod cli;
 /// File-based configuration.
 mod config;
+/// D-Bus service.
+mod dbus;
 /// FleetLock client.
 mod fleet_lock;
 /// Agent identity.

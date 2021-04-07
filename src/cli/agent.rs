@@ -1,7 +1,7 @@
 //! Logic for the `agent` subcommand.
 
 use super::ensure_user;
-use crate::{config, metrics, rpm_ostree, update_agent};
+use crate::{config, dbus, metrics, rpm_ostree, update_agent};
 use actix::Actor;
 use failure::{Fallible, ResultExt};
 use log::{info, trace};
@@ -52,7 +52,10 @@ pub(crate) fn run_agent() -> Fallible<()> {
     trace!("creating update agent");
     let agent = update_agent::UpdateAgent::with_config(settings, rpm_ostree_addr)
         .context("failed to assemble update-agent from configuration settings")?;
-    let _addr = agent.start();
+    let agent_addr = agent.start();
+
+    trace!("creating D-Bus service");
+    let _dbus_service_addr = dbus::DBusService::start(1, agent_addr);
 
     trace!("starting actor system");
     sys.run().context("agent failed")?;
