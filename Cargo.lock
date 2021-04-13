@@ -1816,6 +1816,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "373c8a200f9e67a0c95e62a4f52fbf80c23b4381c05a17845531982fa99e6b33"
 
 [[package]]
+name = "tzfile"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f59c22c42a2537e4c7ad21a4007273bbc5bebed7f36bc93730a5780e22a4592e"
+dependencies = [
+ "byteorder",
+ "chrono",
+]
+
+[[package]]
 name = "unicode-bidi"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2150,6 +2160,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+ "tzfile",
  "url",
  "users",
  "zbus",

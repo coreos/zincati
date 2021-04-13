@@ -1,0 +1,10 @@
+[updates]
+strategy = "periodic"
+
+[updates.periodic]
+time_zone = "America/Toronto"
+
+[[updates.periodic.window]]
+days = [ "Mon" ]
+start_time = "00:00"
+length_minutes = 120

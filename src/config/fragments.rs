@@ -77,6 +77,11 @@ pub(crate) struct UpdateFleetLock {
 pub(crate) struct UpdatePeriodic {
     /// A weekly window.
     pub(crate) window: Option<Vec<UpdatePeriodicWindow>>,
+    /// A time zone in the IANA Time Zone Database (https://www.iana.org/time-zones)
+    /// or "localtime". If unset, UTC is used.
+    ///
+    /// Examples: `America/Toronto`, `Europe/Rome`
+    pub(crate) time_zone: Option<String>,
 }
 
 /// Config fragment for a `periodic.window` entry.
@@ -138,6 +143,7 @@ mod tests {
                             length_minutes: 25,
                         },
                     ]),
+                    time_zone: Some("localtime".to_string()),
                 }),
             }),
         };
