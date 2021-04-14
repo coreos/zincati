@@ -71,7 +71,7 @@ The `periodic` strategy allows Zincati to only reboot for updates during certain
 Outside of those maintenance windows, reboots are not automatically performed and auto-updates are staged and held until the next available window.
 
 Reboot windows recur on a weekly basis, and can be defined in any arbitrary order and length. Their individual length must be greater than zero.
-To avoid timezone-related skews in a fleet of machines, all maintenance windows are defined in UTC dates and times.
+By default, all maintenance windows are defined in UTC dates and times. This is meant to avoid timezone-related skews in a fleet of machines, as well as possible side-effects of Daylight Savings Time (DST) policies.
 
 Periodic reboot windows can be configured and enabled in the following way:
 
@@ -101,3 +101,71 @@ Reboot windows can be separately configured in multiple snippets, as long as eac
  * `length_minutes`: non-zero window duration, in minutes
 
 For convenience, multiple entries can be defined with overlapping times, and each window definition is allowed to cross day and week boundaries (wrapping to the next day).
+
+## Time zone configuration
+
+To configure a non-UTC time zone for all the reboot windows, specify the `time_zone` field in a `updates.periodic` entry. The specified time zone must be either `"localtime"` or a time zone name from the [IANA Time Zone Database][IANA_tz_db] (you can find an unofficial list of time zone names [here][wikipedia_tz_names]).
+
+If using `"localtime"`, the system's [local time zone configuration file][localtime], `/etc/localtime`, is used. As such, `/etc/localtime` must either be a symlink to a valid `tzfile` entry in your system's local time zone database (under `/usr/share/zoneinfo/`), or not exist, in which case `UTC` is used.
+
+Note that you can only specify a single time zone for _all_ reboot windows.
+
+A time zone can be specified in the following way:
+
+```toml
+[updates]
+strategy = "periodic"
+
+[updates.periodic]
+time_zone = "America/Panama"
+
+[[updates.periodic.window]]
+days = [ "Sat", "Sun" ]
+start_time = "23:30"
+length_minutes = 60
+
+[[updates.periodic.window]]
+days = [ "Mon" ]
+start_time = "00:00"
+length_minutes = 60
+```
+
+Since Panama does not have Daylight Savings Time and follows Eastern Standard Time (which has a fixed offset of UTC -5) all year, the above configuration would result in two maintenance windows during which Zincati is allowed to reboot the machine for updates:
+ * 60 minutes starting at 23:30 EST on Saturday night, and ending at 00:30 EST on Sunday morning
+ * 90 minutes starting at 23:30 EST on Sunday night, and ending at 01:00 EST on Monday morning
+
+### Time zone caveats
+
+:warning: **Reboot window lengths may vary.**
+
+Because reboot window clock times are always obeyed, reboot windows may be lengthened or shortened due to shifts in clock time. For example, with the `US/Eastern` time zone which shifts between Eastern Standard Time and Eastern Daylight Time, on "fall back" day, a specified reboot window may be lengthened by up to one hour; on "spring forward" day, a specified reboot window may be shortened by up to one hour, or skipped entirely.
+
+Example of varying length reboot windows using the `US/Eastern` time zone:
+
+```toml
+[updates]
+strategy = "periodic"
+
+[updates.periodic]
+time_zone = "US/Eastern"
+
+[[updates.periodic.window]]
+days = [ "Sun" ]
+start_time = "01:30"
+length_minutes = 60
+```
+
+The above configuration will result in reboots being allowed at 1:30 AM to 2:30 AM on _every_ Sunday. This includes days when a Daylight Savings Shift occurs.
+
+On the `US/Eastern` time zone's "fall back" day, where clocks are shifted back by one hour on a Sunday in Fall just before 3:00 AM, the thirty minutes between 2:00 AM and 2:30 AM will occur twice. As such, the reboot window will be lengthened by thirty minutes each year on "fall back" day.
+
+On "spring forward" day, where clocks are shifted forward by one hour on a Sunday in Spring just before 2:00 AM, the thirty minutes between 2:00 AM and 2:30 AM will not occur. As such, the reboot window will be shortened by thirty minutes each year on "spring forward" day. Effectively, the reboot window on "spring forward" day will only be between 1:30 AM and 2:00 AM.
+
+:warning: **Incorrect reboot times due to stale time zone database.** 
+
+Time zone data is read from the system's time zone database at `/usr/share/zoneinfo`. This directory and its contents are part of the `tzdata` RPM package; in the latest release of Fedora CoreOS, `tzdata` should be kept fairly up-to-date with the latest official release from the IANA.
+However, if your system does not have the latest IANA time zone database, or there is a sudden policy change in the jurisdiction associated with your configured time zone, then reboots may happen at unexpected and incorrect times.
+
+[IANA_tz_db]: https://www.iana.org/time-zones
+[wikipedia_tz_names]: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+[localtime]: https://www.freedesktop.org/software/systemd/man/localtime.html

@@ -10,7 +10,6 @@ The agent supports a `periodic` strategy, which allows gating reboots based on "
 
 This strategy is a port of [locksmith reboot windows][locksmith], with a few differences:
 
- * all times and dates are UTC-based to avoid skews and ambiguities
  * multiple disjoint reboot windows are supported
  * multiple configuration entries are assembled into a single weekly calendar
  * weekdays need to be specified, in either long or abbreviated form
@@ -26,18 +25,22 @@ In order to ease the case where the same time-window has to be applied on multip
 
 The start of a reboot window is a single point in time, specified in 24h format with minutes granularity (e.g. `22:30`) via the `start_time` parameter.
 
-A key part of this logic is that all times and dates are UTC-based, in order to guarantee the correctness of maintenance windows.
-In particular, UTC times are needed to avoid:
+By default, all times and dates are UTC-based.
+UTC times must be used to avoid:
 
- * skipping reboot windows due to Daylight Saving Time time-change
- * overshooting reboot windows due to Daylight Saving Time time-change
+ * shortening or skipping reboot windows due to Daylight Saving Time time-change
+ * lengthening reboot windows due to Daylight Saving Time time-change
  * mixups due to short-notice law changes in time-zone definitions
  * errors due to stale `tzdata` entries
  * human confusion on machines with different local-timezone configurations
 
-Overall this strategy aims at guaranteeing that the total weekly length for reboot windows is respected, regardless of local timezone laws.
+Overall, the use of the default UTC times guarantee that the total weekly length for reboot windows is respected, regardless of local time zone laws.
 
 As a side-effect, this also helps when cross-checking configurations across multiple machines located in different places.
+
+Nevertheless, user-specified non-UTC time zones can still be configured, but with [caveats][time-zone-caveats].
+
+[time-zone-caveats]: ../usage/updates-strategy.md#time-zone-caveats
 
 # Implementation details
 
