@@ -44,14 +44,14 @@ make build
 make check
 ```
 
-If you prefer running builds in a containerized environment, you can use the provided `Dockerfile`:
+If you prefer running builds in a containerized environment, you can use the FCOS buildroot image at `quay.io/coreos-assembler/fcos-buildroot:testing-devel`:
 
 ```sh
-docker build -f contrib/Dockerfile.dev -t coreos/zincati:dev .
-docker run --rm -v "$(pwd):/source" -v "/tmp/assembler:/assembler" coreos/zincati:dev
+docker pull quay.io/coreos-assembler/fcos-buildroot:testing-devel
+docker run --rm -v "$(pwd):/source:z" quay.io/coreos-assembler/fcos-buildroot:testing-devel bash -c "cd source; make"
 ```
 
-There is also a larger buildroot image at `registry.svc.ci.openshift.org/coreos/cosa-buildroot:latest`, which is used by integration jobs in CI.
+The FCOS buildroot image is the same image that is used by integration jobs in CI.
 It contains all the required dependencies and can be used to build other CoreOS projects too (not only Zincati).
 
 ## Assemble custom OS images
@@ -66,8 +66,9 @@ mkdir test-image
 cd test-image
 cosa init https://github.com/coreos/fedora-coreos-config
 popd
-docker build -f contrib/Dockerfile.dev -t coreos/zincati:dev .
-docker run --rm -v "$(pwd):/source" -v "/tmp/test-image:/assembler" coreos/zincati:dev
+docker run --rm -v "$(pwd):/source:z" -v "/tmp/test-image:/assembler:z" \
+    -e DESTDIR="/assembler/overrides/rootfs" -e TARGETDIR="/assembler/tmp/zincati/target" \
+    quay.io/coreos-assembler/fcos-buildroot:testing-devel bash -c "cd source; make install"
 pushd /tmp/test-image
 cosa fetch
 cosa build
