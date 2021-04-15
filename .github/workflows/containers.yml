@@ -8,18 +8,12 @@ on:
     branches: [master]
 
 jobs:
-  container-dev:
-    name: "Dev container"
+  build-fcos:
+    name: "Build in FCOS buildroot"
     runs-on: ubuntu-latest
+    container: quay.io/coreos-assembler/fcos-buildroot:testing-devel
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      - name: Assemble dev-container
-        run: docker build -f contrib/Dockerfile.dev -t coreos/zincati:dev .
-      - name: Run dev-container
-        run: docker run --rm -v "$(pwd):/source" -v "/tmp/assembler:/assembler" coreos/zincati:dev
-      - name: Archive artifacts (overrides/rootfs)
-        uses: actions/upload-artifact@v2
-        with:
-          name: zincati-overrides-rootfs
-          path: /tmp/assembler/overrides/rootfs/
+      - name: Build and test
+        run: make
