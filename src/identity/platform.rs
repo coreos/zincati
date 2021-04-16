@@ -6,7 +6,7 @@
 //!  flags. Logic is taken from Afterburn, please backport any bugfix there too:
 //!  https://github.com/coreos/afterburn/blob/v4.1.0/src/util/cmdline.rs
 
-use failure::{bail, format_err, Fallible, ResultExt};
+use anyhow::{Context, Result};
 use std::io::Read;
 use std::{fs, io};
 
@@ -14,21 +14,21 @@ use std::{fs, io};
 static CMDLINE_PLATFORM_FLAG: &str = "ignition.platform.id";
 
 /// Read platform value from cmdline file.
-pub(crate) fn read_id<T>(cmdline_path: T) -> Fallible<String>
+pub(crate) fn read_id<T>(cmdline_path: T) -> Result<String>
 where
     T: AsRef<str>,
 {
     // open the cmdline file
     let fpath = cmdline_path.as_ref();
-    let file = fs::File::open(fpath)
-        .with_context(|e| format_err!("failed to open cmdline file {}: {}", fpath, e))?;
+    let file =
+        fs::File::open(fpath).with_context(|| format!("failed to open cmdline file {}", fpath))?;
 
     // read content
     let mut bufrd = io::BufReader::new(file);
     let mut contents = String::new();
     bufrd
         .read_to_string(&mut contents)
-        .with_context(|e| format_err!("failed to read cmdline file {}: {}", fpath, e))?;
+        .with_context(|| format!("failed to read cmdline file {}", fpath))?;
 
     // lookup flag by key name
     match find_flag_value(CMDLINE_PLATFORM_FLAG, &contents) {
@@ -36,7 +36,7 @@ where
             log::trace!("found platform id: {}", platform);
             Ok(platform)
         }
-        None => bail!(
+        None => anyhow::bail!(
             "could not find flag '{}' in {}",
             CMDLINE_PLATFORM_FLAG,
             fpath

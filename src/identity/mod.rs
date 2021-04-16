@@ -2,7 +2,7 @@ mod platform;
 
 use crate::config::inputs;
 use crate::rpm_ostree;
-use failure::{bail, ensure, format_err, Fallible, ResultExt};
+use anyhow::{anyhow, ensure, Context, Result};
 use lazy_static::lazy_static;
 use libsystemd::id128;
 use ordered_float::NotNan;
@@ -52,7 +52,7 @@ pub(crate) struct Identity {
 
 impl Identity {
     /// Create from configuration.
-    pub(crate) fn with_config(cfg: inputs::IdentityInput) -> Fallible<Self> {
+    pub(crate) fn with_config(cfg: inputs::IdentityInput) -> Result<Self> {
         let mut id = Self::try_default().context("failed to build default identity")?;
 
         if !cfg.group.is_empty() {
@@ -62,7 +62,7 @@ impl Identity {
 
         if !cfg.node_uuid.is_empty() {
             id.node_uuid = id128::Id128::parse_str(&cfg.node_uuid)
-                .map_err(|e| format_err!("failed to parse node UUID: {}", e))?;
+                .map_err(|e| anyhow!("failed to parse node UUID: {}", e))?;
         }
 
         if let Some(rw) = cfg.rollout_wariness {
@@ -88,7 +88,7 @@ impl Identity {
     }
 
     /// Try to build default agent identity.
-    pub fn try_default() -> Fallible<Self> {
+    pub fn try_default() -> Result<Self> {
         // Invoke rpm-ostree to get the status of the currently booted deployment.
         let status = rpm_ostree::invoke_cli_status(true)?;
         let basearch = rpm_ostree::parse_basearch(&status)
@@ -97,7 +97,7 @@ impl Identity {
             rpm_ostree::parse_booted(&status).context("failed to introspect booted OS image")?;
         let node_uuid = {
             let app_id = id128::Id128::try_from_slice(APP_ID)
-                .map_err(|e| format_err!("failed to parse application ID: {}", e))?;
+                .map_err(|e| anyhow!("failed to parse application ID: {}", e))?;
             compute_node_uuid(&app_id)?
         };
         let platform = platform::read_id("/proc/cmdline")?;
@@ -166,13 +166,13 @@ impl Identity {
     /// Group setting can be transmitted to external backends (Cincinnati and FleetLock).
     /// This ensures that label value is compliant to specs regex:
     ///  - https://coreos.github.io/zincati/development/fleetlock/protocol/#body
-    fn validate_group_label(&self) -> Fallible<()> {
+    fn validate_group_label(&self) -> Result<()> {
         static VALID_GROUP: &str = "^[a-zA-Z0-9.-]+$";
         lazy_static! {
             static ref VALID_GROUP_REGEX: Regex = Regex::new(VALID_GROUP).unwrap();
         }
         if !VALID_GROUP_REGEX.is_match(&self.group) {
-            bail!(
+            anyhow::bail!(
                 "invalid group label '{}': not conforming to expression '{}'",
                 self.group,
                 VALID_GROUP
@@ -182,9 +182,9 @@ impl Identity {
     }
 }
 
-fn compute_node_uuid(app_id: &id128::Id128) -> Fallible<id128::Id128> {
+fn compute_node_uuid(app_id: &id128::Id128) -> Result<id128::Id128> {
     let id = id128::get_machine_app_specific(app_id)
-        .map_err(|e| format_err!("failed to get node ID: {}", e))?;
+        .map_err(|e| anyhow!("failed to get node ID: {}", e))?;
     Ok(id)
 }
 

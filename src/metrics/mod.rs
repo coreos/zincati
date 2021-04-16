@@ -1,7 +1,7 @@
 //! Metrics endpoint over a Unix-domain socket.
 
 use actix::prelude::*;
-use failure::{Fallible, ResultExt};
+use anyhow::{Context, Result};
 use std::os::unix::net as std_net;
 use tokio::net as tokio_net;
 
@@ -15,7 +15,7 @@ pub struct MetricsService {
 
 impl MetricsService {
     /// Create metrics service and bind to the Unix-domain socket.
-    pub fn bind_socket() -> Fallible<Self> {
+    pub fn bind_socket() -> Result<Self> {
         let _ = std::fs::remove_file(SOCKET_PATH);
         let listener =
             std_net::UnixListener::bind(SOCKET_PATH).context("failed to bind metrics service")?;
@@ -23,7 +23,7 @@ impl MetricsService {
     }
 
     /// Gather metrics from the default registry and encode them in textual format.
-    fn prometheus_text_encode() -> Fallible<Vec<u8>> {
+    fn prometheus_text_encode() -> Result<Vec<u8>> {
         use prometheus::Encoder;
 
         let metric_families = prometheus::gather();
@@ -44,9 +44,9 @@ impl Message for Connection {
 }
 
 impl Actor for MetricsService {
-    type Context = Context<Self>;
+    type Context = actix::Context<Self>;
 
-    fn started(&mut self, ctx: &mut Context<Self>) {
+    fn started(&mut self, ctx: &mut actix::Context<Self>) {
         let listener = self
             .listener
             .try_clone()
@@ -84,7 +84,7 @@ impl actix::io::WriteHandler<std::io::Error> for MetricsService {
 }
 
 impl StreamHandler<Connection> for MetricsService {
-    fn handle(&mut self, item: Connection, ctx: &mut Context<MetricsService>) {
+    fn handle(&mut self, item: Connection, ctx: &mut actix::Context<MetricsService>) {
         let mut wr = actix::io::Writer::new(item.stream, ctx);
         if let Ok(metrics) = MetricsService::prometheus_text_encode() {
             wr.write(&metrics);

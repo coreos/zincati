@@ -1,7 +1,7 @@
 //! Interface to `rpm-ostree finalize-deployment`.
 
 use super::Release;
-use failure::{bail, Fallible, ResultExt};
+use anyhow::{Context, Result};
 use prometheus::IntCounter;
 
 lazy_static::lazy_static! {
@@ -16,18 +16,18 @@ lazy_static::lazy_static! {
 }
 
 /// Unlock and finalize the new deployment.
-pub fn finalize_deployment(release: Release) -> Fallible<Release> {
+pub fn finalize_deployment(release: Release) -> Result<Release> {
     FINALIZE_ATTEMPTS.inc();
     let cmd = std::process::Command::new("rpm-ostree")
         .arg("finalize-deployment")
         .arg(&release.checksum)
         .env("RPMOSTREE_CLIENT_ID", "zincati")
         .output()
-        .with_context(|_| "failed to run 'rpm-ostree' binary")?;
+        .context("failed to run 'rpm-ostree' binary")?;
 
     if !cmd.status.success() {
         FINALIZE_FAILURES.inc();
-        bail!(
+        anyhow::bail!(
             "rpm-ostree finalize-deployment failed:\n{}",
             String::from_utf8_lossy(&cmd.stderr)
         );

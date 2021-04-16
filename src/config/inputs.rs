@@ -1,6 +1,6 @@
 use crate::config::fragments;
 use crate::update_agent::DEFAULT_STEADY_INTERVAL_SECS;
-use failure::{Fallible, ResultExt};
+use anyhow::{Context, Result};
 use log::trace;
 use ordered_float::NotNan;
 use serde::Serialize;
@@ -21,7 +21,7 @@ impl ConfigInput {
         dirs: Vec<String>,
         common_path: &str,
         extensions: Vec<String>,
-    ) -> Fallible<Self> {
+    ) -> Result<Self> {
         use std::io::Read;
 
         let scanner = liboverdrop::FragmentScanner::new(dirs, common_path, true, extensions);
@@ -31,12 +31,12 @@ impl ConfigInput {
             trace!("reading config fragment '{}'", fpath.display());
 
             let fp = std::fs::File::open(&fpath)
-                .context(format!("failed to open file '{}'", fpath.display()))?;
+                .with_context(|| format!("failed to open file '{}'", fpath.display()))?;
             let mut bufrd = std::io::BufReader::new(fp);
             let mut content = vec![];
             bufrd
                 .read_to_end(&mut content)
-                .context(format!("failed to read content of '{}'", fpath.display()))?;
+                .with_context(|| format!("failed to read content of '{}'", fpath.display()))?;
             let frag: fragments::ConfigFragment =
                 toml::from_slice(&content).context("failed to parse TOML")?;
 

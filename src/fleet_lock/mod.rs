@@ -6,11 +6,12 @@
 //! https://coreos.github.io/zincati/development/fleetlock/protocol/ .
 
 use crate::identity::Identity;
-use failure::{Fail, Fallible, ResultExt};
+use anyhow::{Context, Result};
 use futures::prelude::*;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use thiserror::Error;
 
 #[cfg(test)]
 mod mock_tests;
@@ -34,7 +35,7 @@ pub struct RemoteJSONError {
 }
 
 /// Error related to the FleetLock service.
-#[derive(Clone, Debug, Fail, PartialEq, Eq)]
+#[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum FleetLockError {
     /// Remote endpoint error.
     Remote(reqwest::StatusCode, RemoteJSONError),
@@ -140,7 +141,7 @@ impl Client {
         &self,
         method: reqwest::Method,
         url_suffix: S,
-    ) -> Fallible<reqwest::RequestBuilder> {
+    ) -> Result<reqwest::RequestBuilder> {
         let url = self.api_base.clone().join(url_suffix.as_ref())?;
         let builder = self
             .hclient
@@ -219,7 +220,7 @@ impl ClientBuilder {
     }
 
     /// Build a client with specified parameters.
-    pub fn build(self) -> Fallible<Client> {
+    pub fn build(self) -> Result<Client> {
         let hclient = match self.hclient {
             Some(client) => client,
             None => reqwest::ClientBuilder::new()
@@ -230,7 +231,7 @@ impl ClientBuilder {
         let api_base = reqwest::Url::parse(&self.api_base)
             .context(format!("failed to parse '{}'", &self.api_base))?;
         if self.client_identity.client_params.group.is_empty() {
-            failure::bail!("missing group value");
+            anyhow::bail!("missing group value");
         }
         let body = serde_json::to_string_pretty(&self.client_identity)?;
         let client = Client {

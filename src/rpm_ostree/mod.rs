@@ -12,7 +12,7 @@ pub use actor::{
 mod mock_tests;
 
 use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, SCHEME_KEY};
-use failure::{ensure, format_err, Fallible, ResultExt};
+use anyhow::{anyhow, ensure, Context, Result};
 use serde::Serialize;
 use std::cmp::Ordering;
 
@@ -58,13 +58,13 @@ impl std::cmp::PartialOrd for Release {
 
 impl Release {
     /// Builds a `Release` object from a Cincinnati node.
-    pub fn from_cincinnati(node: Node) -> Fallible<Self> {
+    pub fn from_cincinnati(node: Node) -> Result<Self> {
         ensure!(!node.version.is_empty(), "empty version field");
         ensure!(!node.payload.is_empty(), "empty payload field (checksum)");
         let scheme = node
             .metadata
             .get(SCHEME_KEY)
-            .ok_or_else(|| format_err!("missing metadata key: {}", SCHEME_KEY))?;
+            .ok_or_else(|| anyhow!("missing metadata key: {}", SCHEME_KEY))?;
 
         ensure!(
             scheme == CHECKSUM_SCHEME,
@@ -76,7 +76,7 @@ impl Release {
             let val = node
                 .metadata
                 .get(AGE_INDEX_KEY)
-                .ok_or_else(|| format_err!("missing metadata key: {}", AGE_INDEX_KEY))?;
+                .ok_or_else(|| anyhow!("missing metadata key: {}", AGE_INDEX_KEY))?;
 
             val.parse::<u64>()
                 .context(format!("invalid age_index value: {}", val))?

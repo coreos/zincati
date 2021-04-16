@@ -2,7 +2,7 @@
 //! `rpm-ostree deploy --register-driver`.
 
 use super::Release;
-use failure::{bail, Fallible, ResultExt};
+use anyhow::{bail, Context, Result};
 use prometheus::IntCounter;
 
 const DRIVER_NAME: &str = "Zincati";
@@ -19,7 +19,7 @@ lazy_static::lazy_static! {
 }
 
 /// Deploy an upgrade (by checksum) and leave the new deployment locked.
-pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Fallible<Release> {
+pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Result<Release> {
     DEPLOY_ATTEMPTS.inc();
 
     let result = invoke_cli_deploy(release, allow_downgrade);
@@ -31,22 +31,20 @@ pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Fallible<Releas
 }
 
 /// Register as the update driver.
-pub fn deploy_register_driver() -> Fallible<()> {
+pub fn deploy_register_driver() -> Result<()> {
     invoke_cli_register()?;
     Ok(())
 }
 
 /// CLI executor for registering driver.
-fn invoke_cli_register() -> Fallible<()> {
+fn invoke_cli_register() -> Result<()> {
     let mut cmd = std::process::Command::new("rpm-ostree");
     cmd.arg("deploy")
         .arg("")
         .arg(format!("--register-driver={}", DRIVER_NAME))
         .env("RPMOSTREE_CLIENT_ID", "zincati");
 
-    let out = cmd
-        .output()
-        .with_context(|_| "failed to run 'rpm-ostree' binary")?;
+    let out = cmd.output().context("failed to run 'rpm-ostree' binary")?;
 
     if !out.status.success() {
         bail!(
@@ -59,7 +57,7 @@ fn invoke_cli_register() -> Fallible<()> {
 }
 
 /// CLI executor for deploying upgrades.
-fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Fallible<Release> {
+fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Result<Release> {
     fail_point!("deploy_locked_err", |_| bail!("deploy_locked_err"));
     fail_point!("deploy_locked_ok", |_| Ok(release.clone()));
 
@@ -72,9 +70,7 @@ fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Fallible<Releas
         cmd.arg("--disallow-downgrade");
     }
 
-    let out = cmd
-        .output()
-        .with_context(|_| "failed to run 'rpm-ostree' binary")?;
+    let out = cmd.output().context("failed to run 'rpm-ostree' binary")?;
 
     if !out.status.success() {
         bail!(

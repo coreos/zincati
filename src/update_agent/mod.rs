@@ -9,8 +9,8 @@ use crate::identity::Identity;
 use crate::rpm_ostree::{Release, RpmOstreeClient};
 use crate::strategy::UpdateStrategy;
 use actix::Addr;
+use anyhow::{Context, Result};
 use chrono::prelude::*;
-use failure::{bail, Fallible, ResultExt};
 use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
 use std::convert::TryInto;
@@ -356,7 +356,7 @@ impl UpdateAgent {
     pub(crate) fn with_config(
         cfg: Settings,
         rpm_ostree_addr: Addr<RpmOstreeClient>,
-    ) -> failure::Fallible<Self> {
+    ) -> Result<Self> {
         let steady_secs = cfg.steady_interval_secs.get();
         let agent = UpdateAgent {
             allow_downgrade: cfg.allow_downgrade,
@@ -410,7 +410,7 @@ fn broadcast(msg: &str, sessions: &[InteractiveSession]) {
 
 /// Get sessions with logged in interactive users using `loginctl`.
 /// Returns a Result with vector of `SessionsJSON` if no error.
-fn get_interactive_user_sessions() -> Fallible<Vec<InteractiveSession>> {
+fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
     let cmdrun = std::process::Command::new("loginctl")
         .arg("list-sessions")
         .arg("--output=json")
@@ -418,7 +418,7 @@ fn get_interactive_user_sessions() -> Fallible<Vec<InteractiveSession>> {
         .context("failed to run `loginctl` binary")?;
 
     if !cmdrun.status.success() {
-        bail!(
+        anyhow::bail!(
             "`loginctl` failed to list current sessions: {}",
             String::from_utf8_lossy(&cmdrun.stderr)
         );

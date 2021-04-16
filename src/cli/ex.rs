@@ -1,7 +1,7 @@
 //! Logic for the ex subcommand.
 
 use super::ensure_user;
-use failure::Fallible;
+use anyhow::Result;
 use structopt::StructOpt;
 use zbus::dbus_proxy;
 
@@ -21,7 +21,7 @@ pub enum Cmd {
 
 impl Cmd {
     /// `ex` subcommand entry point.
-    pub(crate) fn run(self) -> Fallible<()> {
+    pub(crate) fn run(self) -> Result<()> {
         ensure_user(
             "root",
             "ex subcommand must be run as `root` user, \

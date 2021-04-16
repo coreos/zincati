@@ -62,8 +62,8 @@ fn run() -> i32 {
 }
 
 /// Pretty-print a chain of errors, as a series of error-priority log messages.
-fn log_error_chain(err_chain: failure::Error) {
-    let mut chain_iter = err_chain.iter_chain();
+fn log_error_chain(err_chain: anyhow::Error) {
+    let mut chain_iter = err_chain.chain();
     let top_err = match chain_iter.next() {
         Some(e) => e.to_string(),
         None => "(unspecified failure)".to_string(),

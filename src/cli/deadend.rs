@@ -1,7 +1,7 @@
 //! Logic for the `deadend` subcommand.
 
 use super::ensure_user;
-use failure::{bail, Fallible, ResultExt};
+use anyhow::{Context, Result};
 use std::fs::Permissions;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
@@ -28,7 +28,7 @@ pub enum Cmd {
 
 impl Cmd {
     /// `deadend-motd` subcommand entry point.
-    pub(crate) fn run(self) -> Fallible<()> {
+    pub(crate) fn run(self) -> Result<()> {
         ensure_user(
             "root",
             "deadend-motd subcommand must be run as `root` user, \
@@ -42,7 +42,7 @@ impl Cmd {
 }
 
 /// Refresh MOTD fragment with deadend reason.
-fn refresh_motd_fragment(reason: String) -> Fallible<()> {
+fn refresh_motd_fragment(reason: String) -> Result<()> {
     // Avoid showing partially-written messages using tempfile and
     // persist (rename).
     let mut f = tempfile::Builder::new()
@@ -52,16 +52,20 @@ fn refresh_motd_fragment(reason: String) -> Fallible<()> {
         // to ensure proper SELinux labels are applied to the tempfile
         // before renaming.
         .tempfile_in(MOTD_FRAGMENTS_DIR)
-        .context(format!(
-            "failed to create temporary MOTD file under '{}'",
-            MOTD_FRAGMENTS_DIR
-        ))?;
+        .with_context(|| {
+            format!(
+                "failed to create temporary MOTD file under '{}'",
+                MOTD_FRAGMENTS_DIR
+            )
+        })?;
     // Set correct permissions of the temporary file, before moving to
     // the destination (`tempfile` creates files with mode 0600).
-    std::fs::set_permissions(f.path(), Permissions::from_mode(0o644)).context(format!(
-        "failed to set permissions of temporary MOTD file at '{}'",
-        f.path().display()
-    ))?;
+    std::fs::set_permissions(f.path(), Permissions::from_mode(0o644)).with_context(|| {
+        format!(
+            "failed to set permissions of temporary MOTD file at '{}'",
+            f.path().display()
+        )
+    })?;
 
     writeln!(
         f,
@@ -69,23 +73,18 @@ fn refresh_motd_fragment(reason: String) -> Fallible<()> {
         reason
     )
     .and_then(|_| f.flush())
-    .context(format!(
-        "failed to write MOTD content to '{}'",
-        f.path().display()
-    ))?;
+    .with_context(|| format!("failed to write MOTD content to '{}'", f.path().display()))?;
 
-    f.persist(DEADEND_MOTD_PATH).context(format!(
-        "failed to persist MOTD fragment to '{}'",
-        DEADEND_MOTD_PATH
-    ))?;
+    f.persist(DEADEND_MOTD_PATH)
+        .with_context(|| format!("failed to persist MOTD fragment to '{}'", DEADEND_MOTD_PATH))?;
     Ok(())
 }
 
 /// Remove motd fragment file, if any.
-fn remove_motd_fragment() -> Fallible<()> {
+fn remove_motd_fragment() -> Result<()> {
     if let Err(e) = std::fs::remove_file(DEADEND_MOTD_PATH) {
         if e.kind() != std::io::ErrorKind::NotFound {
-            bail!(
+            anyhow::bail!(
                 "failed to remove MOTD fragment at '{}': {}",
                 DEADEND_MOTD_PATH,
                 e

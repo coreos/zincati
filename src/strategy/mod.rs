@@ -2,7 +2,7 @@
 
 use crate::config::inputs;
 use crate::identity::Identity;
-use failure::{bail, Fallible};
+use anyhow::Result;
 use futures::prelude::*;
 use log::error;
 use prometheus::{IntGauge, IntGaugeVec};
@@ -39,14 +39,14 @@ pub(crate) enum UpdateStrategy {
 
 impl UpdateStrategy {
     /// Try to parse config inputs into a valid strategy.
-    pub(crate) fn with_config(cfg: inputs::UpdateInput, identity: &Identity) -> Fallible<Self> {
+    pub(crate) fn with_config(cfg: inputs::UpdateInput, identity: &Identity) -> Result<Self> {
         let strategy_name = cfg.strategy.clone();
         let strategy = match strategy_name.as_ref() {
             StrategyFleetLock::LABEL => UpdateStrategy::new_fleet_lock(cfg, identity)?,
             StrategyImmediate::LABEL => UpdateStrategy::new_immediate()?,
             StrategyPeriodic::LABEL => UpdateStrategy::new_periodic(cfg)?,
             "" => UpdateStrategy::default(),
-            x => bail!("unsupported strategy '{}'", x),
+            x => anyhow::bail!("unsupported strategy '{}'", x),
         };
 
         Ok(strategy)
@@ -130,19 +130,19 @@ impl UpdateStrategy {
     }
 
     /// Build a new "immediate" strategy.
-    fn new_immediate() -> Fallible<Self> {
+    fn new_immediate() -> Result<Self> {
         let immediate = StrategyImmediate::default();
         Ok(UpdateStrategy::Immediate(immediate))
     }
 
     /// Build a new "fleet_lock" strategy.
-    fn new_fleet_lock(cfg: inputs::UpdateInput, identity: &Identity) -> Fallible<Self> {
+    fn new_fleet_lock(cfg: inputs::UpdateInput, identity: &Identity) -> Result<Self> {
         let fleet_lock = StrategyFleetLock::new(cfg, identity)?;
         Ok(UpdateStrategy::FleetLock(fleet_lock))
     }
 
     /// Build a new "periodic" strategy.
-    fn new_periodic(cfg: inputs::UpdateInput) -> Fallible<Self> {
+    fn new_periodic(cfg: inputs::UpdateInput) -> Result<Self> {
         let periodic = StrategyPeriodic::new(cfg)?;
         Ok(UpdateStrategy::Periodic(periodic))
     }

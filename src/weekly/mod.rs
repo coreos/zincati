@@ -8,8 +8,8 @@
 
 pub(crate) mod utils;
 
+use anyhow::{ensure, Result};
 use chrono::{DateTime, Utc};
-use failure::Fallible;
 use intervaltree::{Element, IntervalTree};
 use serde::{Serialize, Serializer};
 use std::cmp::Ordering;
@@ -91,7 +91,7 @@ impl WeeklyCalendar {
     }
 
     /// Format remaining duration till the next window in human terms.
-    pub fn human_remaining_duration(remaining: &chrono::Duration) -> Fallible<String> {
+    pub fn human_remaining_duration(remaining: &chrono::Duration) -> Result<String> {
         if remaining.is_zero() {
             return Ok("now".to_string());
         }
@@ -220,9 +220,9 @@ impl WeeklyWindow {
         start_hour: u8,
         start_minute: u8,
         length: Duration,
-    ) -> Fallible<Vec<Self>> {
+    ) -> Result<Vec<Self>> {
         // Sanity check inputs (start and length).
-        failure::ensure!(
+        ensure!(
             start_hour <= 24 && start_minute <= 59,
             "invalid start time: {}:{}",
             start_hour,

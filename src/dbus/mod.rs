@@ -6,8 +6,8 @@ use experimental::Experimental;
 use crate::update_agent::UpdateAgent;
 use actix::prelude::*;
 use actix::Addr;
+use anyhow::Result;
 use core::convert::TryFrom;
-use failure::Error;
 use log::trace;
 use zbus::fdo;
 use zvariant::ObjectPath;
@@ -27,7 +27,7 @@ impl DBusService {
         SyncArbiter::start(threads, move || DBusService::new(agent_addr.clone()))
     }
 
-    fn start_object_server(&mut self) -> Result<(), Error> {
+    fn start_object_server(&mut self) -> Result<()> {
         let connection = zbus::Connection::new_system()?;
 
         fdo::DBusProxy::new(&connection)?.request_name(

@@ -2,7 +2,7 @@
 
 use crate::config::inputs;
 use crate::weekly::{utils, WeeklyCalendar, WeeklyWindow};
-use failure::{Error, Fallible};
+use anyhow::{Error, Result};
 use futures::future;
 use futures::prelude::*;
 use log::trace;
@@ -22,7 +22,7 @@ impl StrategyPeriodic {
     pub const LABEL: &'static str = "periodic";
 
     /// Build a new periodic strategy.
-    pub fn new(cfg: inputs::UpdateInput) -> Fallible<Self> {
+    pub fn new(cfg: inputs::UpdateInput) -> Result<Self> {
         let mut intervals = Vec::with_capacity(cfg.periodic.intervals.len());
 
         for entry in cfg.periodic.intervals {
@@ -35,7 +35,7 @@ impl StrategyPeriodic {
 
         let calendar = WeeklyCalendar::new(intervals);
         match calendar.length_minutes() {
-            0 => failure::bail!(
+            0 => anyhow::bail!(
                 "invalid or missing periodic updates configuration: weekly calendar length is zero"
             ),
             n => log::trace!("periodic updates, weekly calendar length: {} minutes", n),
