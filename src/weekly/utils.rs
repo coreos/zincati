@@ -3,6 +3,7 @@
 use crate::weekly::{MinuteInWeek, MAX_WEEKLY_MINS, MAX_WEEKLY_SECS};
 use anyhow::{anyhow, bail, ensure, Result};
 use chrono::{DateTime, Utc, Weekday};
+use fn_error_context::context;
 use std::time::Duration;
 
 /// Convert datetime to minutes since beginning of week.
@@ -74,6 +75,7 @@ pub(crate) fn weekday_from_string(input: &str) -> Result<Weekday> {
 /// assert_eq!(morning.0, 14);
 /// assert_eq!(morning.0, 5);
 /// ```
+#[context("failed to parse time string")]
 pub(crate) fn time_from_string(input: &str) -> Result<(u8, u8)> {
     let fields: Vec<_> = input.split(':').collect();
     if fields.len() != 2 {

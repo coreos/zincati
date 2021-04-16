@@ -8,6 +8,7 @@ use actix::prelude::*;
 use actix::Addr;
 use anyhow::Result;
 use core::convert::TryFrom;
+use fn_error_context::context;
 use log::trace;
 use zbus::fdo;
 use zvariant::ObjectPath;
@@ -27,6 +28,7 @@ impl DBusService {
         SyncArbiter::start(threads, move || DBusService::new(agent_addr.clone()))
     }
 
+    #[context("failed to start object server")]
     fn start_object_server(&mut self) -> Result<()> {
         let connection = zbus::Connection::new_system()?;
 

@@ -3,6 +3,7 @@
 use crate::config::inputs;
 use crate::weekly::{utils, WeeklyCalendar, WeeklyWindow};
 use anyhow::{Error, Result};
+use fn_error_context::context;
 use futures::future;
 use futures::prelude::*;
 use log::trace;
@@ -22,6 +23,7 @@ impl StrategyPeriodic {
     pub const LABEL: &'static str = "periodic";
 
     /// Build a new periodic strategy.
+    #[context("failed to parse periodic strategy")]
     pub fn new(cfg: inputs::UpdateInput) -> Result<Self> {
         let mut intervals = Vec::with_capacity(cfg.periodic.intervals.len());
 

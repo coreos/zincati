@@ -11,6 +11,7 @@ use crate::config::inputs;
 use crate::identity::Identity;
 use crate::rpm_ostree::Release;
 use anyhow::{Context, Result};
+use fn_error_context::context;
 use futures::prelude::*;
 use futures::TryFutureExt;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
@@ -105,6 +106,7 @@ pub struct Cincinnati {
 
 impl Cincinnati {
     /// Process Cincinnati configuration.
+    #[context("failed to validate cincinnati configuration")]
     pub(crate) fn with_config(cfg: inputs::CincinnatiInput, id: &Identity) -> Result<Self> {
         if cfg.base_url.is_empty() {
             anyhow::bail!("empty Cincinnati base URL");

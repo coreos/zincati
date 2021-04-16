@@ -1,6 +1,7 @@
 use crate::config::fragments;
 use crate::update_agent::DEFAULT_STEADY_INTERVAL_SECS;
 use anyhow::{Context, Result};
+use fn_error_context::context;
 use log::trace;
 use ordered_float::NotNan;
 use serde::Serialize;
@@ -17,6 +18,7 @@ pub(crate) struct ConfigInput {
 
 impl ConfigInput {
     /// Read config fragments and merge them into a single config.
+    #[context("failed to read and merge config fragments")]
     pub(crate) fn read_configs(
         dirs: Vec<String>,
         common_path: &str,

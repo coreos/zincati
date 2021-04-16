@@ -3,6 +3,7 @@ mod platform;
 use crate::config::inputs;
 use crate::rpm_ostree;
 use anyhow::{anyhow, ensure, Context, Result};
+use fn_error_context::context;
 use lazy_static::lazy_static;
 use libsystemd::id128;
 use ordered_float::NotNan;
@@ -52,6 +53,7 @@ pub(crate) struct Identity {
 
 impl Identity {
     /// Create from configuration.
+    #[context("failed to validate agent identity configuration")]
     pub(crate) fn with_config(cfg: inputs::IdentityInput) -> Result<Self> {
         let mut id = Self::try_default().context("failed to build default identity")?;
 

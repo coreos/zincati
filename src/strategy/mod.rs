@@ -3,6 +3,7 @@
 use crate::config::inputs;
 use crate::identity::Identity;
 use anyhow::Result;
+use fn_error_context::context;
 use futures::prelude::*;
 use log::error;
 use prometheus::{IntGauge, IntGaugeVec};
@@ -39,6 +40,7 @@ pub(crate) enum UpdateStrategy {
 
 impl UpdateStrategy {
     /// Try to parse config inputs into a valid strategy.
+    #[context("failed to validate update strategy configuration")]
     pub(crate) fn with_config(cfg: inputs::UpdateInput, identity: &Identity) -> Result<Self> {
         let strategy_name = cfg.strategy.clone();
         let strategy = match strategy_name.as_ref() {

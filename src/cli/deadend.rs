@@ -2,6 +2,7 @@
 
 use super::ensure_user;
 use anyhow::{Context, Result};
+use fn_error_context::context;
 use std::fs::Permissions;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
@@ -28,6 +29,7 @@ pub enum Cmd {
 
 impl Cmd {
     /// `deadend-motd` subcommand entry point.
+    #[context("failed to run `deadend-motd` subcommand")]
     pub(crate) fn run(self) -> Result<()> {
         ensure_user(
             "root",

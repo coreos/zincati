@@ -15,7 +15,8 @@ use crate::cincinnati::Cincinnati;
 use crate::identity::Identity;
 use crate::strategy::UpdateStrategy;
 use crate::update_agent;
-use anyhow::{Context, Result};
+use anyhow::Result;
+use fn_error_context::context;
 use serde::Serialize;
 use std::num::NonZeroU64;
 use structopt::clap::crate_name;
@@ -41,6 +42,7 @@ pub(crate) struct Settings {
 
 impl Settings {
     /// Assemble runtime settings.
+    #[context("failed to assemble configuration settings")]
     pub(crate) fn assemble() -> Result<Self> {
         let prefixes = vec![
             "/usr/lib/".to_string(),
@@ -67,12 +69,9 @@ impl Settings {
         let allow_downgrade = cfg.updates.allow_downgrade;
         let enabled = cfg.updates.enabled;
         let steady_interval_secs = cfg.agent.steady_interval_secs;
-        let identity = Identity::with_config(cfg.identity)
-            .context("failed to validate agent identity configuration")?;
-        let strategy = UpdateStrategy::with_config(cfg.updates, &identity)
-            .context("failed to validate update-strategy configuration")?;
-        let cincinnati = Cincinnati::with_config(cfg.cincinnati, &identity)
-            .context("failed to validate cincinnati configuration")?;
+        let identity = Identity::with_config(cfg.identity)?;
+        let strategy = UpdateStrategy::with_config(cfg.updates, &identity)?;
+        let cincinnati = Cincinnati::with_config(cfg.cincinnati, &identity)?;
 
         Ok(Self {
             allow_downgrade,

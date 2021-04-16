@@ -24,8 +24,7 @@ pub(crate) fn run_agent() -> Result<()> {
         crate_version!()
     );
 
-    let settings =
-        config::Settings::assemble().context("failed to assemble configuration settings")?;
+    let settings = config::Settings::assemble()?;
     settings.refresh_metrics();
     info!(
         "agent running on node '{}', in update group '{}'",

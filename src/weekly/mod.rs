@@ -10,6 +10,7 @@ pub(crate) mod utils;
 
 use anyhow::{ensure, Result};
 use chrono::{DateTime, Utc};
+use fn_error_context::context;
 use intervaltree::{Element, IntervalTree};
 use serde::{Serialize, Serializer};
 use std::cmp::Ordering;
@@ -215,6 +216,7 @@ impl WeeklyWindow {
     /// Parse a timespan into weekly windows.
     ///
     /// On success, this returns a non-empty vector with at most two weekly windows.
+    #[context("failed to parse timespan into weekly windows")]
     pub fn parse_timespan(
         start_day: chrono::Weekday,
         start_hour: u8,
