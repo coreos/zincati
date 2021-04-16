@@ -2527,6 +2527,7 @@ dependencies = [
  "envsubst",
  "fail",
  "failure",
+ "failure_derive",
  "filetime",
  "futures",
  "glob",

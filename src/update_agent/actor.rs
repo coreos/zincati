@@ -29,7 +29,7 @@ impl Actor for UpdateAgent {
         }
 
         // Kick-start the state machine.
-        Self::tick_now(ctx);
+        self.tick_now(ctx);
     }
 }
 
@@ -48,16 +48,64 @@ impl Handler<LastRefresh> for UpdateAgent {
     }
 }
 
-pub(crate) struct RefreshTick {}
+/// Error thrown when the command that attempted to initiate a refresh tick
+/// is not permitted to do so in the current state of the update agent.
+#[derive(Debug, Fail)]
+struct TickPermissionError {}
+
+impl std::fmt::Display for TickPermissionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "command not permitted in current update agent state")
+    }
+}
+
+pub enum RefreshTickCommand {
+    /// Command to check for updates.
+    CheckUpdate,
+    /// Command to finalize an update.
+    FinalizeUpdate { force: bool },
+    /// Tick initiated by update agent itself.
+    SelfTick,
+}
+
+/// A message to trigger an update agent tick.
+pub struct RefreshTick {
+    /// Command that initiated the tick.
+    pub(crate) command: RefreshTickCommand,
+}
+
+impl RefreshTick {
+    /// Return whether the command in the command field is allowed to initiate
+    /// a refresh tick.
+    fn check_state(&self, cur_state: &UpdateAgentState) -> bool {
+        match self.command {
+            RefreshTickCommand::CheckUpdate => {
+                matches!(cur_state, UpdateAgentState::NoNewUpdate)
+            }
+            RefreshTickCommand::FinalizeUpdate { force: _ } => {
+                matches!(cur_state, UpdateAgentState::UpdateAvailable { .. })
+            }
+            // SelfTicks are always allowed.
+            RefreshTickCommand::SelfTick => true,
+        }
+    }
+}
 
 impl Message for RefreshTick {
-    type Result = Result<(), Error>;
+    type Result = Result<UpdateAgentState, Error>;
 }
 
 impl Handler<RefreshTick> for UpdateAgent {
-    type Result = ResponseActFuture<Self, Result<(), Error>>;
+    type Result = ResponseActFuture<Self, Result<UpdateAgentState, Error>>;
 
-    fn handle(&mut self, _msg: RefreshTick, ctx: &mut Self::Context) -> Self::Result {
+    /// Return the state of the update agent's state machine after msg is handled.
+    fn handle(&mut self, msg: RefreshTick, ctx: &mut Self::Context) -> Self::Result {
+        // Make sure that the command that sent the RefreshTick is permitted to be
+        // called in update agent's current state.
+        if !msg.check_state(&self.state) {
+            return Box::pin(actix::fut::err(Error::from(TickPermissionError {})));
+        }
+
         let tick_timestamp = chrono::Utc::now();
         LAST_REFRESH.set(tick_timestamp.timestamp());
 
@@ -75,7 +123,7 @@ impl Handler<RefreshTick> for UpdateAgent {
             }
             UpdateAgentState::UpdateStaged((release, _)) => {
                 let update = release.clone();
-                self.tick_finalize_update(update)
+                self.tick_finalize_update(update, &msg)
             }
             UpdateAgentState::UpdateFinalized(release) => {
                 let update = release.clone();
@@ -91,11 +139,11 @@ impl Handler<RefreshTick> for UpdateAgent {
                     "scheduling next agent refresh in {} seconds",
                     pause.as_secs()
                 );
-                Self::tick_later(ctx, pause);
+                actor.tick_later(ctx, pause);
             } else {
                 let update_timestamp = chrono::Utc::now();
                 actor.state_changed = update_timestamp;
-                Self::tick_now(ctx);
+                actor.tick_now(ctx);
             }
             actix::fut::ready(())
         });
@@ -103,19 +151,38 @@ impl Handler<RefreshTick> for UpdateAgent {
         // Process state machine refresh ticks sequentially.
         ctx.wait(update_machine);
 
-        Box::pin(actix::fut::ok(()))
+        Box::pin(actix::fut::ok(self.state.clone()))
     }
 }
 
 impl UpdateAgent {
+    /// Cancel the scheduled refresh tick whose handle is stored in the update agent's
+    /// `tick_later_handle` field, if any.
+    fn cancel_scheduled_ticks(&mut self, ctx: &mut Context<Self>) {
+        if let Some(handle) = self.tick_later_handle {
+            ctx.cancel_future(handle);
+            self.tick_later_handle = None;
+        }
+    }
+
     /// Schedule an immediate refresh of the state machine.
-    pub fn tick_now(ctx: &mut Context<Self>) {
-        ctx.notify(RefreshTick {})
+    pub fn tick_now(&mut self, ctx: &mut Context<Self>) {
+        // Cancel scheduled ticks, if any.
+        self.cancel_scheduled_ticks(ctx);
+        ctx.notify(RefreshTick {
+            command: RefreshTickCommand::SelfTick,
+        })
     }
 
     /// Schedule a delayed refresh of the state machine.
-    pub fn tick_later(ctx: &mut Context<Self>, after: std::time::Duration) -> actix::SpawnHandle {
-        ctx.notify_later(RefreshTick {}, after)
+    pub fn tick_later(&mut self, ctx: &mut Context<Self>, after: std::time::Duration) {
+        let handle = ctx.notify_later(
+            RefreshTick {
+                command: RefreshTickCommand::SelfTick,
+            },
+            after,
+        );
+        self.tick_later_handle = Some(handle);
     }
 
     /// Pausing interval between state-machine refresh cycles.
@@ -322,12 +389,23 @@ impl UpdateAgent {
     fn tick_finalize_update(
         &mut self,
         release: Release,
+        msg: &RefreshTick,
     ) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to finalize an update");
 
-        let strategy_can_finalize = self.strategy.can_finalize();
-        let state_change = actix::fut::wrap_future::<_, Self>(strategy_can_finalize)
-            .then(|strategy_can_finalize, actor, _ctx| {
+        let mut strategy_can_finalize = false;
+        let mut usersessions_can_finalize = false;
+        if let RefreshTickCommand::FinalizeUpdate { force } = msg.command {
+            strategy_can_finalize = force;
+            // If msg's associated command is FinalizeUpdate, ignore logged in sessions
+            // and allow finalizations even when active user sessions are present.
+            usersessions_can_finalize = true;
+        }
+
+        let strategy_can_finalize_fut = self.strategy.can_finalize();
+        let state_change = actix::fut::wrap_future::<_, Self>(strategy_can_finalize_fut)
+            .then(move |can_finalize, actor, _ctx| {
+                strategy_can_finalize = strategy_can_finalize || can_finalize;
                 if !strategy_can_finalize {
                     update_unit_status(&format!(
                         "update staged: {}; reboot pending due to update strategy",
@@ -338,7 +416,8 @@ impl UpdateAgent {
                     actor.state.update_staged(release);
                     Box::pin(actix::fut::err(()))
                 } else {
-                    let usersessions_can_finalize = actor.state.usersessions_can_finalize();
+                    usersessions_can_finalize =
+                        usersessions_can_finalize || actor.state.usersessions_can_finalize();
                     if !usersessions_can_finalize {
                         update_unit_status(&format!(
                             "update staged: {}; reboot delayed due to active user sessions",
