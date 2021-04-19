@@ -49,8 +49,7 @@ pub(crate) fn run_agent() -> Result<()> {
     let rpm_ostree_addr = rpm_ostree::RpmOstreeClient::start(1);
 
     trace!("creating update agent");
-    let agent = update_agent::UpdateAgent::with_config(settings, rpm_ostree_addr)
-        .context("failed to assemble update-agent from configuration settings")?;
+    let agent = update_agent::UpdateAgent::with_config(settings, rpm_ostree_addr);
     let agent_addr = agent.start();
 
     trace!("creating D-Bus service");

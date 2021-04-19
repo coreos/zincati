@@ -105,7 +105,7 @@ pub fn parse_updates_stream(status: &StatusJson) -> Result<String> {
 }
 
 /// Parse local deployments from a status object.
-fn parse_local_deployments(status: &StatusJson, omit_staged: bool) -> Result<BTreeSet<Release>> {
+fn parse_local_deployments(status: &StatusJson, omit_staged: bool) -> BTreeSet<Release> {
     let mut deployments = BTreeSet::<Release>::new();
     for entry in &status.deployments {
         if omit_staged && entry.staged {
@@ -115,7 +115,7 @@ fn parse_local_deployments(status: &StatusJson, omit_staged: bool) -> Result<BTr
         let release = entry.clone().into_release();
         deployments.insert(release);
     }
-    Ok(deployments)
+    deployments
 }
 
 /// Return local deployments, using client's cache if possible.
@@ -124,7 +124,7 @@ pub fn local_deployments(
     omit_staged: bool,
 ) -> Result<BTreeSet<Release>> {
     let status = status_json(client)?;
-    let local_depls = parse_local_deployments(&status, omit_staged)?;
+    let local_depls = parse_local_deployments(&status, omit_staged);
 
     Ok(local_depls)
 }
@@ -212,17 +212,17 @@ mod tests {
     fn mock_deployments() {
         {
             let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
-            let deployments = parse_local_deployments(&status, false).unwrap();
+            let deployments = parse_local_deployments(&status, false);
             assert_eq!(deployments.len(), 1);
         }
         {
             let status = mock_status("tests/fixtures/rpm-ostree-staged.json").unwrap();
-            let deployments = parse_local_deployments(&status, false).unwrap();
+            let deployments = parse_local_deployments(&status, false);
             assert_eq!(deployments.len(), 2);
         }
         {
             let status = mock_status("tests/fixtures/rpm-ostree-staged.json").unwrap();
-            let deployments = parse_local_deployments(&status, true).unwrap();
+            let deployments = parse_local_deployments(&status, true);
             assert_eq!(deployments.len(), 1);
         }
     }

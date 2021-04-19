@@ -353,12 +353,9 @@ pub(crate) struct UpdateAgent {
 
 impl UpdateAgent {
     /// Build an update agent with the given config.
-    pub(crate) fn with_config(
-        cfg: Settings,
-        rpm_ostree_addr: Addr<RpmOstreeClient>,
-    ) -> Result<Self> {
+    pub(crate) fn with_config(cfg: Settings, rpm_ostree_addr: Addr<RpmOstreeClient>) -> Self {
         let steady_secs = cfg.steady_interval_secs.get();
-        let agent = UpdateAgent {
+        Self {
             allow_downgrade: cfg.allow_downgrade,
             cincinnati: cfg.cincinnati,
             enabled: cfg.enabled,
@@ -368,9 +365,7 @@ impl UpdateAgent {
             state: UpdateAgentState::default(),
             strategy: cfg.strategy,
             state_changed: chrono::Utc::now(),
-        };
-
-        Ok(agent)
+        }
     }
 }
 
