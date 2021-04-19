@@ -45,7 +45,7 @@ impl UpdateStrategy {
         let strategy_name = cfg.strategy.clone();
         let strategy = match strategy_name.as_ref() {
             StrategyFleetLock::LABEL => UpdateStrategy::new_fleet_lock(cfg, identity)?,
-            StrategyImmediate::LABEL => UpdateStrategy::new_immediate()?,
+            StrategyImmediate::LABEL => UpdateStrategy::new_immediate(),
             StrategyPeriodic::LABEL => UpdateStrategy::new_periodic(cfg)?,
             "" => UpdateStrategy::default(),
             x => anyhow::bail!("unsupported strategy '{}'", x),
@@ -132,9 +132,9 @@ impl UpdateStrategy {
     }
 
     /// Build a new "immediate" strategy.
-    fn new_immediate() -> Result<Self> {
+    fn new_immediate() -> Self {
         let immediate = StrategyImmediate::default();
-        Ok(UpdateStrategy::Immediate(immediate))
+        UpdateStrategy::Immediate(immediate)
     }
 
     /// Build a new "fleet_lock" strategy.

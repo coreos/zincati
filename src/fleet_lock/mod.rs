@@ -27,7 +27,7 @@ static V1_STEADY_STATE: &str = "v1/steady-state";
 
 /// FleetLock JSON protocol: service error.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct RemoteJSONError {
+pub struct RemoteJsonError {
     /// Machine-friendly brief error kind.
     kind: String,
     /// Human-friendly detailed error explanation.
@@ -38,9 +38,9 @@ pub struct RemoteJSONError {
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum FleetLockError {
     /// Remote endpoint error.
-    Remote(reqwest::StatusCode, RemoteJSONError),
+    Remote(reqwest::StatusCode, RemoteJsonError),
     /// Generic HTTP error.
-    HTTP(reqwest::StatusCode),
+    Http(reqwest::StatusCode),
     /// Client builder failed.
     FailedClientBuilder(String),
     /// Client failed request.
@@ -52,7 +52,7 @@ impl FleetLockError {
     pub fn error_kind(&self) -> String {
         match *self {
             FleetLockError::Remote(_, ref err) => err.kind.clone(),
-            FleetLockError::HTTP(status) => format!("generic_http_{}", status.as_u16()),
+            FleetLockError::Http(status) => format!("generic_http_{}", status.as_u16()),
             FleetLockError::FailedClientBuilder(_) => "client_failed_build".to_string(),
             FleetLockError::FailedRequest(_) => "client_failed_request".to_string(),
         }
@@ -62,7 +62,7 @@ impl FleetLockError {
     pub fn error_value(&self) -> String {
         match *self {
             FleetLockError::Remote(_, ref err) => err.value.clone(),
-            FleetLockError::HTTP(_) => "(unknown/generic server error)".to_string(),
+            FleetLockError::Http(_) => "(unknown/generic server error)".to_string(),
             FleetLockError::FailedClientBuilder(ref err)
             | FleetLockError::FailedRequest(ref err) => err.clone(),
         }
@@ -71,7 +71,7 @@ impl FleetLockError {
     /// Return the server-side error status code, if any.
     pub fn status_code(&self) -> Option<u16> {
         match *self {
-            FleetLockError::Remote(s, _) | FleetLockError::HTTP(s) => Some(s.as_u16()),
+            FleetLockError::Remote(s, _) | FleetLockError::Http(s) => Some(s.as_u16()),
             _ => None,
         }
     }
@@ -160,9 +160,9 @@ impl Client {
         }
 
         // On error, decode failure details (or synthesize a generic error).
-        match response.json::<RemoteJSONError>().await {
+        match response.json::<RemoteJsonError>().await {
             Ok(rej) => Err(FleetLockError::Remote(status, rej)),
-            _ => Err(FleetLockError::HTTP(status)),
+            _ => Err(FleetLockError::Http(status)),
         }
     }
 }
@@ -264,7 +264,7 @@ mod tests {
         let rejection = runtime.block_on(fut_rejection).unwrap_err();
         let expected_rejection = FleetLockError::Remote(
             StatusCode::from_u16(466).unwrap(),
-            RemoteJSONError {
+            RemoteJsonError {
                 kind: "failure_foo".to_string(),
                 value: "failed to perform foo".to_string(),
             },
@@ -282,7 +282,7 @@ mod tests {
         let response = Response::builder().status(433).body("").unwrap();
         let fut_rejection = Client::map_response(response.into());
         let rejection = runtime.block_on(fut_rejection).unwrap_err();
-        let expected_rejection = FleetLockError::HTTP(StatusCode::from_u16(433).unwrap());
+        let expected_rejection = FleetLockError::Http(StatusCode::from_u16(433).unwrap());
         assert_eq!(&rejection, &expected_rejection);
 
         let msg = rejection.to_string();

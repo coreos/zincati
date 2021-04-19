@@ -60,7 +60,7 @@ lazy_static::lazy_static! {
 
 /// JSON output from `loginctl list-sessions --output=json`.
 #[derive(Debug, Deserialize)]
-pub struct SessionJSON {
+pub struct SessionJson {
     user: String,
     #[serde(deserialize_with = "empty_string_as_none")]
     tty: Option<String>,
@@ -353,12 +353,9 @@ pub(crate) struct UpdateAgent {
 
 impl UpdateAgent {
     /// Build an update agent with the given config.
-    pub(crate) fn with_config(
-        cfg: Settings,
-        rpm_ostree_addr: Addr<RpmOstreeClient>,
-    ) -> Result<Self> {
+    pub(crate) fn with_config(cfg: Settings, rpm_ostree_addr: Addr<RpmOstreeClient>) -> Self {
         let steady_secs = cfg.steady_interval_secs.get();
-        let agent = UpdateAgent {
+        Self {
             allow_downgrade: cfg.allow_downgrade,
             cincinnati: cfg.cincinnati,
             enabled: cfg.enabled,
@@ -368,9 +365,7 @@ impl UpdateAgent {
             state: UpdateAgentState::default(),
             strategy: cfg.strategy,
             state_changed: chrono::Utc::now(),
-        };
-
-        Ok(agent)
+        }
     }
 }
 
@@ -409,7 +404,7 @@ fn broadcast(msg: &str, sessions: &[InteractiveSession]) {
 }
 
 /// Get sessions with logged in interactive users using `loginctl`.
-/// Returns a Result with vector of `SessionsJSON` if no error.
+/// Returns a Result with vector of `SessionsJson` if no error.
 fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
     let cmdrun = std::process::Command::new("loginctl")
         .arg("list-sessions")
@@ -424,7 +419,7 @@ fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
         );
     }
 
-    let sessions: Vec<SessionJSON> = serde_json::from_slice(&cmdrun.stdout)
+    let sessions: Vec<SessionJson> = serde_json::from_slice(&cmdrun.stdout)
         .context("failed to deserialize output of `loginctl`")?;
 
     // Filter out sessions that aren't interactive (don't have a tty), and map
