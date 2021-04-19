@@ -2,7 +2,7 @@
 
 use super::actor::{RpmOstreeClient, StatusCache};
 use super::Release;
-use failure::{bail, ensure, format_err, Fallible, ResultExt};
+use anyhow::{anyhow, ensure, Context, Result};
 use filetime::FileTime;
 use log::trace;
 use prometheus::IntCounter;
@@ -86,26 +86,26 @@ impl DeploymentJSON {
 }
 
 /// Parse base architecture for booted deployment from status object.
-pub fn parse_basearch(status: &StatusJSON) -> Fallible<String> {
+pub fn parse_basearch(status: &StatusJSON) -> Result<String> {
     let json = booted_json(status)?;
     Ok(json.base_metadata.basearch)
 }
 
 /// Parse the booted deployment from status object.
-pub fn parse_booted(status: &StatusJSON) -> Fallible<Release> {
+pub fn parse_booted(status: &StatusJSON) -> Result<Release> {
     let json = booted_json(status)?;
     Ok(json.into_release())
 }
 
 /// Parse updates stream for booted deployment from status object.
-pub fn parse_updates_stream(status: &StatusJSON) -> Fallible<String> {
+pub fn parse_updates_stream(status: &StatusJSON) -> Result<String> {
     let json = booted_json(status)?;
     ensure!(!json.base_metadata.stream.is_empty(), "empty stream value");
     Ok(json.base_metadata.stream)
 }
 
 /// Parse local deployments from a status object.
-fn parse_local_deployments(status: &StatusJSON, omit_staged: bool) -> Fallible<BTreeSet<Release>> {
+fn parse_local_deployments(status: &StatusJSON, omit_staged: bool) -> Result<BTreeSet<Release>> {
     let mut deployments = BTreeSet::<Release>::new();
     for entry in &status.deployments {
         if omit_staged && entry.staged {
@@ -122,7 +122,7 @@ fn parse_local_deployments(status: &StatusJSON, omit_staged: bool) -> Fallible<B
 pub fn local_deployments(
     client: &mut RpmOstreeClient,
     omit_staged: bool,
-) -> Fallible<BTreeSet<Release>> {
+) -> Result<BTreeSet<Release>> {
     let status = status_json(client)?;
     let local_depls = parse_local_deployments(&status, omit_staged)?;
 
@@ -130,13 +130,13 @@ pub fn local_deployments(
 }
 
 /// Return JSON object for booted deployment.
-fn booted_json(status: &StatusJSON) -> Fallible<DeploymentJSON> {
+fn booted_json(status: &StatusJSON) -> Result<DeploymentJSON> {
     let booted = status
         .clone()
         .deployments
         .into_iter()
         .find(|d| d.booted)
-        .ok_or_else(|| format_err!("no booted deployment found"))?;
+        .ok_or_else(|| anyhow!("no booted deployment found"))?;
 
     ensure!(!booted.base_revision().is_empty(), "empty base revision");
     ensure!(!booted.version.is_empty(), "empty version");
@@ -145,10 +145,10 @@ fn booted_json(status: &StatusJSON) -> Fallible<DeploymentJSON> {
 }
 
 /// Ensure our status cache is up to date; if empty or out of date, run `rpm-ostree status` to populate it.
-fn status_json(client: &mut RpmOstreeClient) -> Fallible<Rc<StatusJSON>> {
+fn status_json(client: &mut RpmOstreeClient) -> Result<Rc<StatusJSON>> {
     STATUS_CACHE_ATTEMPTS.inc();
     let ostree_depls_data = fs::metadata(OSTREE_DEPLS_PATH)
-        .with_context(|e| format_err!("failed to query directory {}: {}", OSTREE_DEPLS_PATH, e))?;
+        .with_context(|| format!("failed to query directory {}", OSTREE_DEPLS_PATH))?;
     let ostree_depls_data_mtime = FileTime::from_last_modification_time(&ostree_depls_data);
 
     if let Some(cache) = &client.status_cache {
@@ -170,7 +170,7 @@ fn status_json(client: &mut RpmOstreeClient) -> Fallible<Rc<StatusJSON>> {
 }
 
 /// CLI executor for `rpm-ostree status --json`.
-pub fn invoke_cli_status(booted_only: bool) -> Fallible<StatusJSON> {
+pub fn invoke_cli_status(booted_only: bool) -> Result<StatusJSON> {
     RPM_OSTREE_STATUS_ATTEMPTS.inc();
 
     let mut cmd = std::process::Command::new("rpm-ostree");
@@ -184,11 +184,11 @@ pub fn invoke_cli_status(booted_only: bool) -> Fallible<StatusJSON> {
     let cmdrun = cmd
         .arg("--json")
         .output()
-        .with_context(|_| "failed to run 'rpm-ostree' binary")?;
+        .context("failed to run 'rpm-ostree' binary")?;
 
     if !cmdrun.status.success() {
         RPM_OSTREE_STATUS_FAILURES.inc();
-        bail!(
+        anyhow::bail!(
             "rpm-ostree status failed:\n{}",
             String::from_utf8_lossy(&cmdrun.stderr)
         );
@@ -201,7 +201,7 @@ pub fn invoke_cli_status(booted_only: bool) -> Fallible<StatusJSON> {
 mod tests {
     use super::*;
 
-    fn mock_status(path: &str) -> Fallible<StatusJSON> {
+    fn mock_status(path: &str) -> Result<StatusJSON> {
         let fp = std::fs::File::open(path).unwrap();
         let bufrd = std::io::BufReader::new(fp);
         let status: StatusJSON = serde_json::from_reader(bufrd)?;

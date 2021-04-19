@@ -3,7 +3,7 @@
 use super::cli_status::StatusJSON;
 use super::Release;
 use actix::prelude::*;
-use failure::Fallible;
+use anyhow::Result;
 use filetime::FileTime;
 use log::trace;
 use std::collections::BTreeSet;
@@ -45,11 +45,11 @@ pub struct StageDeployment {
 }
 
 impl Message for StageDeployment {
-    type Result = Fallible<Release>;
+    type Result = Result<Release>;
 }
 
 impl Handler<StageDeployment> for RpmOstreeClient {
-    type Result = Fallible<Release>;
+    type Result = Result<Release>;
 
     fn handle(&mut self, msg: StageDeployment, _ctx: &mut Self::Context) -> Self::Result {
         trace!("request to stage release: {:?}", msg.release);
@@ -65,11 +65,11 @@ pub struct FinalizeDeployment {
 }
 
 impl Message for FinalizeDeployment {
-    type Result = Fallible<Release>;
+    type Result = Result<Release>;
 }
 
 impl Handler<FinalizeDeployment> for RpmOstreeClient {
-    type Result = Fallible<Release>;
+    type Result = Result<Release>;
 
     fn handle(&mut self, msg: FinalizeDeployment, _ctx: &mut Self::Context) -> Self::Result {
         trace!("request to finalize release: {:?}", msg.release);
@@ -85,11 +85,11 @@ pub struct QueryLocalDeployments {
 }
 
 impl Message for QueryLocalDeployments {
-    type Result = Fallible<BTreeSet<Release>>;
+    type Result = Result<BTreeSet<Release>>;
 }
 
 impl Handler<QueryLocalDeployments> for RpmOstreeClient {
-    type Result = Fallible<BTreeSet<Release>>;
+    type Result = Result<BTreeSet<Release>>;
 
     fn handle(
         &mut self,
@@ -106,11 +106,11 @@ impl Handler<QueryLocalDeployments> for RpmOstreeClient {
 pub struct RegisterAsDriver {}
 
 impl Message for RegisterAsDriver {
-    type Result = Fallible<()>;
+    type Result = Result<()>;
 }
 
 impl Handler<RegisterAsDriver> for RpmOstreeClient {
-    type Result = Fallible<()>;
+    type Result = Result<()>;
 
     fn handle(&mut self, _msg: RegisterAsDriver, _ctx: &mut Self::Context) -> Self::Result {
         trace!("request to register as rpm-ostree update driver");

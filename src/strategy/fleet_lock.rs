@@ -3,7 +3,7 @@
 use crate::config::inputs;
 use crate::fleet_lock::{Client, ClientBuilder};
 use crate::identity::Identity;
-use failure::{format_err, Error, Fallible};
+use anyhow::{anyhow, Error, Result};
 use futures::prelude::*;
 use log::trace;
 use prometheus::IntCounterVec;
@@ -35,7 +35,7 @@ impl StrategyFleetLock {
     pub const LABEL: &'static str = "fleet_lock";
 
     /// Build a new FleetLock strategy.
-    pub fn new(cfg: inputs::UpdateInput, identity: &Identity) -> Fallible<Self> {
+    pub fn new(cfg: inputs::UpdateInput, identity: &Identity) -> Result<Self> {
         // Substitute templated key with agent runtime values.
         let base_url = if envsubst::is_templated(&cfg.fleet_lock.base_url) {
             let context = identity.url_variables();
@@ -46,7 +46,7 @@ impl StrategyFleetLock {
         };
 
         if base_url.is_empty() {
-            failure::bail!("empty fleet_lock base URL");
+            anyhow::bail!("empty fleet_lock base URL");
         }
         log::info!("remote fleet_lock reboot manager: {}", &base_url);
 
@@ -66,7 +66,7 @@ impl StrategyFleetLock {
             FLEET_LOCK_ERRORS
                 .with_label_values(&[api, &e.error_kind()])
                 .inc();
-            format_err!("lock-manager {} failure: {}", api, e)
+            anyhow!("lock-manager {} failure: {}", api, e)
         });
         Box::pin(res)
     }
@@ -81,7 +81,7 @@ impl StrategyFleetLock {
             FLEET_LOCK_ERRORS
                 .with_label_values(&[api, &e.error_kind()])
                 .inc();
-            format_err!("lock-manager {} failure: {}", api, e)
+            anyhow!("lock-manager {} failure: {}", api, e)
         });
         Box::pin(res)
     }

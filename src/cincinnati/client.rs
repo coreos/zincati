@@ -6,12 +6,13 @@
 
 // TODO(lucab): eventually move to its own "cincinnati client library" crate
 
-use failure::{Fail, Fallible, ResultExt};
+use anyhow::{Context, Result};
 use futures::prelude::*;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
+use thiserror::Error;
 
 /// Default timeout for HTTP requests completion (30 minutes).
 const DEFAULT_HTTP_COMPLETION_TIMEOUT: Duration = Duration::from_secs(30 * 60);
@@ -44,7 +45,7 @@ pub struct GraphJSONError {
 }
 
 /// Error related to the Cincinnati service.
-#[derive(Clone, Debug, Fail, PartialEq, Eq)]
+#[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum CincinnatiError {
     /// Graph endpoint error.
     Graph(reqwest::StatusCode, GraphJSONError),
@@ -140,7 +141,7 @@ impl Client {
         &self,
         method: reqwest::Method,
         url_suffix: S,
-    ) -> Fallible<reqwest::RequestBuilder> {
+    ) -> Result<reqwest::RequestBuilder> {
         let url = self.api_base.clone().join(url_suffix.as_ref())?;
         let builder = self
             .hclient
@@ -202,7 +203,7 @@ impl ClientBuilder {
     }
 
     /// Build a client with specified parameters.
-    pub fn build(self) -> Fallible<Client> {
+    pub fn build(self) -> Result<Client> {
         let hclient = match self.hclient {
             Some(client) => client,
             None => reqwest::ClientBuilder::new()

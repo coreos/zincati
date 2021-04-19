@@ -8,8 +8,9 @@
 
 pub(crate) mod utils;
 
+use anyhow::{ensure, Result};
 use chrono::{DateTime, Utc};
-use failure::Fallible;
+use fn_error_context::context;
 use intervaltree::{Element, IntervalTree};
 use serde::{Serialize, Serializer};
 use std::cmp::Ordering;
@@ -91,7 +92,7 @@ impl WeeklyCalendar {
     }
 
     /// Format remaining duration till the next window in human terms.
-    pub fn human_remaining_duration(remaining: &chrono::Duration) -> Fallible<String> {
+    pub fn human_remaining_duration(remaining: &chrono::Duration) -> Result<String> {
         if remaining.is_zero() {
             return Ok("now".to_string());
         }
@@ -215,14 +216,15 @@ impl WeeklyWindow {
     /// Parse a timespan into weekly windows.
     ///
     /// On success, this returns a non-empty vector with at most two weekly windows.
+    #[context("failed to parse timespan into weekly windows")]
     pub fn parse_timespan(
         start_day: chrono::Weekday,
         start_hour: u8,
         start_minute: u8,
         length: Duration,
-    ) -> Fallible<Vec<Self>> {
+    ) -> Result<Vec<Self>> {
         // Sanity check inputs (start and length).
-        failure::ensure!(
+        ensure!(
             start_hour <= 24 && start_minute <= 59,
             "invalid start time: {}:{}",
             start_hour,

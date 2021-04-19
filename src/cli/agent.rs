@@ -3,7 +3,7 @@
 use super::ensure_user;
 use crate::{config, dbus, metrics, rpm_ostree, update_agent};
 use actix::Actor;
-use failure::{Fallible, ResultExt};
+use anyhow::{Context, Result};
 use log::{info, trace};
 use prometheus::IntGauge;
 use structopt::clap::{crate_name, crate_version};
@@ -16,7 +16,7 @@ lazy_static::lazy_static! {
 }
 
 /// Agent subcommand entry-point.
-pub(crate) fn run_agent() -> Fallible<()> {
+pub(crate) fn run_agent() -> Result<()> {
     ensure_user("zincati", "update agent not running as `zincati` user")?;
     info!(
         "starting update agent ({} {})",
@@ -24,8 +24,7 @@ pub(crate) fn run_agent() -> Fallible<()> {
         crate_version!()
     );
 
-    let settings =
-        config::Settings::assemble().context("failed to assemble configuration settings")?;
+    let settings = config::Settings::assemble()?;
     settings.refresh_metrics();
     info!(
         "agent running on node '{}', in update group '{}'",

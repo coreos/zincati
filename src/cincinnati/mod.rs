@@ -10,7 +10,8 @@ mod mock_tests;
 use crate::config::inputs;
 use crate::identity::Identity;
 use crate::rpm_ostree::Release;
-use failure::{bail, Fallible, ResultExt};
+use anyhow::{Context, Result};
+use fn_error_context::context;
 use futures::prelude::*;
 use futures::TryFutureExt;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
@@ -105,9 +106,10 @@ pub struct Cincinnati {
 
 impl Cincinnati {
     /// Process Cincinnati configuration.
-    pub(crate) fn with_config(cfg: inputs::CincinnatiInput, id: &Identity) -> Fallible<Self> {
+    #[context("failed to validate cincinnati configuration")]
+    pub(crate) fn with_config(cfg: inputs::CincinnatiInput, id: &Identity) -> Result<Self> {
         if cfg.base_url.is_empty() {
-            bail!("empty Cincinnati base URL");
+            anyhow::bail!("empty Cincinnati base URL");
         }
 
         // Substitute templated key with agent runtime values.
@@ -171,7 +173,7 @@ impl Cincinnati {
 
 /// Evaluate and record whether booted OS is a dead-end release, and
 /// log that information in a MOTD file.
-fn refresh_deadend_status(node: &Node) -> failure::Fallible<()> {
+fn refresh_deadend_status(node: &Node) -> Result<()> {
     match evaluate_deadend(node) {
         Some(reason) => {
             BOOTED_DEADEND.set(1);
@@ -184,7 +186,7 @@ fn refresh_deadend_status(node: &Node) -> failure::Fallible<()> {
                     .arg("--reason")
                     .arg(reason)
                     .output()
-                    .with_context(|_| "failed to write dead-end release information")?;
+                    .context("failed to write dead-end release information")?;
                 DEADEND_STATE.set_deadend();
                 log::debug!("MOTD updated with dead-end state");
             }
@@ -198,7 +200,7 @@ fn refresh_deadend_status(node: &Node) -> failure::Fallible<()> {
                     .arg("deadend-motd")
                     .arg("unset")
                     .output()
-                    .with_context(|_| "failed to remove dead-end release MOTD file")?;
+                    .context("failed to remove dead-end release MOTD file")?;
                 DEADEND_STATE.set_no_deadend();
                 log::debug!("MOTD updated with no dead-end state");
             }

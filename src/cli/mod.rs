@@ -4,6 +4,7 @@ mod agent;
 mod deadend;
 mod ex;
 
+use anyhow::Result;
 use log::LevelFilter;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
@@ -33,7 +34,7 @@ impl CliOptions {
     }
 
     /// Dispatch CLI subcommand.
-    pub(crate) fn run(self) -> failure::Fallible<()> {
+    pub(crate) fn run(self) -> Result<()> {
         match self.cmd {
             CliCommand::Agent => agent::run_agent(),
             CliCommand::DeadendMotd(cmd) => cmd.run(),
@@ -57,12 +58,12 @@ pub(crate) enum CliCommand {
 }
 
 /// Return Error with msg if not run by user.
-fn ensure_user(user: &str, msg: &str) -> failure::Fallible<()> {
+fn ensure_user(user: &str, msg: &str) -> Result<()> {
     if let Some(uname) = get_current_username() {
         if uname == user {
             return Ok(());
         }
     }
 
-    failure::bail!("{}", msg)
+    anyhow::bail!("{}", msg)
 }

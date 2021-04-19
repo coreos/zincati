@@ -3,7 +3,7 @@
 use super::{UpdateAgent, UpdateAgentState};
 use crate::rpm_ostree::{self, Release};
 use actix::prelude::*;
-use failure::Error;
+use anyhow::Error;
 use futures::prelude::*;
 use libsystemd::daemon::*;
 use log::trace;

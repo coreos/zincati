@@ -1,8 +1,9 @@
 //! Utilities for weekly-time related logic.
 
 use crate::weekly::{MinuteInWeek, MAX_WEEKLY_MINS, MAX_WEEKLY_SECS};
+use anyhow::{anyhow, bail, ensure, Result};
 use chrono::{DateTime, Utc, Weekday};
-use failure::{bail, ensure, format_err, Fallible};
+use fn_error_context::context;
 use std::time::Duration;
 
 /// Convert datetime to minutes since beginning of week.
@@ -34,19 +35,19 @@ pub(crate) fn time_as_weekly_minute(day: chrono::Weekday, hour: u8, minute: u8) 
 }
 
 /// Check duration for a sane lower and upper bound (whole week).
-pub(crate) fn check_duration(length: &Duration) -> Fallible<()> {
+pub(crate) fn check_duration(length: &Duration) -> Result<()> {
     if length.as_secs() > MAX_WEEKLY_SECS {
-        failure::bail!("length longer than a week")
+        bail!("length longer than a week")
     };
     if length.as_secs() == 0 {
-        failure::bail!("zero-length duration")
+        bail!("zero-length duration")
     };
 
     Ok(())
 }
 
 /// Parse a week day string (English names).
-pub(crate) fn weekday_from_string(input: &str) -> Fallible<Weekday> {
+pub(crate) fn weekday_from_string(input: &str) -> Result<Weekday> {
     let day = match input.to_lowercase().as_str() {
         "mon" | "monday" => Weekday::Mon,
         "tue" | "tuesady" => Weekday::Tue,
@@ -74,7 +75,8 @@ pub(crate) fn weekday_from_string(input: &str) -> Fallible<Weekday> {
 /// assert_eq!(morning.0, 14);
 /// assert_eq!(morning.0, 5);
 /// ```
-pub(crate) fn time_from_string(input: &str) -> Fallible<(u8, u8)> {
+#[context("failed to parse time string")]
+pub(crate) fn time_from_string(input: &str) -> Result<(u8, u8)> {
     let fields: Vec<_> = input.split(':').collect();
     if fields.len() != 2 {
         bail!("unrecognized time value: {}", input);
@@ -82,11 +84,11 @@ pub(crate) fn time_from_string(input: &str) -> Fallible<(u8, u8)> {
 
     let hour = fields[0]
         .parse()
-        .map_err(|_| format_err!("unrecognized time (hour) value: {}", input))?;
+        .map_err(|_| anyhow!("unrecognized time (hour) value: {}", input))?;
 
     let minute = fields[1]
         .parse()
-        .map_err(|_| format_err!("unrecognized time (minute) value: {}", input))?;
+        .map_err(|_| anyhow!("unrecognized time (minute) value: {}", input))?;
 
     ensure!(hour <= 23 && minute <= 59, "invalid time: {}", input);
     Ok((hour, minute))
@@ -94,7 +96,7 @@ pub(crate) fn time_from_string(input: &str) -> Fallible<(u8, u8)> {
 
 /// Validate a timespan (in minutes) and return its duration.
 #[cfg(test)]
-pub(crate) fn check_minutes(minutes: u32) -> Fallible<Duration> {
+pub(crate) fn check_minutes(minutes: u32) -> Result<Duration> {
     let secs = u64::from(minutes).saturating_mul(60);
     let length = Duration::from_secs(secs);
     check_duration(&length)?;

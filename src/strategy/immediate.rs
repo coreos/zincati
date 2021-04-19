@@ -1,6 +1,6 @@
 //! Strategy for immediate updates.
 
-use failure::Error;
+use anyhow::Error;
 use futures::future;
 use futures::prelude::*;
 use log::trace;
