@@ -37,7 +37,7 @@ pub struct Graph {
 
 /// Cincinnati JSON protocol: service error.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct GraphJSONError {
+pub struct GraphJsonError {
     /// Machine-friendly brief error kind.
     pub(crate) kind: String,
     /// Human-friendly detailed error explanation.
@@ -48,13 +48,13 @@ pub struct GraphJSONError {
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum CincinnatiError {
     /// Graph endpoint error.
-    Graph(reqwest::StatusCode, GraphJSONError),
+    Graph(reqwest::StatusCode, GraphJsonError),
     /// Generic HTTP error.
-    HTTP(reqwest::StatusCode),
+    Http(reqwest::StatusCode),
     /// Client builder failed.
     FailedClientBuilder(String),
     /// Client failed JSON decoding.
-    FailedJSONDecoding(String),
+    FailedJsonDecoding(String),
     /// Failed to lookup node in graph.
     FailedNodeLookup(String),
     /// Failed parsing node from graph.
@@ -68,9 +68,9 @@ impl CincinnatiError {
     pub fn error_kind(&self) -> String {
         match *self {
             CincinnatiError::Graph(_, ref err) => err.kind.clone(),
-            CincinnatiError::HTTP(status) => format!("generic_http_{}", status.as_u16()),
+            CincinnatiError::Http(status) => format!("generic_http_{}", status.as_u16()),
             CincinnatiError::FailedClientBuilder(_) => "client_failed_build".to_string(),
-            CincinnatiError::FailedJSONDecoding(_) => "client_failed_json_decoding".to_string(),
+            CincinnatiError::FailedJsonDecoding(_) => "client_failed_json_decoding".to_string(),
             CincinnatiError::FailedNodeLookup(_) => "client_failed_node_lookup".to_string(),
             CincinnatiError::FailedNodeParsing(_) => "client_failed_node_parsing".to_string(),
             CincinnatiError::FailedRequest(_) => "client_failed_request".to_string(),
@@ -81,9 +81,9 @@ impl CincinnatiError {
     pub fn error_value(&self) -> String {
         match *self {
             CincinnatiError::Graph(_, ref err) => err.value.clone(),
-            CincinnatiError::HTTP(_) => "(unknown/generic server error)".to_string(),
+            CincinnatiError::Http(_) => "(unknown/generic server error)".to_string(),
             CincinnatiError::FailedClientBuilder(ref err)
-            | CincinnatiError::FailedJSONDecoding(ref err)
+            | CincinnatiError::FailedJsonDecoding(ref err)
             | CincinnatiError::FailedNodeLookup(ref err)
             | CincinnatiError::FailedNodeParsing(ref err)
             | CincinnatiError::FailedRequest(ref err) => err.clone(),
@@ -93,7 +93,7 @@ impl CincinnatiError {
     /// Return the server-side error status code, if any.
     pub fn status_code(&self) -> Option<u16> {
         match *self {
-            CincinnatiError::Graph(s, _) | CincinnatiError::HTTP(s) => Some(s.as_u16()),
+            CincinnatiError::Graph(s, _) | CincinnatiError::Http(s) => Some(s.as_u16()),
             _ => None,
         }
     }
@@ -158,15 +158,15 @@ impl Client {
         // On success, try to decode graph.
         if status.is_success() {
             let graph = response.json::<Graph>().await.map_err(|e| {
-                CincinnatiError::FailedJSONDecoding(format!("failed to decode graph: {}", e))
+                CincinnatiError::FailedJsonDecoding(format!("failed to decode graph: {}", e))
             })?;
             return Ok(graph);
         }
 
         // On error, decode failure details (or synthesize a generic error).
-        match response.json::<GraphJSONError>().await {
+        match response.json::<GraphJsonError>().await {
             Ok(rej) => Err(CincinnatiError::Graph(status, rej)),
-            _ => Err(CincinnatiError::HTTP(status)),
+            _ => Err(CincinnatiError::Http(status)),
         }
     }
 }
@@ -247,7 +247,7 @@ mod tests {
         let rejection = runtime.block_on(fut_rejection).unwrap_err();
         let expected_rejection = CincinnatiError::Graph(
             StatusCode::from_u16(466).unwrap(),
-            GraphJSONError {
+            GraphJsonError {
                 kind: "failure_foo".to_string(),
                 value: "failed to perform foo".to_string(),
             },
@@ -265,7 +265,7 @@ mod tests {
         let response = Response::builder().status(433).body("").unwrap();
         let fut_rejection = Client::map_response(response.into());
         let rejection = runtime.block_on(fut_rejection).unwrap_err();
-        let expected_rejection = CincinnatiError::HTTP(StatusCode::from_u16(433).unwrap());
+        let expected_rejection = CincinnatiError::Http(StatusCode::from_u16(433).unwrap());
         assert_eq!(&rejection, &expected_rejection);
 
         let msg = rejection.to_string();
@@ -279,7 +279,7 @@ mod tests {
         let response = Response::builder().status(200).body("{}").unwrap();
         let fut_rejection = Client::map_response(response.into());
         let rejection = runtime.block_on(fut_rejection).unwrap_err();
-        let expected_rejection = CincinnatiError::FailedJSONDecoding(
+        let expected_rejection = CincinnatiError::FailedJsonDecoding(
             "failed to decode graph: error decoding response body: missing field `nodes` at line 1 column 2".to_string(),
         );
         assert_eq!(&rejection, &expected_rejection);

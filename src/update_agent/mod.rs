@@ -60,7 +60,7 @@ lazy_static::lazy_static! {
 
 /// JSON output from `loginctl list-sessions --output=json`.
 #[derive(Debug, Deserialize)]
-pub struct SessionJSON {
+pub struct SessionJson {
     user: String,
     #[serde(deserialize_with = "empty_string_as_none")]
     tty: Option<String>,
@@ -409,7 +409,7 @@ fn broadcast(msg: &str, sessions: &[InteractiveSession]) {
 }
 
 /// Get sessions with logged in interactive users using `loginctl`.
-/// Returns a Result with vector of `SessionsJSON` if no error.
+/// Returns a Result with vector of `SessionsJson` if no error.
 fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
     let cmdrun = std::process::Command::new("loginctl")
         .arg("list-sessions")
@@ -424,7 +424,7 @@ fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
         );
     }
 
-    let sessions: Vec<SessionJSON> = serde_json::from_slice(&cmdrun.stdout)
+    let sessions: Vec<SessionJson> = serde_json::from_slice(&cmdrun.stdout)
         .context("failed to deserialize output of `loginctl`")?;
 
     // Filter out sessions that aren't interactive (don't have a tty), and map

@@ -39,18 +39,18 @@ lazy_static::lazy_static! {
 
 /// JSON output from `rpm-ostree status --json`
 #[derive(Clone, Debug, Deserialize)]
-pub struct StatusJSON {
-    deployments: Vec<DeploymentJSON>,
+pub struct StatusJson {
+    deployments: Vec<DeploymentJson>,
 }
 
 /// Partial deployment object (only fields relevant to zincati).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct DeploymentJSON {
+pub struct DeploymentJson {
     booted: bool,
     base_checksum: Option<String>,
     #[serde(rename = "base-commit-meta")]
-    base_metadata: BaseCommitMetaJSON,
+    base_metadata: BaseCommitMetaJson,
     checksum: String,
     // NOTE(lucab): missing field means "not staged".
     #[serde(default)]
@@ -60,14 +60,14 @@ pub struct DeploymentJSON {
 
 /// Metadata from base commit (only fields relevant to zincati).
 #[derive(Clone, Debug, Deserialize)]
-struct BaseCommitMetaJSON {
+struct BaseCommitMetaJson {
     #[serde(rename = "coreos-assembler.basearch")]
     basearch: String,
     #[serde(rename = "fedora-coreos.stream")]
     stream: String,
 }
 
-impl DeploymentJSON {
+impl DeploymentJson {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
         Release {
@@ -86,26 +86,26 @@ impl DeploymentJSON {
 }
 
 /// Parse base architecture for booted deployment from status object.
-pub fn parse_basearch(status: &StatusJSON) -> Result<String> {
+pub fn parse_basearch(status: &StatusJson) -> Result<String> {
     let json = booted_json(status)?;
     Ok(json.base_metadata.basearch)
 }
 
 /// Parse the booted deployment from status object.
-pub fn parse_booted(status: &StatusJSON) -> Result<Release> {
+pub fn parse_booted(status: &StatusJson) -> Result<Release> {
     let json = booted_json(status)?;
     Ok(json.into_release())
 }
 
 /// Parse updates stream for booted deployment from status object.
-pub fn parse_updates_stream(status: &StatusJSON) -> Result<String> {
+pub fn parse_updates_stream(status: &StatusJson) -> Result<String> {
     let json = booted_json(status)?;
     ensure!(!json.base_metadata.stream.is_empty(), "empty stream value");
     Ok(json.base_metadata.stream)
 }
 
 /// Parse local deployments from a status object.
-fn parse_local_deployments(status: &StatusJSON, omit_staged: bool) -> Result<BTreeSet<Release>> {
+fn parse_local_deployments(status: &StatusJson, omit_staged: bool) -> Result<BTreeSet<Release>> {
     let mut deployments = BTreeSet::<Release>::new();
     for entry in &status.deployments {
         if omit_staged && entry.staged {
@@ -130,7 +130,7 @@ pub fn local_deployments(
 }
 
 /// Return JSON object for booted deployment.
-fn booted_json(status: &StatusJSON) -> Result<DeploymentJSON> {
+fn booted_json(status: &StatusJson) -> Result<DeploymentJson> {
     let booted = status
         .clone()
         .deployments
@@ -145,7 +145,7 @@ fn booted_json(status: &StatusJSON) -> Result<DeploymentJSON> {
 }
 
 /// Ensure our status cache is up to date; if empty or out of date, run `rpm-ostree status` to populate it.
-fn status_json(client: &mut RpmOstreeClient) -> Result<Rc<StatusJSON>> {
+fn status_json(client: &mut RpmOstreeClient) -> Result<Rc<StatusJson>> {
     STATUS_CACHE_ATTEMPTS.inc();
     let ostree_depls_data = fs::metadata(OSTREE_DEPLS_PATH)
         .with_context(|| format!("failed to query directory {}", OSTREE_DEPLS_PATH))?;
@@ -170,7 +170,7 @@ fn status_json(client: &mut RpmOstreeClient) -> Result<Rc<StatusJSON>> {
 }
 
 /// CLI executor for `rpm-ostree status --json`.
-pub fn invoke_cli_status(booted_only: bool) -> Result<StatusJSON> {
+pub fn invoke_cli_status(booted_only: bool) -> Result<StatusJson> {
     RPM_OSTREE_STATUS_ATTEMPTS.inc();
 
     let mut cmd = std::process::Command::new("rpm-ostree");
@@ -193,7 +193,7 @@ pub fn invoke_cli_status(booted_only: bool) -> Result<StatusJSON> {
             String::from_utf8_lossy(&cmdrun.stderr)
         );
     }
-    let status: StatusJSON = serde_json::from_slice(&cmdrun.stdout)?;
+    let status: StatusJson = serde_json::from_slice(&cmdrun.stdout)?;
     Ok(status)
 }
 
@@ -201,10 +201,10 @@ pub fn invoke_cli_status(booted_only: bool) -> Result<StatusJSON> {
 mod tests {
     use super::*;
 
-    fn mock_status(path: &str) -> Result<StatusJSON> {
+    fn mock_status(path: &str) -> Result<StatusJson> {
         let fp = std::fs::File::open(path).unwrap();
         let bufrd = std::io::BufReader::new(fp);
-        let status: StatusJSON = serde_json::from_reader(bufrd)?;
+        let status: StatusJson = serde_json::from_reader(bufrd)?;
         Ok(status)
     }
 
