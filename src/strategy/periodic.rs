@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn test_empty_can_finalize() {
         let default = StrategyPeriodic::default();
-        let mut runtime = rt::Runtime::new().unwrap();
+        let runtime = rt::Runtime::new().unwrap();
         let steady = runtime.block_on(default.can_finalize()).unwrap();
         assert_eq!(steady, false);
     }
@@ -106,7 +106,7 @@ mod tests {
     #[test]
     fn test_report_steady() {
         let default = StrategyPeriodic::default();
-        let mut runtime = rt::Runtime::new().unwrap();
+        let runtime = rt::Runtime::new().unwrap();
         let steady = runtime.block_on(default.report_steady()).unwrap();
         assert_eq!(steady, true);
     }

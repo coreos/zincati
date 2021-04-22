@@ -258,7 +258,7 @@ mod tests {
   "value": "failed to perform foo"
 }
 "#;
-        let mut runtime = rt::Runtime::new().unwrap();
+        let runtime = rt::Runtime::new().unwrap();
         let response = Response::builder().status(466).body(err_body).unwrap();
         let fut_rejection = Client::map_response(response.into());
         let rejection = runtime.block_on(fut_rejection).unwrap_err();
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_http_error_display() {
-        let mut runtime = rt::Runtime::new().unwrap();
+        let runtime = rt::Runtime::new().unwrap();
         let response = Response::builder().status(433).body("").unwrap();
         let fut_rejection = Client::map_response(response.into());
         let rejection = runtime.block_on(fut_rejection).unwrap_err();

@@ -39,7 +39,7 @@ mod tests {
     #[test]
     fn report_steady() {
         let default = StrategyImmediate::default();
-        let mut runtime = rt::Runtime::new().unwrap();
+        let runtime = rt::Runtime::new().unwrap();
         let steady = runtime.block_on(default.report_steady()).unwrap();
         assert_eq!(steady, true);
     }
@@ -47,7 +47,7 @@ mod tests {
     #[test]
     fn can_finalize() {
         let default = StrategyImmediate::default();
-        let mut runtime = rt::Runtime::new().unwrap();
+        let runtime = rt::Runtime::new().unwrap();
         let can_finalize = runtime.block_on(default.can_finalize()).unwrap();
         assert_eq!(can_finalize, true);
     }
