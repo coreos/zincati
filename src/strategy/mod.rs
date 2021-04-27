@@ -18,6 +18,9 @@ pub(crate) use immediate::StrategyImmediate;
 mod periodic;
 pub(crate) use periodic::StrategyPeriodic;
 
+mod marker_file;
+pub(crate) use marker_file::StrategyMarkerFile;
+
 /// Label for allow responses from querying strategy's `can_finalize` function.
 pub static CAN_FINALIZE_ALLOW_LABEL: &str = "allow";
 
@@ -51,6 +54,7 @@ pub(crate) enum UpdateStrategy {
     FleetLock(StrategyFleetLock),
     Immediate(StrategyImmediate),
     Periodic(StrategyPeriodic),
+    MarkerFile(StrategyMarkerFile),
 }
 
 impl UpdateStrategy {
@@ -62,6 +66,7 @@ impl UpdateStrategy {
             StrategyFleetLock::LABEL => UpdateStrategy::new_fleet_lock(cfg, identity)?,
             StrategyImmediate::LABEL => UpdateStrategy::new_immediate(),
             StrategyPeriodic::LABEL => UpdateStrategy::new_periodic(cfg)?,
+            StrategyMarkerFile::LABEL => UpdateStrategy::new_marker_file(),
             "" => UpdateStrategy::default(),
             x => anyhow::bail!("unsupported strategy '{}'", x),
         };
@@ -97,6 +102,7 @@ impl UpdateStrategy {
             UpdateStrategy::FleetLock(_) => StrategyFleetLock::LABEL,
             UpdateStrategy::Immediate(_) => StrategyImmediate::LABEL,
             UpdateStrategy::Periodic(_) => StrategyPeriodic::LABEL,
+            UpdateStrategy::MarkerFile(_) => StrategyMarkerFile::LABEL,
         }
     }
 
@@ -108,6 +114,7 @@ impl UpdateStrategy {
             UpdateStrategy::Periodic(p) => {
                 format!("{}, {}", self.configuration_label(), p.calendar_summary(),)
             }
+            UpdateStrategy::MarkerFile(_) => self.configuration_label().to_string(),
         }
     }
 
@@ -117,6 +124,7 @@ impl UpdateStrategy {
             UpdateStrategy::FleetLock(s) => s.can_finalize(),
             UpdateStrategy::Immediate(s) => s.can_finalize(),
             UpdateStrategy::Periodic(s) => s.can_finalize(),
+            UpdateStrategy::MarkerFile(s) => s.can_finalize(),
         };
 
         async {
@@ -150,6 +158,7 @@ impl UpdateStrategy {
             UpdateStrategy::FleetLock(s) => s.report_steady(),
             UpdateStrategy::Immediate(s) => s.report_steady(),
             UpdateStrategy::Periodic(s) => s.report_steady(),
+            UpdateStrategy::MarkerFile(s) => s.report_steady(),
         };
 
         async {
@@ -176,6 +185,12 @@ impl UpdateStrategy {
     fn new_periodic(cfg: inputs::UpdateInput) -> Result<Self> {
         let periodic = StrategyPeriodic::new(cfg)?;
         Ok(UpdateStrategy::Periodic(periodic))
+    }
+
+    /// Build a new "filesystem" strategy.
+    fn new_marker_file() -> Self {
+        let marker_file = StrategyMarkerFile::default();
+        UpdateStrategy::MarkerFile(marker_file)
     }
 }
 
