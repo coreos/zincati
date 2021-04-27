@@ -37,23 +37,24 @@ pub(crate) fn run_agent() -> Result<()> {
     PROCESS_START_TIME.set(start_time.timestamp());
 
     trace!("creating actor system");
-    let sys = actix::System::builder()
-        .name(crate_name!())
-        .stop_on_panic(true)
-        .build();
+    let sys = actix::System::new();
 
-    trace!("creating metrics service");
-    let _metrics_addr = metrics::MetricsService::bind_socket()?.start();
+    sys.block_on(async {
+        trace!("creating metrics service");
+        let _metrics_addr = metrics::MetricsService::bind_socket()?.start();
 
-    trace!("creating rpm-ostree client");
-    let rpm_ostree_addr = rpm_ostree::RpmOstreeClient::start(1);
+        trace!("creating rpm-ostree client");
+        let rpm_ostree_addr = rpm_ostree::RpmOstreeClient::start(1);
 
-    trace!("creating update agent");
-    let agent = update_agent::UpdateAgent::with_config(settings, rpm_ostree_addr);
-    let agent_addr = agent.start();
+        trace!("creating update agent");
+        let agent = update_agent::UpdateAgent::with_config(settings, rpm_ostree_addr);
+        let agent_addr = agent.start();
 
-    trace!("creating D-Bus service");
-    let _dbus_service_addr = dbus::DBusService::start(1, agent_addr);
+        trace!("creating D-Bus service");
+        let _dbus_service_addr = dbus::DBusService::start(1, agent_addr);
+
+        Ok::<(), anyhow::Error>(())
+    })?;
 
     trace!("starting actor system");
     sys.run().context("agent failed")?;

@@ -51,12 +51,15 @@ impl Actor for MetricsService {
             .listener
             .try_clone()
             .expect("failed to clone metrics listener");
+        listener
+            .set_nonblocking(true)
+            .expect("failed to move metrics listener into nonblocking mode");
         let async_listener = tokio_net::UnixListener::from_std(listener)
             .expect("failed to create async metrics listener");
 
         // This uses manual stream unfolding in order to keep the async listener
         // alive for the whole duration of the stream.
-        let connections = futures::stream::unfold(async_listener, |mut l| async move {
+        let connections = futures::stream::unfold(async_listener, |l| async move {
             loop {
                 let next = l.accept().await;
                 if let Ok((stream, _addr)) = next {

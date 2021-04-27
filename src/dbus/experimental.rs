@@ -37,6 +37,6 @@ impl Experimental {
                 log::error!("{}", err_msg);
                 fdo::Error::Failed(err_msg)
             })
-            .and_then(|mut runtime| runtime.block_on(refresh_time_fut))
+            .and_then(|runtime| runtime.block_on(refresh_time_fut))
     }
 }

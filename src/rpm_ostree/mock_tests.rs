@@ -41,7 +41,7 @@ fn test_simple_graph() {
         .with_status(200)
         .create();
 
-    let mut runtime = rt::Runtime::new().unwrap();
+    let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = Cincinnati {
         base_url: mockito::server_url(),
@@ -91,7 +91,7 @@ fn test_downgrade() {
         .expect(2)
         .create();
 
-    let mut runtime = rt::Runtime::new().unwrap();
+    let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = Cincinnati {
         base_url: mockito::server_url(),

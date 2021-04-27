@@ -19,7 +19,7 @@ fn test_pre_reboot_lock() {
         .with_status(200)
         .create();
 
-    let mut runtime = rt::Runtime::new().unwrap();
+    let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = ClientBuilder::new(mockito::server_url(), &id)
         .build()
@@ -45,7 +45,7 @@ fn test_pre_reboot_error() {
         .with_body(body)
         .create();
 
-    let mut runtime = rt::Runtime::new().unwrap();
+    let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = ClientBuilder::new(mockito::server_url(), &id)
         .build()
@@ -72,7 +72,7 @@ fn test_steady_state_lock() {
         .with_status(200)
         .create();
 
-    let mut runtime = rt::Runtime::new().unwrap();
+    let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = ClientBuilder::new(mockito::server_url(), &id)
         .build()
@@ -98,7 +98,7 @@ fn test_steady_state_error() {
         .with_body(body)
         .create();
 
-    let mut runtime = rt::Runtime::new().unwrap();
+    let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = ClientBuilder::new(mockito::server_url(), &id)
         .build()
