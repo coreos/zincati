@@ -17,6 +17,9 @@ strategy = "fleet_lock"
 [updates.fleet_lock]
 base_url = "http://fleet-lock.example.com:8080/"
 
+[updates.periodic]
+time_zone = "localtime"
+
 [[updates.periodic.window]]
 days = [ "Sat", "Sun" ]
 start_time = "23:00"

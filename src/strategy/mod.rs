@@ -90,12 +90,9 @@ impl UpdateStrategy {
         match self {
             UpdateStrategy::FleetLock(_) => self.configuration_label().to_string(),
             UpdateStrategy::Immediate(_) => self.configuration_label().to_string(),
-            UpdateStrategy::Periodic(p) => format!(
-                "{}, total schedule length {} minutes (next window {})",
-                self.configuration_label(),
-                p.schedule_length_minutes(),
-                p.human_remaining()
-            ),
+            UpdateStrategy::Periodic(p) => {
+                format!("{}, {}", self.configuration_label(), p.calendar_summary(),)
+            }
         }
     }
 

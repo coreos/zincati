@@ -103,7 +103,10 @@ mod tests {
             fleet_lock: FleetLockInput {
                 base_url: "https://example.com".to_string(),
             },
-            periodic: PeriodicInput { intervals: vec![] },
+            periodic: PeriodicInput {
+                intervals: vec![],
+                time_zone: "UTC".to_string(),
+            },
         };
 
         let res = StrategyFleetLock::new(input, &id);
@@ -120,7 +123,10 @@ mod tests {
             fleet_lock: FleetLockInput {
                 base_url: String::new(),
             },
-            periodic: PeriodicInput { intervals: vec![] },
+            periodic: PeriodicInput {
+                intervals: vec![],
+                time_zone: "localtime".to_string(),
+            },
         };
 
         let res = StrategyFleetLock::new(input, &id);

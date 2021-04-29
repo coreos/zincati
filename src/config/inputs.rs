@@ -185,6 +185,9 @@ pub(crate) struct FleetLockInput {
 pub(crate) struct PeriodicInput {
     /// Set of updates windows.
     pub(crate) intervals: Vec<PeriodicIntervalInput>,
+    /// A time zone in the IANA Time Zone Database or "localtime".
+    /// Defaults to "UTC".
+    pub(crate) time_zone: String,
 }
 
 /// Update window for a "periodic" interval.
@@ -203,7 +206,10 @@ impl UpdateInput {
         let mut fleet_lock = FleetLockInput {
             base_url: String::new(),
         };
-        let mut periodic = PeriodicInput { intervals: vec![] };
+        let mut periodic = PeriodicInput {
+            intervals: vec![],
+            time_zone: "UTC".to_string(),
+        };
 
         for snip in fragments {
             if let Some(a) = snip.allow_downgrade {
@@ -221,6 +227,9 @@ impl UpdateInput {
                 }
             }
             if let Some(w) = snip.periodic {
+                if let Some(tz) = w.time_zone {
+                    periodic.time_zone = tz;
+                }
                 if let Some(win) = w.window {
                     for entry in win {
                         for day in entry.days {

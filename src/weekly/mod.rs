@@ -9,7 +9,7 @@
 pub(crate) mod utils;
 
 use anyhow::{ensure, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use fn_error_context::context;
 use intervaltree::{Element, IntervalTree};
 use serde::{Serialize, Serializer};
@@ -48,9 +48,48 @@ impl WeeklyCalendar {
     }
 
     /// Return whether datetime is contained in this weekly calendar.
-    pub fn contains_datetime(&self, datetime: &DateTime<Utc>) -> bool {
+    pub fn contains_datetime(&self, datetime: &DateTime<impl TimeZone>) -> bool {
         let timepoint = utils::datetime_as_weekly_minute(datetime);
         self.windows.query_point(timepoint).count() > 0
+    }
+
+    /// Return the minutes since the beginning of the week of the next window
+    /// containing the given datetime.
+    ///
+    /// This returns `None` if no windows are reachable.
+    pub fn next_window_minute_in_week(
+        &self,
+        datetime: &DateTime<impl TimeZone>,
+    ) -> Option<MinuteInWeek> {
+        if self.is_empty() {
+            return None;
+        }
+
+        // Already in a window, return now.
+        if self.contains_datetime(&datetime) {
+            return Some(utils::datetime_as_weekly_minute(&datetime));
+        }
+
+        let timepoint = utils::datetime_as_weekly_minute(datetime);
+        // Next window is this week.
+        if let Some(next) = self
+            .windows
+            .iter_sorted()
+            .find(|x| x.range.start >= timepoint)
+        {
+            let next_minute_in_week = next.range.start;
+            return Some(next_minute_in_week);
+        };
+
+        // Next window is not this week.
+        let first_window_next_week = self
+            .windows
+            .iter_sorted()
+            .next()
+            .expect("unexpected empty weekly calendar")
+            .range
+            .start;
+        Some(first_window_next_week)
     }
 
     /// Return the duration remaining till the next window containing the given datetime.
@@ -170,7 +209,7 @@ impl WeeklyCalendar {
 
     /// Return all weekly windows (if any) which contain a given datetime.
     #[cfg(test)]
-    pub fn containing_windows(&self, datetime: &DateTime<Utc>) -> Vec<&WeeklyWindow> {
+    pub fn containing_windows(&self, datetime: &DateTime<impl TimeZone>) -> Vec<&WeeklyWindow> {
         let timepoint = utils::datetime_as_weekly_minute(datetime);
         self.windows
             .query_point(timepoint)
@@ -336,6 +375,7 @@ impl PartialEq for WeeklyWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Local;
 
     #[test]
     fn window_basic() {
@@ -422,8 +462,11 @@ mod tests {
         let calendar = WeeklyCalendar::new(windows);
         assert_eq!(calendar.windows.iter().count(), 1);
 
-        let datetime = DateTime::parse_from_rfc3339("2019-06-25T21:10:00+00:00").unwrap();
-        assert!(calendar.contains_datetime(&datetime.into()));
+        let datetime = Utc.ymd(2019, 6, 25).and_hms(21, 10, 0);
+        assert!(calendar.contains_datetime(&datetime));
+        // Sanity check that `WeeklyCalendar` is `TimeZone`-agnostic.
+        let datetime = Local.ymd(2019, 6, 25).and_hms(21, 10, 0);
+        assert!(calendar.contains_datetime(&datetime));
     }
 
     #[test]
@@ -439,6 +482,8 @@ mod tests {
 
         let datetime = chrono::Utc::now();
         assert!(calendar.contains_datetime(&datetime));
+        let datetime = chrono::Local::now();
+        assert!(calendar.contains_datetime(&datetime));
     }
 
     #[test]
@@ -452,9 +497,9 @@ mod tests {
         assert_eq!(calendar.windows.iter().count(), 1);
 
         let datetime = DateTime::parse_from_rfc3339("2019-06-25T21:10:00+00:00").unwrap();
-        assert!(calendar.contains_datetime(&datetime.into()));
+        assert!(calendar.contains_datetime(&datetime));
 
-        let containing_windows = calendar.containing_windows(&datetime.into());
+        let containing_windows = calendar.containing_windows(&datetime);
         assert_eq!(containing_windows.len(), 1);
         assert_eq!(containing_windows[0], &windows[0]);
     }
@@ -528,6 +573,56 @@ mod tests {
             let remaining = Duration::minutes(mins);
             let output = WeeklyCalendar::human_remaining_duration(&remaining).unwrap();
             assert_eq!(output, human, "{}", mins);
+        }
+    }
+
+    #[test]
+    fn test_next_window_minute_in_week() {
+        use chrono::{NaiveDate, TimeZone};
+        use tzfile::Tz;
+
+        let l1 = utils::check_minutes(45).unwrap();
+        let mut w1 = WeeklyWindow::parse_timespan(chrono::Weekday::Mon, 1, 15, l1).unwrap();
+        let l2 = utils::check_minutes(30).unwrap();
+        let w2 = WeeklyWindow::parse_timespan(chrono::Weekday::Wed, 16, 00, l2).unwrap();
+        let l3 = utils::check_minutes(120).unwrap();
+        let w3 = WeeklyWindow::parse_timespan(chrono::Weekday::Sun, 23, 00, l3).unwrap();
+        w1.extend(w2.clone());
+        w1.extend(w3.clone());
+        let calendar = WeeklyCalendar::new(w1.clone());
+
+        let tz = Tz::named("UTC").unwrap();
+        let dt0 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 12).and_hms(0, 0, 0));
+        let dt1 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 12).and_hms(1, 5, 0));
+        let dt2 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 12).and_hms(2, 16, 0));
+        let dt3 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 16).and_hms(15, 14, 56));
+        let dt4 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 18).and_hms(23, 35, 00));
+
+        let cases = vec![
+            (
+                calendar.next_window_minute_in_week(&dt0),
+                Some(utils::datetime_as_weekly_minute(&dt0)),
+            ),
+            (
+                calendar.next_window_minute_in_week(&dt1),
+                Some(w1[0].range_weekly_minutes().start),
+            ),
+            (
+                calendar.next_window_minute_in_week(&dt2),
+                Some(w2[0].range_weekly_minutes().start),
+            ),
+            (
+                calendar.next_window_minute_in_week(&dt3),
+                Some(w3[0].range_weekly_minutes().start),
+            ),
+            (
+                calendar.next_window_minute_in_week(&dt4),
+                Some(utils::datetime_as_weekly_minute(&dt4)),
+            ),
+        ];
+
+        for (actual, expected) in cases {
+            assert_eq!(actual, expected);
         }
     }
 }

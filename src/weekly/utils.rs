@@ -2,12 +2,34 @@
 
 use crate::weekly::{MinuteInWeek, MAX_WEEKLY_MINS, MAX_WEEKLY_SECS};
 use anyhow::{anyhow, bail, ensure, Result};
-use chrono::{DateTime, Utc, Weekday};
+use chrono::{DateTime, TimeZone, Weekday};
 use fn_error_context::context;
+use std::convert::TryInto;
 use std::time::Duration;
 
+/// Convert `MinuteInWeek` to a week day and time.
+pub(crate) fn weekly_minute_as_weekday_time(weekly_minute: MinuteInWeek) -> (Weekday, u8, u8) {
+    assert!(weekly_minute < MAX_WEEKLY_MINS);
+    let days_from_monday = weekly_minute / (60_u32).saturating_mul(24);
+    let weekday = match days_from_monday {
+        0 => Weekday::Mon,
+        1 => Weekday::Tue,
+        2 => Weekday::Wed,
+        3 => Weekday::Thu,
+        4 => Weekday::Fri,
+        5 => Weekday::Sat,
+        _ => Weekday::Sun,
+    };
+    let hour: u8 = (weekly_minute % (60_u32).saturating_mul(24) / 60)
+        .try_into()
+        .unwrap();
+    let minute: u8 = (weekly_minute % 60).try_into().unwrap();
+
+    (weekday, hour, minute)
+}
+
 /// Convert datetime to minutes since beginning of week.
-pub(crate) fn datetime_as_weekly_minute(datetime: &DateTime<Utc>) -> MinuteInWeek {
+pub(crate) fn datetime_as_weekly_minute(datetime: &DateTime<impl TimeZone>) -> MinuteInWeek {
     use chrono::{Datelike, Timelike};
 
     let weekday = datetime.weekday();
@@ -162,6 +184,19 @@ mod tests {
         time_from_string("-00:00").unwrap_err();
         time_from_string("25:00").unwrap_err();
         time_from_string("23:60").unwrap_err();
+    }
+
+    #[test]
+    fn test_weekly_minute_as_weekday_time() {
+        let t = (24 * 60) * 2 + 60 * 4 + 5;
+        let weekday_time = weekly_minute_as_weekday_time(t);
+        assert_eq!((Weekday::Wed, 4, 5), weekday_time);
+        let t = 7;
+        let weekday_time = weekly_minute_as_weekday_time(t);
+        assert_eq!((Weekday::Mon, 0, 7), weekday_time);
+        let t = (24 * 60) * 6 + 60 * 23 + 59;
+        let weekday_time = weekly_minute_as_weekday_time(t);
+        assert_eq!((Weekday::Sun, 23, 59), weekday_time);
     }
 
     proptest! {
