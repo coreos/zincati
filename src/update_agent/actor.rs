@@ -298,18 +298,22 @@ impl UpdateAgent {
         let state_change = deploy_outcome.map(move |res, actor, _ctx| {
             match res {
                 Ok(_) => {
-                    update_unit_status(&format!("update staged: {}", release.version));
+                    let msg = format!("update staged: {}", release.version);
+                    update_unit_status(&msg);
+                    log::trace!("{}", msg);
                     actor.state.update_staged(release);
                 }
                 Err(_) => {
                     let release_ver = release.version.clone();
                     let fail_count = actor.deploy_attempt_failed(release);
-                    update_unit_status(&format!(
+                    let msg = format!(
                         "trying to stage {} ({} failed deployment attempt{})",
                         release_ver,
                         fail_count,
                         if fail_count > 1 { "s" } else { "" }
-                    ));
+                    );
+                    update_unit_status(&msg);
+                    log::trace!("{}", msg);
                 }
             };
             Ok(())
