@@ -39,7 +39,7 @@ kola run --qemu-image fastbuild-fedora-coreos-zincati-qemu.qcow2 -E /path/to/zin
 ### Adding Tests
 Refer to kola external tests' [README][kola-ext-quick-start] for instructions on adding additional tests
 
-[kolet-httpd]: https://github.com/coreos/coreos-assembler/blob/master/docs/kola/external-tests.md#http-server
+[kolet-httpd]: https://github.com/coreos/coreos-assembler/blob/main/docs/kola/external-tests.md#http-server
 [cosa-build-fast]: https://coreos.github.io/coreos-assembler/kola/external-tests/#fast-build-and-iteration-on-your-projects-tests
 [kola-ext-tests]: https://coreos.github.io/coreos-assembler/kola/external-tests/
 [kola-ext-quick-start]: https://coreos.github.io/coreos-assembler/kola/external-tests/#quick-start
