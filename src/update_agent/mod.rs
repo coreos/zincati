@@ -33,7 +33,7 @@ const MAX_DEPLOY_ATTEMPTS: u8 = 12;
 
 /// Maximum number of postponements to finalizing an update in the
 /// `UpdateStaged` state before forcing an update finalization and reboot.
-const MAX_FINALIZE_POSTPONEMENTS: u8 = 10;
+pub(crate) const MAX_FINALIZE_POSTPONEMENTS: u8 = 10;
 
 lazy_static::lazy_static! {
     pub(crate) static ref ALLOW_DOWNGRADE: IntGauge = register_int_gauge!(opts!(
@@ -326,6 +326,26 @@ impl UpdateAgentState {
 
         self.transition_to(target);
     }
+
+    /// Return the amount of delay between refreshes for this state, and whether
+    /// jitter should be added.
+    fn get_refresh_delay(&self, steady_interval: Duration) -> (Duration, bool) {
+        match self {
+            UpdateAgentState::ReportedSteady | UpdateAgentState::NoNewUpdate => {
+                (steady_interval, true)
+            }
+            UpdateAgentState::UpdateStaged((_, postponements)) => {
+                // If postponements is less than `MAX_FINALIZE_POSTPONEMENTS`, that means the current tick
+                // led to a postponment, and so we should add a delay of `DEFAULT_POSTPONEMENT_TIME_SECS`.
+                if *postponements < MAX_FINALIZE_POSTPONEMENTS {
+                    (Duration::from_secs(DEFAULT_POSTPONEMENT_TIME_SECS), false)
+                } else {
+                    (Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS), true)
+                }
+            }
+            _ => (Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS), true),
+        }
+    }
 }
 
 /// Update agent.
@@ -495,6 +515,9 @@ mod tests {
 
     #[test]
     fn state_machine_happy_path() {
+        let steady_interval = Duration::from_secs(DEFAULT_STEADY_INTERVAL_SECS);
+        let default_interval = Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS);
+
         let mut machine = UpdateAgentState::default();
         assert_eq!(machine, UpdateAgentState::StartState);
 
@@ -510,6 +533,9 @@ mod tests {
         let state_change_time_after = LATEST_STATE_CHANGE.get();
         assert_eq!(machine, UpdateAgentState::NoNewUpdate);
         assert_ne!(state_change_time_before, state_change_time_after);
+        let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
+        assert_eq!(delay, steady_interval);
+        assert!(should_jitter);
 
         let state_change_time_before = LATEST_STATE_CHANGE.get();
         thread::sleep(time::Duration::from_secs(1));
@@ -536,6 +562,9 @@ mod tests {
             machine,
             UpdateAgentState::UpdateAvailable((update.clone(), 1))
         );
+        let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
+        assert_eq!(delay, default_interval);
+        assert!(should_jitter);
 
         machine.update_staged(update.clone());
         assert_eq!(
@@ -583,12 +612,18 @@ mod tests {
 
     #[test]
     fn test_fsm_postpone_finalize() {
+        let steady_interval = Duration::from_secs(DEFAULT_STEADY_INTERVAL_SECS);
+        let default_interval = Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS);
+        let postponement_interval = Duration::from_secs(DEFAULT_POSTPONEMENT_TIME_SECS);
         let update = Release {
             version: "v1".to_string(),
             checksum: "ostree-checksum".to_string(),
             age_index: None,
         };
         let mut machine = UpdateAgentState::UpdateAvailable((update.clone(), 0));
+        let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
+        assert_eq!(delay, default_interval);
+        assert!(should_jitter);
 
         machine.update_staged(update.clone());
         assert_eq!(
@@ -604,6 +639,9 @@ mod tests {
             machine,
             UpdateAgentState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS))
         );
+        let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
+        assert_eq!(delay, default_interval);
+        assert!(should_jitter);
 
         // Set up dummy interactive sessions.
         let fake_tty_path = tempfile::tempdir_in("/tmp").unwrap();
@@ -625,15 +663,19 @@ mod tests {
             assert_eq!(
                 machine,
                 UpdateAgentState::UpdateStaged((update.clone(), postponement_remaining))
-            )
+            );
+            let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
+            assert_eq!(delay, postponement_interval);
+            assert!(!should_jitter);
         }
+
         // Sanity check final broadcasted message.
         let tty_contents = fs::read_to_string(&fake_tty).unwrap();
         assert!(tty_contents.contains("Broadcast message from Zincati"));
         assert!(tty_contents.contains(&update.version));
         assert!(tty_contents.contains(&format_seconds(DEFAULT_POSTPONEMENT_TIME_SECS)));
 
-        // Maximum allowed postponements reached.
+        // Reached 0 remaining postponements.
         let can_finalize = machine.handle_interactive_sessions(&interactive_sessions_present);
         assert!(can_finalize);
         assert_eq!(machine, UpdateAgentState::UpdateStaged((update.clone(), 0)));
