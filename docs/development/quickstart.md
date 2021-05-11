@@ -81,5 +81,5 @@ For more details, see `coreos-assembler` [overrides documentation](https://coreo
 It is possible to use the CoreOS Assembler's [`build-fast`][build-fast-cmd] command for faster iteration.
 See [here][build-fast-instructions] for instructions on fast-building a qemu image for testing.
 
-[build-fast-cmd]: https://github.com/coreos/coreos-assembler/blob/master/src/cmd-build-fast
+[build-fast-cmd]: https://github.com/coreos/coreos-assembler/blob/main/src/cmd-build-fast
 [build-fast-instructions]: https://github.com/coreos/coreos-assembler/blob/2f834d37353ca5f40b460eae2aea73ef995bc710/docs/kola/external-tests.md#fast-build-and-iteration-on-your-projects-tests
