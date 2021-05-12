@@ -85,8 +85,7 @@ impl Handler<RefreshTick> for UpdateAgent {
         };
 
         let update_machine = state_action.then(move |_r, actor, ctx| {
-            if let Some(interval) = actor.refresh_delay(prev_state) {
-                let pause = Self::add_jitter(interval);
+            if let Some(pause) = actor.refresh_delay(prev_state) {
                 log::trace!(
                     "scheduling next agent refresh in {} seconds",
                     pause.as_secs()
@@ -124,33 +123,36 @@ impl UpdateAgent {
     /// state machine is not uniform. Some states benefit from more/less
     /// frequent refreshes, or can be customized by the user.
     fn refresh_delay(&self, prev_state: UpdateAgentState) -> Option<Duration> {
+        if Self::should_tick_immediately(&self.state, &prev_state) {
+            return None;
+        }
+
+        let (mut refresh_delay, should_jitter) = self.state.get_refresh_delay(self.steady_interval);
+        if should_jitter {
+            refresh_delay = Self::add_jitter(refresh_delay);
+        };
+
+        Some(refresh_delay)
+    }
+
+    /// Return whether a transition from `prev_state` to `cur_state` warrants an immediate
+    /// tick.
+    fn should_tick_immediately(
+        prev_state: &UpdateAgentState,
+        cur_state: &UpdateAgentState,
+    ) -> bool {
         use std::mem::discriminant;
 
         // State changes trigger immediate tick/action.
-        if discriminant(&prev_state) != discriminant(&self.state) {
+        if discriminant(prev_state) != discriminant(cur_state) {
             // Unless we're transitioning from ReportedSteady to NoNewUpdate.
-            if !(prev_state == UpdateAgentState::ReportedSteady
-                && self.state == UpdateAgentState::NoNewUpdate)
+            if !(*prev_state == UpdateAgentState::ReportedSteady
+                && *cur_state == UpdateAgentState::NoNewUpdate)
             {
-                return None;
+                return true;
             }
         }
-
-        let delay = match self.state {
-            UpdateAgentState::ReportedSteady | UpdateAgentState::NoNewUpdate => {
-                self.steady_interval
-            }
-            UpdateAgentState::UpdateStaged((_, postponements)) => {
-                // Note: no jitter if postponing reboots.
-                if postponements > 0 {
-                    return Some(Duration::from_secs(super::DEFAULT_POSTPONEMENT_TIME_SECS));
-                } else {
-                    Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS)
-                }
-            }
-            _ => Duration::from_secs(super::DEFAULT_REFRESH_PERIOD_SECS),
-        };
-        Some(Self::add_jitter(delay))
+        false
     }
 
     /// Add a small, random amount (0% to 10%) of jitter to a given period.
@@ -506,5 +508,67 @@ fn notify_ready() {
                 log::error!("notify_ready: status notifications not supported for this service");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_should_tick_immediately() {
+        use crate::update_agent::MAX_FINALIZE_POSTPONEMENTS;
+
+        // Dummy `Release`.
+        let update = Release {
+            version: "v1".to_string(),
+            checksum: "ostree-checksum".to_string(),
+            age_index: None,
+        };
+
+        // Transition between states with different discriminants.
+        let prev_state = UpdateAgentState::Initialized;
+        let cur_state = UpdateAgentState::ReportedSteady;
+        assert!(UpdateAgent::should_tick_immediately(
+            &prev_state,
+            &cur_state
+        ));
+        let prev_state = UpdateAgentState::NoNewUpdate;
+        let cur_state = UpdateAgentState::UpdateAvailable((update.clone(), 0));
+        assert!(UpdateAgent::should_tick_immediately(
+            &prev_state,
+            &cur_state
+        ));
+        // Note we do NOT expect an immediate tick as this is a special case.
+        let prev_state = UpdateAgentState::ReportedSteady;
+        let cur_state = UpdateAgentState::NoNewUpdate;
+        assert!(!UpdateAgent::should_tick_immediately(
+            &prev_state,
+            &cur_state
+        ));
+
+        // Transition between states with same discriminants.
+        let prev_state = UpdateAgentState::NoNewUpdate;
+        let cur_state = UpdateAgentState::NoNewUpdate;
+        assert!(!UpdateAgent::should_tick_immediately(
+            &prev_state,
+            &cur_state
+        ));
+        let prev_state = UpdateAgentState::UpdateAvailable((update.clone(), 0));
+        let cur_state = UpdateAgentState::UpdateAvailable((update.clone(), 1));
+        assert!(!UpdateAgent::should_tick_immediately(
+            &prev_state,
+            &cur_state
+        ));
+        let prev_state =
+            UpdateAgentState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS));
+        let cur_state = UpdateAgentState::UpdateStaged((
+            update.clone(),
+            MAX_FINALIZE_POSTPONEMENTS.saturating_sub(1),
+        ));
+        assert!(!UpdateAgent::should_tick_immediately(
+            &prev_state,
+            &cur_state
+        ));
     }
 }
