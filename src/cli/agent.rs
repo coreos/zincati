@@ -1,12 +1,13 @@
 //! Logic for the `agent` subcommand.
 
 use super::ensure_user;
-use crate::{config, dbus, metrics, rpm_ostree, update_agent};
+use crate::{config, dbus, metrics, rpm_ostree, update_agent, utils};
 use actix::Actor;
 use anyhow::{Context, Result};
 use log::{info, trace};
 use prometheus::IntGauge;
 use structopt::clap::{crate_name, crate_version};
+use tokio::runtime::Runtime;
 
 lazy_static::lazy_static! {
     static ref PROCESS_START_TIME: IntGauge = register_int_gauge!(opts!(
@@ -23,6 +24,21 @@ pub(crate) fn run_agent() -> Result<()> {
         crate_name!(),
         crate_version!()
     );
+
+    // Start a new dedicated signal handling thread in a new runtime.
+    let signal_handling_rt = Runtime::new().unwrap();
+    signal_handling_rt.spawn(async {
+        use tokio::signal::unix::{signal, SignalKind};
+
+        // Create stream of terminate signals.
+        let mut stream = signal(SignalKind::terminate()).expect("failed to set SIGTERM handler");
+
+        stream.recv().await;
+        // Reset status text to empty string (default).
+        utils::update_unit_status("");
+        utils::notify_stopping();
+        std::process::exit(0);
+    });
 
     let settings = config::Settings::assemble()?;
     settings.refresh_metrics();

@@ -32,6 +32,10 @@ do
     fi
     sleep 1
 done
-echo "timed out waiting for Zincati to check for updates"
 assert_file_has_content zincati_last_check_status.txt 'periodically polling for updates (last checked'
 ok "status show last check"
+
+systemctl stop zincati.service
+systemctl show -p StatusText zincati.service > zincati_stopped_status.txt
+assert_not_file_has_content zincati_stopped_status.txt '.+'
+ok "status show daemon stopped"
