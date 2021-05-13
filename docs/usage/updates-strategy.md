@@ -136,7 +136,7 @@ Since Panama does not have Daylight Savings Time and follows Eastern Standard Ti
 
 ### Time zone caveats
 
-:warning: **Reboot window lengths may vary.**
+⚠️ **Reboot window lengths may vary.** ⚠️
 
 Because reboot window clock times are always obeyed, reboot windows may be lengthened or shortened due to shifts in clock time. For example, with the `US/Eastern` time zone which shifts between Eastern Standard Time and Eastern Daylight Time, on "fall back" day, a specified reboot window may be lengthened by up to one hour; on "spring forward" day, a specified reboot window may be shortened by up to one hour, or skipped entirely.
 
@@ -161,7 +161,7 @@ On the `US/Eastern` time zone's "fall back" day, where clocks are shifted back b
 
 On "spring forward" day, where clocks are shifted forward by one hour on a Sunday in Spring just before 2:00 AM, the thirty minutes between 2:00 AM and 2:30 AM will not occur. As such, the reboot window will be shortened by thirty minutes each year on "spring forward" day. Effectively, the reboot window on "spring forward" day will only be between 1:30 AM and 2:00 AM.
 
-:warning: **Incorrect reboot times due to stale time zone database.** 
+⚠️ **Incorrect reboot times due to stale time zone database.** ⚠️
 
 Time zone data is read from the system's time zone database at `/usr/share/zoneinfo`. This directory and its contents are part of the `tzdata` RPM package; in the latest release of Fedora CoreOS, `tzdata` should be kept fairly up-to-date with the latest official release from the IANA.
 However, if your system does not have the latest IANA time zone database, or there is a sudden policy change in the jurisdiction associated with your configured time zone, then reboots may happen at unexpected and incorrect times.
