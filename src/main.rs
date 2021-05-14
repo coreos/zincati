@@ -27,6 +27,8 @@ mod rpm_ostree;
 mod strategy;
 /// Update agent.
 mod update_agent;
+/// Utility functions.
+mod utils;
 /// Logic for weekly maintenance windows.
 mod weekly;
 
