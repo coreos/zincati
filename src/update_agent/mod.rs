@@ -473,7 +473,10 @@ fn format_reboot_warning(seconds: u64, release_ver: &str) -> String {
     let time_till_reboot = format_seconds(seconds);
 
     format!(
-        "New update {} deployed.\nRebooting into this update in around {} (if permitted by update strategy).",
+        "New update {} is available and has been deployed.\n\
+        If permitted by the update strategy, Zincati will reboot into this update when all\n\
+        interactive users have logged out, or in {}, whichever comes earlier.\n\
+        Please log out of all active sessions in order to let the auto-update process continue.",
         release_ver, time_till_reboot
     )
 }
