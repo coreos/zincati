@@ -60,9 +60,10 @@ failpoints = [ "fail/failpoints" ]
 lto = true
 
 [package.metadata.release]
-sign-commit = true
 disable-publish = true
 disable-push = true
-pre-release-commit-message = "cargo: zincati release {{version}}"
 post-release-commit-message = "cargo: development version bump"
+pre-release-commit-message = "cargo: zincati release {{version}}"
+sign-commit = true
+sign-tag = true
 tag-message = "zincati {{version}}"
