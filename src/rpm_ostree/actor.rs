@@ -53,7 +53,9 @@ impl Handler<StageDeployment> for RpmOstreeClient {
 
     fn handle(&mut self, msg: StageDeployment, _ctx: &mut Self::Context) -> Self::Result {
         trace!("request to stage release: {:?}", msg.release);
-        super::cli_deploy::deploy_locked(msg.release, msg.allow_downgrade)
+        let release = super::cli_deploy::deploy_locked(msg.release, msg.allow_downgrade);
+        trace!("rpm-ostree CLI returned: {:?}", release);
+        release
     }
 }
 
@@ -73,7 +75,9 @@ impl Handler<FinalizeDeployment> for RpmOstreeClient {
 
     fn handle(&mut self, msg: FinalizeDeployment, _ctx: &mut Self::Context) -> Self::Result {
         trace!("request to finalize release: {:?}", msg.release);
-        super::cli_finalize::finalize_deployment(msg.release)
+        let release = super::cli_finalize::finalize_deployment(msg.release);
+        trace!("rpm-ostree CLI returned: {:?}", release);
+        release
     }
 }
 
@@ -97,7 +101,9 @@ impl Handler<QueryLocalDeployments> for RpmOstreeClient {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         trace!("request to list local deployments");
-        super::cli_status::local_deployments(self, query_msg.omit_staged)
+        let releases = super::cli_status::local_deployments(self, query_msg.omit_staged);
+        trace!("rpm-ostree CLI returned: {:?}", releases);
+        releases
     }
 }
 
