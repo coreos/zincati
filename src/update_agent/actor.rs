@@ -7,14 +7,30 @@ use actix::prelude::*;
 use anyhow::Error;
 use futures::prelude::*;
 use log::trace;
-use prometheus::IntGauge;
+use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use std::collections::BTreeSet;
 use std::time::Duration;
+
+/// Label for finalization attempts blocked due to active interactive user sessions.
+pub static ACTIVE_USERSESSIONS_LABEL: &str = "active_usersessions";
 
 lazy_static::lazy_static! {
     static ref LAST_REFRESH: IntGauge = register_int_gauge!(opts!(
         "zincati_update_agent_last_refresh_timestamp",
         "UTC timestamp of update-agent last refresh tick."
+    )).unwrap();
+    static ref FINALIZATION_ATTEMPTS: IntCounter = register_int_counter!(opts!(
+        "zincati_update_agent_finalization_attempts",
+        "Total number of attempts to finalize a staged deployment by the update agent."
+    )).unwrap();
+    static ref FINALIZATION_BLOCKED: IntCounterVec = register_int_counter_vec!(
+        "zincati_update_agent_finalization_blocked_count",
+        "Total number of finalization attempts blocked due to reasons unrelated to update strategy.",
+        &["reason"]
+    ).unwrap();
+    static ref FINALIZATION_SUCCESS: IntCounter = register_int_counter!(opts!(
+        "zincati_update_agent_finalization_successes",
+        "Total number of successful update finalizations by the update agent."
     )).unwrap();
 }
 
@@ -333,6 +349,7 @@ impl UpdateAgent {
         release: Release,
     ) -> ResponseActFuture<Self, Result<(), ()>> {
         trace!("trying to finalize an update");
+        FINALIZATION_ATTEMPTS.inc();
 
         let strategy_can_finalize = self.strategy.can_finalize();
         let state_change = actix::fut::wrap_future::<_, Self>(strategy_can_finalize)
@@ -349,6 +366,9 @@ impl UpdateAgent {
                 } else {
                     let usersessions_can_finalize = actor.state.usersessions_can_finalize();
                     if !usersessions_can_finalize {
+                        FINALIZATION_BLOCKED
+                            .with_label_values(&[ACTIVE_USERSESSIONS_LABEL])
+                            .inc();
                         utils::update_unit_status(&format!(
                             "update staged: {}; reboot delayed due to active user sessions",
                             release.version
@@ -363,6 +383,7 @@ impl UpdateAgent {
             })
             .map(|res, actor, _ctx| {
                 res.map(|release| {
+                    FINALIZATION_SUCCESS.inc();
                     utils::update_unit_status(&format!("update finalized: {}", release.version));
                     actor.state.update_finalized(release);
                 })
