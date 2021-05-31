@@ -20,6 +20,9 @@ use std::time::Duration;
 /// Default refresh interval for steady state (in seconds).
 pub(crate) const DEFAULT_STEADY_INTERVAL_SECS: u64 = 300; // 5 minutes.
 
+/// Default refresh interval for end state (in seconds).
+const END_INTERVAL_SECS: u64 = 10800; // 3 hours.
+
 /// Default tick/refresh period for the state machine (in seconds).
 const DEFAULT_REFRESH_PERIOD_SECS: u64 = 300; // 5 minutes.
 
@@ -343,6 +346,7 @@ impl UpdateAgentState {
                     (Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS), true)
                 }
             }
+            UpdateAgentState::EndState => (Duration::from_secs(END_INTERVAL_SECS), true),
             _ => (Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS), true),
         }
     }
