@@ -242,7 +242,7 @@ impl UpdateAgent {
         let state_change =
             actix::fut::wrap_future::<_, Self>(report_steady).map(|is_steady, actor, _ctx| {
                 if is_steady {
-                    log::debug!("reached steady state, periodically polling for updates");
+                    log::info!("reached steady state, periodically polling for updates");
                     utils::update_unit_status("periodically polling for updates");
                     actor.state.reported_steady();
                 }
@@ -305,7 +305,7 @@ impl UpdateAgent {
                 Ok(_) => {
                     let msg = format!("update staged: {}", release.version);
                     utils::update_unit_status(&msg);
-                    log::trace!("{}", msg);
+                    log::info!("{}", msg);
                     actor.state.update_staged(release);
                 }
                 Err(_) => {
