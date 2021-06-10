@@ -15,7 +15,9 @@ use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
 use std::convert::TryInto;
 use std::fs;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 
 /// Default refresh interval for steady state (in seconds).
 pub(crate) const DEFAULT_STEADY_INTERVAL_SECS: u64 = 300; // 5 minutes.
@@ -370,7 +372,7 @@ pub(crate) struct UpdateAgent {
     /// Update strategy.
     strategy: UpdateStrategy,
     /// Current status for agent state machine.
-    state: UpdateAgentState,
+    state: Arc<RwLock<UpdateAgentState>>,
     /// Timestamp of last state transition.
     state_changed: DateTime<Utc>,
 }
@@ -386,7 +388,7 @@ impl UpdateAgent {
             identity: cfg.identity,
             rpm_ostree_actor: rpm_ostree_addr,
             steady_interval: Duration::from_secs(steady_secs),
-            state: UpdateAgentState::default(),
+            state: Arc::new(RwLock::new(UpdateAgentState::default())),
             strategy: cfg.strategy,
             state_changed: chrono::Utc::now(),
         }

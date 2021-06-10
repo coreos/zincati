@@ -9,7 +9,9 @@ use futures::prelude::*;
 use log::trace;
 use prometheus::IntGauge;
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::{OwnedRwLockWriteGuard, RwLock};
 
 lazy_static::lazy_static! {
     static ref LAST_REFRESH: IntGauge = register_int_gauge!(opts!(
@@ -58,34 +60,46 @@ impl Handler<RefreshTick> for UpdateAgent {
     type Result = ResponseActFuture<Self, Result<(), Error>>;
 
     fn handle(&mut self, _msg: RefreshTick, ctx: &mut Self::Context) -> Self::Result {
-        let tick_timestamp = chrono::Utc::now();
-        LAST_REFRESH.set(tick_timestamp.timestamp());
-
-        trace!("update agent tick, current state: {:?}", self.state);
-        let prev_state = self.state.clone();
-
-        let state_action = match &self.state {
-            UpdateAgentState::StartState => self.tick_initialize(),
-            UpdateAgentState::Initialized => self.tick_report_steady(),
-            UpdateAgentState::ReportedSteady => self.tick_check_updates(),
-            UpdateAgentState::NoNewUpdate => self.tick_check_updates(),
-            UpdateAgentState::UpdateAvailable((release, _)) => {
-                let update = release.clone();
-                self.tick_stage_update(update)
-            }
-            UpdateAgentState::UpdateStaged((release, _)) => {
-                let update = release.clone();
-                self.tick_finalize_update(update)
-            }
-            UpdateAgentState::UpdateFinalized(release) => {
-                let update = release.clone();
-                self.tick_end(update)
-            }
-            UpdateAgentState::EndState => self.nop(),
+        // Acquire RwLock to access state.
+        let lock = Arc::clone(&self.state);
+        let acquire_lock = async move {
+            let agent_state = lock.write_owned().await;
+            let prev_state: UpdateAgentState = agent_state.clone();
+            (prev_state, agent_state)
         };
+        let acquire_lock = Box::pin(acquire_lock).into_actor(self);
+        let state_action = acquire_lock.then(move |(prev_state, state), a, c| {
+            // Consider `LAST_REFRESH` time to be when RwLock is acquired.
+            let tick_timestamp = chrono::Utc::now();
+            LAST_REFRESH.set(tick_timestamp.timestamp());
 
-        let update_machine = state_action.then(move |_r, actor, ctx| {
-            if let Some(pause) = actor.refresh_delay(prev_state) {
+            trace!("update agent tick, current state: {:?}", *state);
+
+            let action = match *state {
+                UpdateAgentState::StartState => self.tick_initialize(state),
+                UpdateAgentState::Initialized => self.tick_report_steady(state),
+                UpdateAgentState::ReportedSteady => self.tick_check_updates(state),
+                UpdateAgentState::NoNewUpdate => self.tick_check_updates(state),
+                UpdateAgentState::UpdateAvailable((release, _)) => {
+                    let update = release.clone();
+                    self.tick_stage_update(update, state)
+                }
+                UpdateAgentState::UpdateStaged((release, _)) => {
+                    let update = release.clone();
+                    self.tick_finalize_update(update, state)
+                }
+                UpdateAgentState::UpdateFinalized(release) => {
+                    let update = release.clone();
+                    self.tick_end(update, state)
+                }
+                UpdateAgentState::EndState => self.nop_state(state),
+            };
+
+            action.map(move |r, a, c| (prev_state, state))
+        });
+
+        let update_machine = state_action.then(move |(prev_state, state), actor, ctx| {
+            if let Some(pause) = actor.refresh_delay(prev_state, *state) {
                 log::trace!(
                     "scheduling next agent refresh in {} seconds",
                     pause.as_secs()
@@ -100,7 +114,7 @@ impl Handler<RefreshTick> for UpdateAgent {
         });
 
         // Process state machine refresh ticks sequentially.
-        ctx.wait(update_machine);
+        ctx.spawn(update_machine);
 
         Box::pin(actix::fut::ok(()))
     }
@@ -122,12 +136,16 @@ impl UpdateAgent {
     /// This influences the pace of the update-agent refresh loop. Timing of the
     /// state machine is not uniform. Some states benefit from more/less
     /// frequent refreshes, or can be customized by the user.
-    fn refresh_delay(&self, prev_state: UpdateAgentState) -> Option<Duration> {
-        if Self::should_tick_immediately(&self.state, &prev_state) {
+    fn refresh_delay(
+        &self,
+        prev_state: UpdateAgentState,
+        cur_state: UpdateAgentState,
+    ) -> Option<Duration> {
+        if Self::should_tick_immediately(&prev_state, &cur_state) {
             return None;
         }
 
-        let (mut refresh_delay, should_jitter) = self.state.get_refresh_delay(self.steady_interval);
+        let (mut refresh_delay, should_jitter) = cur_state.get_refresh_delay(self.steady_interval);
         if should_jitter {
             refresh_delay = Self::add_jitter(refresh_delay);
         };
@@ -200,7 +218,10 @@ impl UpdateAgent {
     }
 
     /// Initialize the update agent.
-    fn tick_initialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_initialize(
+        &mut self,
+        state: OwnedRwLockWriteGuard<UpdateAgentState>,
+    ) -> ResponseActFuture<Self, Result<OwnedRwLockWriteGuard<UpdateAgentState>, ()>> {
         trace!("update agent in start state");
 
         // Only register as the updates driver for rpm-ostree if auto-updates logic enabled.
@@ -219,23 +240,26 @@ impl UpdateAgent {
             if actor.enabled {
                 status = "initialization complete, auto-updates logic enabled";
                 log::info!("{}", status);
-                actor.state.initialized();
+                (*state).initialized();
                 actor.strategy.record_details();
             } else {
                 status = "initialization complete, auto-updates logic disabled by configuration";
                 log::warn!("{}", status);
-                actor.state.end();
+                (*state).end();
             };
             utils::notify_ready();
             utils::update_unit_status(status);
-            Ok(())
+            Ok(state)
         });
 
         Box::pin(initialization)
     }
 
     /// Try to report steady state.
-    fn tick_report_steady(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_report_steady(
+        &mut self,
+        state: OwnedRwLockWriteGuard<UpdateAgentState>,
+    ) -> ResponseActFuture<Self, Result<OwnedRwLockWriteGuard<UpdateAgentState>, ()>> {
         trace!("trying to report steady state");
 
         let report_steady = self.strategy.report_steady();
@@ -244,16 +268,19 @@ impl UpdateAgent {
                 if is_steady {
                     log::info!("reached steady state, periodically polling for updates");
                     utils::update_unit_status("periodically polling for updates");
-                    actor.state.reported_steady();
+                    (*state).reported_steady();
                 }
-                Ok(())
+                Ok(state)
             });
 
         Box::pin(state_change)
     }
 
     /// Try to check for updates.
-    fn tick_check_updates(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_check_updates(
+        &mut self,
+        state: OwnedRwLockWriteGuard<UpdateAgentState>,
+    ) -> ResponseActFuture<Self, Result<OwnedRwLockWriteGuard<UpdateAgentState>, ()>> {
         trace!("trying to check for updates");
 
         let state_change = self
@@ -282,20 +309,24 @@ impl UpdateAgent {
                             "found update on remote: {}",
                             release.version
                         ));
-                        actor.state.update_available(release);
+                        (*state).update_available(release);
                     }
                     None => {
-                        actor.state.no_new_update();
+                        (*state).no_new_update();
                     }
                 };
-                Ok(())
+                Ok(state)
             });
 
         Box::pin(state_change)
     }
 
     /// Try to stage an update.
-    fn tick_stage_update(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_stage_update(
+        &mut self,
+        release: Release,
+        state: OwnedRwLockWriteGuard<UpdateAgentState>,
+    ) -> ResponseActFuture<Self, Result<OwnedRwLockWriteGuard<UpdateAgentState>, ()>> {
         trace!("trying to stage an update");
 
         let target = release.clone();
@@ -306,11 +337,11 @@ impl UpdateAgent {
                     let msg = format!("update staged: {}", release.version);
                     utils::update_unit_status(&msg);
                     log::info!("{}", msg);
-                    actor.state.update_staged(release);
+                    (*state).update_staged(release);
                 }
                 Err(_) => {
                     let release_ver = release.version.clone();
-                    let fail_count = actor.deploy_attempt_failed(release);
+                    let fail_count = actor.deploy_attempt_failed(release, state);
                     let msg = format!(
                         "trying to stage {} ({} failed deployment attempt{})",
                         release_ver,
@@ -321,7 +352,7 @@ impl UpdateAgent {
                     log::trace!("{}", msg);
                 }
             };
-            Ok(())
+            Ok(state)
         });
 
         Box::pin(state_change)
@@ -331,7 +362,8 @@ impl UpdateAgent {
     fn tick_finalize_update(
         &mut self,
         release: Release,
-    ) -> ResponseActFuture<Self, Result<(), ()>> {
+        state: OwnedRwLockWriteGuard<UpdateAgentState>,
+    ) -> ResponseActFuture<Self, Result<OwnedRwLockWriteGuard<UpdateAgentState>, ()>> {
         trace!("trying to finalize an update");
 
         let strategy_can_finalize = self.strategy.can_finalize();
@@ -344,17 +376,17 @@ impl UpdateAgent {
                     ));
                     // Reset number of postponements to `MAX_FINALIZE_POSTPONEMENTS`
                     // if strategy does not allow finalization.
-                    actor.state.update_staged(release);
+                    (*state).update_staged(release);
                     Box::pin(actix::fut::err(()))
                 } else {
-                    let usersessions_can_finalize = actor.state.usersessions_can_finalize();
+                    let usersessions_can_finalize = (*state).usersessions_can_finalize();
                     if !usersessions_can_finalize {
                         utils::update_unit_status(&format!(
                             "update staged: {}; reboot delayed due to active user sessions",
                             release.version
                         ));
                         // Record postponement and postpone finalization.
-                        actor.state.record_postponement();
+                        (*state).record_postponement();
                         Box::pin(actix::fut::err(()))
                     } else {
                         actor.finalize_deployment(release)
@@ -364,7 +396,8 @@ impl UpdateAgent {
             .map(|res, actor, _ctx| {
                 res.map(|release| {
                     utils::update_unit_status(&format!("update finalized: {}", release.version));
-                    actor.state.update_finalized(release);
+                    (*state).update_finalized(release);
+                    state
                 })
             });
 
@@ -372,13 +405,17 @@ impl UpdateAgent {
     }
 
     /// Actor job is done.
-    fn tick_end(&mut self, release: Release) -> ResponseActFuture<Self, Result<(), ()>> {
+    fn tick_end(
+        &mut self,
+        release: Release,
+        state: OwnedRwLockWriteGuard<UpdateAgentState>,
+    ) -> ResponseActFuture<Self, Result<OwnedRwLockWriteGuard<UpdateAgentState>, ()>> {
         let status = format!("update applied, waiting for reboot: {}", release.version);
         log::info!("{}", status);
-        let state_change = self.nop().map(move |_r, actor, _ctx| {
-            actor.state.end();
+        let state_change = self.nop_state(state).map(move |_r, actor, _ctx| {
+            (*state).end();
             utils::update_unit_status(&status);
-            Ok(())
+            Ok(state)
         });
 
         Box::pin(state_change)
@@ -406,8 +443,12 @@ impl UpdateAgent {
 
     /// Record a failed deploy attempt and return the total number of
     /// failed deployment attempts.
-    fn deploy_attempt_failed(&mut self, release: Release) -> u8 {
-        let (is_abandoned, fail_count) = self.state.record_failed_deploy();
+    fn deploy_attempt_failed(
+        &mut self,
+        release: Release,
+        state: OwnedRwLockWriteGuard<UpdateAgentState>,
+    ) -> u8 {
+        let (is_abandoned, fail_count) = (*state).record_failed_deploy();
         if is_abandoned {
             log::warn!(
                 "persistent deploy failure detected, target release '{}' abandoned",
@@ -474,6 +515,14 @@ impl UpdateAgent {
     }
 
     /// Do nothing, without errors.
+    fn nop_state(
+        &mut self,
+        state: OwnedRwLockWriteGuard<UpdateAgentState>,
+    ) -> ResponseActFuture<Self, Result<OwnedRwLockWriteGuard<UpdateAgentState>, ()>> {
+        let nop = actix::fut::ok(state);
+        Box::pin(nop)
+    }
+
     fn nop(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         let nop = actix::fut::ok(());
         Box::pin(nop)
