@@ -110,13 +110,13 @@ impl Handler<RefreshTick> for UpdateAgent {
                 actor.state_changed = update_timestamp;
                 Self::tick_now(ctx);
             }
-            actix::fut::ready(())
+            actix::fut::ok(())
         });
 
         // Process state machine refresh ticks sequentially.
-        ctx.spawn(update_machine);
+        // ctx.spawn(update_machine);
 
-        Box::pin(actix::fut::ok(()))
+        Box::pin(update_machine)
     }
 }
 
