@@ -15,7 +15,6 @@ use intervaltree::{Element, IntervalTree};
 use serde::{Serialize, Serializer};
 use std::cmp::Ordering;
 use std::fmt::Write;
-use std::iter::FromIterator;
 use std::ops::Range;
 use std::time::Duration;
 
@@ -43,7 +42,7 @@ impl WeeklyCalendar {
             .map(|win| Element::from((win.range_weekly_minutes(), win)));
 
         Self {
-            windows: IntervalTree::from_iter(intervals),
+            windows: intervals.collect(),
         }
     }
 

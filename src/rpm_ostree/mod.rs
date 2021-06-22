@@ -30,8 +30,8 @@ pub struct Release {
 impl std::cmp::Ord for Release {
     fn cmp(&self, other: &Self) -> Ordering {
         // Order is primarily based on age-index coming from Cincinnati.
-        let self_age = self.age_index.clone().unwrap_or(0);
-        let other_age = other.age_index.clone().unwrap_or(0);
+        let self_age = self.age_index.unwrap_or(0);
+        let other_age = other.age_index.unwrap_or(0);
         if self_age != other_age {
             return self_age.cmp(&other_age);
         }
