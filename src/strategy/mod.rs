@@ -6,7 +6,7 @@ use anyhow::Result;
 use fn_error_context::context;
 use futures::prelude::*;
 use log::error;
-use prometheus::{IntGauge, IntGaugeVec};
+use prometheus::{IntCounterVec, IntGauge, IntGaugeVec};
 use serde::Serialize;
 
 mod fleet_lock;
@@ -18,6 +18,15 @@ pub(crate) use immediate::StrategyImmediate;
 mod periodic;
 pub(crate) use periodic::StrategyPeriodic;
 
+/// Label for allow responses from querying strategy's `can_finalize` function.
+pub static CAN_FINALIZE_ALLOW_LABEL: &str = "allow";
+
+/// Label for deny responses from querying strategy's `can_finalize` function.
+pub static CAN_FINALIZE_DENY_LABEL: &str = "deny";
+
+/// Label for error responses from querying strategy's `can_finalize` function.
+pub static CAN_FINALIZE_ERROR_LABEL: &str = "error";
+
 lazy_static::lazy_static! {
     static ref STRATEGY_MODE: IntGaugeVec = register_int_gauge_vec!(
         "zincati_updates_strategy_mode",
@@ -28,6 +37,12 @@ lazy_static::lazy_static! {
     static ref PERIODIC_LENGTH: IntGauge = register_int_gauge!(
         "zincati_updates_strategy_periodic_schedule_length_minutes",
         "Total length of the periodic strategy schedule in use"
+    ).unwrap();
+
+    static ref FINALIZATION_STRATEGY_RESPONSES: IntCounterVec = register_int_counter_vec!(
+        "zincati_updates_strategy_can_finalize_responses",
+        "Total number of responses from querying update strategy for finalization consent.",
+        &["response"]
     ).unwrap();
 }
 
@@ -105,10 +120,27 @@ impl UpdateStrategy {
         };
 
         async {
-            lock.await.unwrap_or_else(|e| {
-                error!("{}", e);
-                false
-            })
+            match lock.await {
+                Ok(can_finalize) => {
+                    if can_finalize {
+                        FINALIZATION_STRATEGY_RESPONSES
+                            .with_label_values(&[CAN_FINALIZE_ALLOW_LABEL])
+                            .inc();
+                    } else {
+                        FINALIZATION_STRATEGY_RESPONSES
+                            .with_label_values(&[CAN_FINALIZE_DENY_LABEL])
+                            .inc();
+                    }
+                    can_finalize
+                }
+                Err(e) => {
+                    FINALIZATION_STRATEGY_RESPONSES
+                        .with_label_values(&[CAN_FINALIZE_ERROR_LABEL])
+                        .inc();
+                    error!("{}", e);
+                    false
+                }
+            }
         }
     }
 
