@@ -65,6 +65,64 @@ Such an approach is only recommended where nodes are already grouped into an orc
 [airlock]: https://github.com/coreos/airlock
 [etcd3]: https://etcd.io/
 
+# File-based strategy
+The `marker_file` strategy is a simple, low-level strategy that only allows Zincati to reboot for updates when a specific marker file exists on the local filesystem.
+
+Similar to the `fleet_lock` strategy, the `marker_file` strategy provides a large amount of flexibility to admins, and should be used with a central controller.
+Unlike `fleet_lock`, where the central controller must be a lock-manager on the network, the central controller for the `marker_file` strategy can be a containerized agent, some central task manager able to manipulate files on machines (e.g. Ansible), or even a human via SSH.
+
+To indicate that a machine is allowed to finalize an update and reboot, a file with the following properties must be present on the machine's local filesystem:
+    - named `allowfinalize.json`
+    - under `/var/lib/zincati/admin/strategy/marker_file`
+    - is a valid JSON file
+    - not writable by others
+
+If any of the above is not satisfied in your marker file, Zincati will not allow reboots.
+
+`allowfinalize.json` can optionally contain an `allowUntil` key with a Unix timestamp integer as its value to indicate the expiry date and time of this marker file. If the current time timestamp is _greater than or equal to_ this timestamp, then reboots will not be allowed.
+Otherwise, if the `allowUntil` key is not present, reboots will be allowed for as long as `allowfinalize.json` exists (in the right location), and it must be removed to disallow reboots.
+Note that `allowfinalize.json` must still be a valid JSON file, regardless of whether the `allowUntil` key is present.
+
+For example, if you wish to allow reboots until the end of April 2021 UTC, create a JSON file with path `/var/lib/zincati/admin/strategy/marker_file/allowfinalize.json` (Unix timestamp 1619827200 is May 01 2021 00:00:00 UTC):
+
+```json
+{
+    "allowUntil": 1619827200
+}
+```
+
+The above JSON file can be created using `jq` by entering the following command:
+
+```bash
+echo '"2021-05-01T00:00:00Z"' | jq '{allowUntil: 'fromdateiso8601'}' \
+| sudo tee /var/lib/zincati/admin/strategy/marker_file/allowfinalize.json
+```
+
+Warning: In `jq` versions `1.6` and lower, `jq` [may output incorrect Unix timestamps][jq_bug] for certain datetimes on machines with certain `localtime`s.
+
+If you wish to allow reboots for as long as the marker file is present, create an empty JSON file with path `/var/lib/zincati/admin/strategy/marker_file/allowfinalize.json`:
+
+```json
+{}
+```
+
+An empty JSON file can be created by entering:
+
+```bash
+echo '{}' | sudo tee /var/lib/zincati/admin/strategy/marker_file/allowfinalize.json
+```
+
+For configuration purposes, such strategy is labeled `marker_file` and takes no additional configuration parameters.
+
+This strategy can be enabled via a configuration snippet like the following:
+
+```toml
+[updates]
+strategy = "marker_file"
+```
+
+[jq_bug]: https://github.com/stedolan/jq/issues/2001
+
 # Periodic strategy
 
 The `periodic` strategy allows Zincati to only reboot for updates during certain timeframes, also known as "maintenance windows" or "reboot windows".
