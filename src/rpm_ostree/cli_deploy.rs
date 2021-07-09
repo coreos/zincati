@@ -4,6 +4,7 @@
 use super::Release;
 use anyhow::{bail, Context, Result};
 use prometheus::IntCounter;
+use std::time::Duration;
 
 const DRIVER_NAME: &str = "Zincati";
 
@@ -15,6 +16,10 @@ lazy_static::lazy_static! {
     static ref DEPLOY_FAILURES: IntCounter = register_int_counter!(opts!(
         "zincati_rpm_ostree_deploy_failures_total",
         "Total number of 'rpm-ostree deploy' failures."
+    )).unwrap();
+    static ref REGISTER_DRIVER_FAILURES: IntCounter = register_int_counter!(opts!(
+        "zincati_rpm_ostree_register_driver_failures_total",
+        "Total number of failures to register as driver for rpm-ostree."
     )).unwrap();
 }
 
@@ -31,13 +36,39 @@ pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Result<Release>
 }
 
 /// Register as the update driver.
+/// Keep attempting to register as driver for rpm-ostree, with exponential backoff
+/// capped at 256 seconds.
 pub fn deploy_register_driver() -> Result<()> {
-    invoke_cli_register()?;
+    let mut register_attempt = invoke_cli_register();
+    let mut retry_secs = Duration::from_secs(1);
+    while let Err(attempt) = register_attempt {
+        REGISTER_DRIVER_FAILURES.inc();
+        log::error!("{}\nretrying in {:?}", attempt, retry_secs,);
+        // Use `std::thread::sleep` because the rpm-ostree actor is spawned in a SyncArbiter.
+        std::thread::sleep(retry_secs);
+        register_attempt = invoke_cli_register();
+        if retry_secs < Duration::from_secs(256) {
+            retry_secs *= 2;
+        }
+    }
+
     Ok(())
 }
 
 /// CLI executor for registering driver.
 fn invoke_cli_register() -> Result<()> {
+    // `fail_point`s cause registration to fail on first 3 tries when unit testing.
+    fail_point!(
+        "register_driver_err",
+        REGISTER_DRIVER_FAILURES.get() < 2,
+        |_| bail!("register_driver_err")
+    );
+    fail_point!(
+        "register_driver_ok",
+        REGISTER_DRIVER_FAILURES.get() >= 3,
+        |_| Ok(())
+    );
+
     let mut cmd = std::process::Command::new("rpm-ostree");
     cmd.arg("deploy")
         .arg("")
@@ -117,5 +148,24 @@ mod tests {
         let result = deploy_locked(release.clone(), true).unwrap();
         assert_eq!(result, release);
         assert!(DEPLOY_ATTEMPTS.get() >= 1);
+    }
+
+    #[cfg(feature = "failpoints")]
+    #[test]
+    fn register_driver_err() {
+        use std::time::SystemTime;
+
+        let _guard = fail::FailScenario::setup();
+        fail::cfg("register_driver_err", "return").unwrap();
+        fail::cfg("register_driver_ok", "return").unwrap();
+
+        let now = SystemTime::now();
+        // expect to take 1 + 2 + 4 = 7 seconds
+        // to register as driver due to `fail_point`s
+        deploy_register_driver().unwrap();
+        let elapsed = now.elapsed().unwrap().as_secs();
+        // `fail_point`s are set to succeed on 4th try
+        assert!(REGISTER_DRIVER_FAILURES.get() == 3);
+        assert!(elapsed >= 7);
     }
 }
