@@ -8,7 +8,7 @@ digraph actors_messages {
 
 
     subgraph cluster_metrics_service {
-        label = "Actor:\nmetrics service";
+        label = "Async Actor:\nmetrics service";
         style = dashed;
         color = deepskyblue;
 
@@ -16,12 +16,23 @@ digraph actors_messages {
         
         # Invisble placeholders.
         InvisMetricsClient:s [style=invis];
-        InvisBottom [style=invis];
-        ConnectionStream:s -> InvisBottom:n [style=invis];
+        InvisBottomMetrics [style=invis];
+        ConnectionStream:s -> InvisBottomMetrics:n [style=invis];
+    }
+
+    subgraph cluster_dbus_server {
+        label = "Sync Actor:\nD-Bus server";
+        style = dashed;
+        color = deepskyblue;
+
+        SyncLastRefersh [label="sync fn\nlast_refresh_time()"];
+
+        # Invisble placeholders.
+        InvisBottomDbus [style=invis];
     }
 
     subgraph cluster_update_agent {
-        label = "Actor:\nupdate agent";
+        label = "Async Actor:\nupdate agent";
         style = dashed;
         color = deepskyblue;
 
@@ -29,11 +40,12 @@ digraph actors_messages {
         AsyncAttemptDeploy [label="async fn\nattempt_deploy()"];
         AsyncFinalizeDeployment [label="async fn\nfinalize_deployment()"];
         RefreshTick [label=<Handler<br/>&lt;<b>RefreshTick</b>&gt;>];
+        LastRefresh [label=<Handler<br/>&lt;<b>LastRefresh</b>&gt;>]
         
     }
     
     subgraph cluster_rpm_ostree_client {
-        label = "Actor:\nrpm-ostree client";
+        label = "Sync Actor:\nrpm-ostree client";
         style = dashed;
         color = deepskyblue;
 
@@ -47,13 +59,14 @@ digraph actors_messages {
     }
     
     # Organize nodes in rows.
-    { rank = same; InvisMetricsClient; AsyncLocalDeployments; QueryLocalDeployments }
+    { rank = same; InvisMetricsClient; SyncLastRefersh; LastRefresh; AsyncLocalDeployments; QueryLocalDeployments }
     { rank = same; ConnectionStream; RefreshTick; AsyncAttemptDeploy; StageDeployment }
-    { rank = same; InvisBottom; AsyncFinalizeDeployment; FinalizeDeployment; }
+    { rank = same; InvisBottomMetrics; InvisBottomDbus; AsyncFinalizeDeployment; FinalizeDeployment; }
 
     # Edges.
     InvisMetricsClient:s -> ConnectionStream:n [label="Metrics\nsocket\n connection"];
     RefreshTick:ne -> RefreshTick:se;
+    { rank = same; SyncLastRefersh:ne -> LastRefresh:nw; LastRefresh:sw -> SyncLastRefersh:se; }
     { rank = same; AsyncLocalDeployments:ne -> QueryLocalDeployments:nw; QueryLocalDeployments:sw -> AsyncLocalDeployments:se; }
     { rank = same; AsyncAttemptDeploy:ne -> StageDeployment:nw; StageDeployment:sw -> AsyncAttemptDeploy:se; }
     { rank = same; AsyncFinalizeDeployment:ne -> FinalizeDeployment:nw; FinalizeDeployment:sw -> AsyncFinalizeDeployment:se; }
