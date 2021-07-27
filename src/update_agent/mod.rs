@@ -15,7 +15,9 @@ use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
 use std::convert::TryInto;
 use std::fs;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 
 /// Default refresh interval for steady state (in seconds).
 pub(crate) const DEFAULT_STEADY_INTERVAL_SECS: u64 = 300; // 5 minutes.
@@ -355,6 +357,17 @@ impl UpdateAgentState {
 /// Update agent.
 #[derive(Debug)]
 pub(crate) struct UpdateAgent {
+    /// Current state of the agent state machine.
+    /// We use an `Arc` because consumers of this field will likely need to
+    /// own it (e.g. consumers in futures).
+    state: Arc<RwLock<UpdateAgentState>>,
+    /// Update agent's information.
+    info: UpdateAgentInfo,
+}
+
+/// Information about the update agent.
+#[derive(Debug, Clone)]
+pub(crate) struct UpdateAgentInfo {
     /// Whether to allow automatic downgrades.
     allow_downgrade: bool,
     /// Cincinnati service.
@@ -369,8 +382,6 @@ pub(crate) struct UpdateAgent {
     rpm_ostree_actor: Addr<RpmOstreeClient>,
     /// Update strategy.
     strategy: UpdateStrategy,
-    /// Current status for agent state machine.
-    state: UpdateAgentState,
     /// Timestamp of last state transition.
     state_changed: DateTime<Utc>,
 }
@@ -380,15 +391,17 @@ impl UpdateAgent {
     pub(crate) fn with_config(cfg: Settings, rpm_ostree_addr: Addr<RpmOstreeClient>) -> Self {
         let steady_secs = cfg.steady_interval_secs.get();
         Self {
-            allow_downgrade: cfg.allow_downgrade,
-            cincinnati: cfg.cincinnati,
-            enabled: cfg.enabled,
-            identity: cfg.identity,
-            rpm_ostree_actor: rpm_ostree_addr,
-            steady_interval: Duration::from_secs(steady_secs),
-            state: UpdateAgentState::default(),
-            strategy: cfg.strategy,
-            state_changed: chrono::Utc::now(),
+            state: Arc::new(RwLock::new(UpdateAgentState::default())),
+            info: UpdateAgentInfo {
+                allow_downgrade: cfg.allow_downgrade,
+                cincinnati: cfg.cincinnati,
+                enabled: cfg.enabled,
+                identity: cfg.identity,
+                rpm_ostree_actor: rpm_ostree_addr,
+                steady_interval: Duration::from_secs(steady_secs),
+                strategy: cfg.strategy,
+                state_changed: chrono::Utc::now(),
+            },
         }
     }
 }

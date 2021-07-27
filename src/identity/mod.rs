@@ -33,7 +33,7 @@ lazy_static::lazy_static! {
 }
 
 /// Agent identity.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub(crate) struct Identity {
     /// OS base architecture.
     pub(crate) basearch: String,
