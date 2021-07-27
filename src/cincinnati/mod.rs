@@ -98,7 +98,7 @@ impl DeadEndState {
 }
 
 /// Cincinnati configuration.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Cincinnati {
     /// Service base URL.
     pub base_url: String,
