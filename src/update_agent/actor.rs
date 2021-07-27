@@ -89,7 +89,7 @@ impl Handler<RefreshTick> for UpdateAgent {
             trace!("update agent tick, current state: {:?}", *agent_state_guard);
             let prev_state = (*agent_state_guard).clone();
 
-            let modify_state_outcome = match &prev_state {
+            match &prev_state {
                 UpdateAgentState::StartState => {
                     update_agent_info
                         .tick_initialize(&mut *agent_state_guard)
@@ -128,12 +128,8 @@ impl Handler<RefreshTick> for UpdateAgent {
                         .tick_end(&mut *agent_state_guard, update)
                         .await
                 }
-                UpdateAgentState::EndState => Ok(()),
+                UpdateAgentState::EndState => (),
             };
-
-            if modify_state_outcome.is_err() {
-                log::error!("failed to update agent state");
-            }
 
             Self::refresh_delay(
                 update_agent_info.steady_interval,
@@ -261,10 +257,14 @@ impl UpdateAgent {
 
 impl UpdateAgentInfo {
     /// Initialize the update agent.
-    async fn tick_initialize(&self, state: &mut UpdateAgentState) -> Result<(), ()> {
+    async fn tick_initialize(&self, state: &mut UpdateAgentState) {
         trace!("update agent in start state");
         if self.enabled {
-            self.register_as_driver().await?;
+            let register_outcome = self.register_as_driver().await;
+            if register_outcome.is_err() {
+                // In practice, we should not reach here: https://github.com/coreos/zincati/pull/599.
+                return;
+            };
         }
         let local_depls = self.local_deployments().await;
         if let Ok(depls) = local_depls {
@@ -284,12 +284,10 @@ impl UpdateAgentInfo {
 
         utils::notify_ready();
         utils::update_unit_status(status);
-
-        Ok(())
     }
 
     /// Try to report steady state.
-    async fn tick_report_steady(&self, state: &mut UpdateAgentState) -> Result<(), ()> {
+    async fn tick_report_steady(&self, state: &mut UpdateAgentState) {
         trace!("trying to report steady state");
 
         let is_steady = self.strategy.report_steady().await;
@@ -298,12 +296,10 @@ impl UpdateAgentInfo {
             utils::update_unit_status("periodically polling for updates");
             state.reported_steady();
         }
-
-        Ok(())
     }
 
     /// Try to check for updates.
-    async fn tick_check_updates(&self, state: &mut UpdateAgentState) -> Result<(), ()> {
+    async fn tick_check_updates(&self, state: &mut UpdateAgentState) {
         trace!("trying to check for udpates");
 
         let local_depls = self.local_deployments().await;
@@ -332,16 +328,10 @@ impl UpdateAgentInfo {
                 state.no_new_update();
             }
         }
-
-        Ok(())
     }
 
     /// Try to stage an update.
-    async fn tick_stage_update(
-        &self,
-        mut state: &mut UpdateAgentState,
-        release: Release,
-    ) -> Result<(), ()> {
+    async fn tick_stage_update(&self, mut state: &mut UpdateAgentState, release: Release) {
         trace!("trying to stage an update");
 
         let target = release.clone();
@@ -367,21 +357,15 @@ impl UpdateAgentInfo {
                 log::trace!("{}", msg);
             }
         };
-
-        Ok(())
     }
 
     /// Try to finalize an update.
-    async fn tick_finalize_update(
-        &self,
-        state: &mut UpdateAgentState,
-        release: Release,
-    ) -> Result<(), ()> {
+    async fn tick_finalize_update(&self, state: &mut UpdateAgentState, release: Release) {
         trace!("trying to finalize an update");
         FINALIZATION_ATTEMPTS.inc();
 
         let strategy_can_finalize = self.strategy.can_finalize().await;
-        let state_change = if !strategy_can_finalize {
+        if !strategy_can_finalize {
             utils::update_unit_status(&format!(
                 "update staged: {}; reboot pending due to update strategy",
                 &release.version
@@ -389,7 +373,6 @@ impl UpdateAgentInfo {
             // Reset number of postponements to `MAX_FINALIZE_POSTPONEMENTS`
             // if strategy does not allow finalization.
             state.update_staged(release);
-            Err(())
         } else {
             let usersessions_can_finalize = state.usersessions_can_finalize();
             if !usersessions_can_finalize {
@@ -402,28 +385,20 @@ impl UpdateAgentInfo {
                 ));
                 // Record postponement and postpone finalization.
                 state.record_postponement();
-                Err(())
-            } else {
-                self.finalize_deployment(release).await
+            } else if let Ok(release) = self.finalize_deployment(release).await {
+                FINALIZATION_SUCCESS.inc();
+                utils::update_unit_status(&format!("update finalized: {}", release.version));
+                state.update_finalized(release);
             }
         };
-
-        let release = state_change?;
-        FINALIZATION_SUCCESS.inc();
-        utils::update_unit_status(&format!("update finalized: {}", release.version));
-        state.update_finalized(release);
-
-        Ok(())
     }
 
     /// Actor job is done.
-    async fn tick_end(&self, state: &mut UpdateAgentState, release: Release) -> Result<(), ()> {
+    async fn tick_end(&self, state: &mut UpdateAgentState, release: Release) {
         let status = format!("update applied, waiting for reboot: {}", release.version);
         log::info!("{}", status);
         state.end();
         utils::update_unit_status(&status);
-
-        Ok(())
     }
 
     /// Fetch and stage an update, in finalization-locked mode.
