@@ -38,7 +38,7 @@ pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Result<Release>
 /// Register as the update driver.
 /// Keep attempting to register as driver for rpm-ostree, with exponential backoff
 /// capped at 256 seconds.
-pub fn deploy_register_driver() -> Result<()> {
+pub fn deploy_register_driver() {
     let mut register_attempt = invoke_cli_register();
     let mut retry_secs = Duration::from_secs(1);
     while let Err(attempt) = register_attempt {
@@ -51,8 +51,6 @@ pub fn deploy_register_driver() -> Result<()> {
             retry_secs *= 2;
         }
     }
-
-    Ok(())
 }
 
 /// CLI executor for registering driver.
@@ -162,7 +160,7 @@ mod tests {
         let now = SystemTime::now();
         // expect to take 1 + 2 + 4 = 7 seconds
         // to register as driver due to `fail_point`s
-        deploy_register_driver().unwrap();
+        deploy_register_driver();
         let elapsed = now.elapsed().unwrap().as_secs();
         // `fail_point`s are set to succeed on 4th try
         assert!(REGISTER_DRIVER_FAILURES.get() == 3);
