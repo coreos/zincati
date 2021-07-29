@@ -112,11 +112,11 @@ impl Handler<QueryLocalDeployments> for RpmOstreeClient {
 pub struct RegisterAsDriver {}
 
 impl Message for RegisterAsDriver {
-    type Result = Result<()>;
+    type Result = ();
 }
 
 impl Handler<RegisterAsDriver> for RpmOstreeClient {
-    type Result = Result<()>;
+    type Result = ();
 
     fn handle(&mut self, _msg: RegisterAsDriver, _ctx: &mut Self::Context) -> Self::Result {
         trace!("request to register as rpm-ostree update driver");
