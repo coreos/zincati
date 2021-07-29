@@ -9,7 +9,7 @@ use futures::prelude::*;
 use log::trace;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use std::collections::BTreeSet;
-use std::sync::Arc;
+use std::rc::Rc;
 use std::time::Duration;
 
 /// Label for finalization attempts blocked due to active interactive user sessions.
@@ -75,13 +75,13 @@ impl Handler<RefreshTick> for UpdateAgent {
     type Result = ResponseActFuture<Self, Result<(), Error>>;
 
     fn handle(&mut self, _msg: RefreshTick, _ctx: &mut Self::Context) -> Self::Result {
-        // Acquire RwLock to access state.
-        let lock = Arc::clone(&self.state);
         // We need a clone of `info` because we need to move it into futures to ensure a
         // long enough lifetime.
         let update_agent_info = self.info.clone();
+        let lock = Rc::clone(&self.state);
         let state_action = async move {
-            let mut agent_state_guard = lock.write_owned().await;
+            // Acquire RwLock to access state.
+            let mut agent_state_guard = lock.write().await;
             // Consider `LAST_REFRESH` time to be when lock is acquired.
             let tick_timestamp = chrono::Utc::now();
             LAST_REFRESH.set(tick_timestamp.timestamp());
