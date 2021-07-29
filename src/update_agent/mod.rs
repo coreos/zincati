@@ -15,7 +15,7 @@ use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
 use std::convert::TryInto;
 use std::fs;
-use std::sync::Arc;
+use std::rc::Rc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
@@ -358,9 +358,9 @@ impl UpdateAgentState {
 #[derive(Debug)]
 pub(crate) struct UpdateAgent {
     /// Current state of the agent state machine.
-    /// We use an `Arc` because consumers of this field will likely need to
+    /// We use an `Rc` because consumers of this field will likely need to
     /// own it (e.g. consumers in futures).
-    state: Arc<RwLock<UpdateAgentState>>,
+    state: Rc<RwLock<UpdateAgentState>>,
     /// Update agent's information.
     info: UpdateAgentInfo,
 }
@@ -391,7 +391,7 @@ impl UpdateAgent {
     pub(crate) fn with_config(cfg: Settings, rpm_ostree_addr: Addr<RpmOstreeClient>) -> Self {
         let steady_secs = cfg.steady_interval_secs.get();
         Self {
-            state: Arc::new(RwLock::new(UpdateAgentState::default())),
+            state: Rc::new(RwLock::new(UpdateAgentState::default())),
             info: UpdateAgentInfo {
                 allow_downgrade: cfg.allow_downgrade,
                 cincinnati: cfg.cincinnati,
