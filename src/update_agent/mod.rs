@@ -13,6 +13,7 @@ use anyhow::{Context, Result};
 use chrono::prelude::*;
 use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
+use std::cell::RefCell;
 use std::convert::TryInto;
 use std::fs;
 use std::rc::Rc;
@@ -361,11 +362,14 @@ pub(crate) struct UpdateAgent {
     /// We use an `Rc` because consumers of this field will likely need to
     /// own it (e.g. consumers in futures).
     state: Rc<RwLock<UpdateAgentState>>,
+    /// Timestamp of last state transition.
+    /// Behind `Rc` (and hence the need for `RefCell`) for same reason as above.
+    state_changed: Rc<RefCell<DateTime<Utc>>>,
     /// Update agent's information.
     info: UpdateAgentInfo,
 }
 
-/// Information about the update agent.
+/// Read-only information about the update agent.
 #[derive(Debug, Clone)]
 pub(crate) struct UpdateAgentInfo {
     /// Whether to allow automatic downgrades.
@@ -382,8 +386,6 @@ pub(crate) struct UpdateAgentInfo {
     rpm_ostree_actor: Addr<RpmOstreeClient>,
     /// Update strategy.
     strategy: UpdateStrategy,
-    /// Timestamp of last state transition.
-    state_changed: DateTime<Utc>,
 }
 
 impl UpdateAgent {
@@ -392,6 +394,7 @@ impl UpdateAgent {
         let steady_secs = cfg.steady_interval_secs.get();
         Self {
             state: Rc::new(RwLock::new(UpdateAgentState::default())),
+            state_changed: Rc::new(RefCell::new(chrono::Utc::now())),
             info: UpdateAgentInfo {
                 allow_downgrade: cfg.allow_downgrade,
                 cincinnati: cfg.cincinnati,
@@ -400,7 +403,6 @@ impl UpdateAgent {
                 rpm_ostree_actor: rpm_ostree_addr,
                 steady_interval: Duration::from_secs(steady_secs),
                 strategy: cfg.strategy,
-                state_changed: chrono::Utc::now(),
             },
         }
     }

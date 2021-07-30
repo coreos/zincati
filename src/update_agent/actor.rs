@@ -9,6 +9,7 @@ use futures::prelude::*;
 use log::trace;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use std::collections::BTreeSet;
+use std::mem::discriminant;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -79,6 +80,7 @@ impl Handler<RefreshTick> for UpdateAgent {
         // long enough lifetime.
         let update_agent_info = self.info.clone();
         let lock = Rc::clone(&self.state);
+        let last_changed = Rc::clone(&self.state_changed);
         let state_action = async move {
             // Acquire RwLock to access state.
             let mut agent_state_guard = lock.write().await;
@@ -131,6 +133,14 @@ impl Handler<RefreshTick> for UpdateAgent {
                 UpdateAgentState::EndState => (),
             };
 
+            // Update state_changed timestamp if necessary.
+            if discriminant(&prev_state) != discriminant(&*agent_state_guard) {
+                let cur_timestamp = chrono::Utc::now();
+                // This mutable borrow will not panic because we are still holding
+                // the UpdateAgentState's `RwLock` for writing.
+                *last_changed.borrow_mut() = cur_timestamp;
+            }
+
             Self::refresh_delay(
                 update_agent_info.steady_interval,
                 &prev_state,
@@ -138,7 +148,7 @@ impl Handler<RefreshTick> for UpdateAgent {
             )
         };
         let state_action = state_action.into_actor(self);
-        let update_machine = state_action.then(|pause, actor, ctx| {
+        let update_machine = state_action.then(|pause, _actor, ctx| {
             if let Some(pause) = pause {
                 log::trace!(
                     "scheduling next agent refresh in {} seconds",
@@ -146,8 +156,6 @@ impl Handler<RefreshTick> for UpdateAgent {
                 );
                 Self::tick_later(ctx, pause);
             } else {
-                let update_timestamp = chrono::Utc::now();
-                actor.info.state_changed = update_timestamp;
                 Self::tick_now(ctx);
             }
             actix::fut::ok(())
@@ -196,8 +204,6 @@ impl UpdateAgent {
         prev_state: &UpdateAgentState,
         cur_state: &UpdateAgentState,
     ) -> bool {
-        use std::mem::discriminant;
-
         // State changes trigger immediate tick/action.
         if discriminant(prev_state) != discriminant(cur_state) {
             // Unless we're transitioning from ReportedSteady to NoNewUpdate.
