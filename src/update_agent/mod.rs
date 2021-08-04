@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 use chrono::prelude::*;
 use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
-use std::cell::RefCell;
+use std::cell::Cell;
 use std::convert::TryInto;
 use std::fs;
 use std::rc::Rc;
@@ -363,8 +363,9 @@ pub(crate) struct UpdateAgent {
     /// own it (e.g. consumers in futures).
     state: Rc<RwLock<UpdateAgentState>>,
     /// Timestamp of last state transition.
-    /// Behind `Rc` (and hence the need for `RefCell`) for same reason as above.
-    state_changed: Rc<RefCell<DateTime<Utc>>>,
+    /// Behind `Rc` for same reason as above.
+    /// `Cell` is sufficient because the update_agent actor runs on a single thread (SystemArbiter).
+    state_changed: Rc<Cell<DateTime<Utc>>>,
     /// Update agent's information.
     info: UpdateAgentInfo,
 }
@@ -394,7 +395,7 @@ impl UpdateAgent {
         let steady_secs = cfg.steady_interval_secs.get();
         Self {
             state: Rc::new(RwLock::new(UpdateAgentState::default())),
-            state_changed: Rc::new(RefCell::new(chrono::Utc::now())),
+            state_changed: Rc::new(Cell::new(chrono::Utc::now())),
             info: UpdateAgentInfo {
                 allow_downgrade: cfg.allow_downgrade,
                 cincinnati: cfg.cincinnati,
