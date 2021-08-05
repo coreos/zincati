@@ -135,10 +135,9 @@ impl Handler<RefreshTick> for UpdateAgent {
 
             // Update state_changed timestamp if necessary.
             if discriminant(&prev_state) != discriminant(&*agent_state_guard) {
-                let cur_timestamp = chrono::Utc::now();
-                // This mutable borrow will not panic because we are still holding
-                // the UpdateAgentState's `RwLock` for writing.
-                *last_changed.borrow_mut() = cur_timestamp;
+                // In practice, this field will be monotonically increasing as we
+                // ensure that we only set it when a `RwLock` to state is acquired.
+                last_changed.set(chrono::Utc::now());
             }
 
             Self::refresh_delay(
