@@ -1,11 +1,14 @@
 mod cli_deploy;
 mod cli_finalize;
 mod cli_status;
-pub use cli_status::{invoke_cli_status, parse_basearch, parse_booted, parse_updates_stream};
+pub use cli_status::{
+    invoke_cli_status, parse_basearch, parse_booted, parse_booted_updates_stream,
+};
 
 mod actor;
 pub use actor::{
-    FinalizeDeployment, QueryLocalDeployments, RegisterAsDriver, RpmOstreeClient, StageDeployment,
+    CleanupPendingDeployment, FinalizeDeployment, QueryLocalDeployments,
+    QueryPendingDeploymentStream, RegisterAsDriver, RpmOstreeClient, StageDeployment,
 };
 
 #[cfg(test)]

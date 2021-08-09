@@ -98,10 +98,21 @@ pub fn parse_booted(status: &StatusJson) -> Result<Release> {
 }
 
 /// Parse updates stream for booted deployment from status object.
-pub fn parse_updates_stream(status: &StatusJson) -> Result<String> {
+pub fn parse_booted_updates_stream(status: &StatusJson) -> Result<String> {
     let json = booted_json(status)?;
     ensure!(!json.base_metadata.stream.is_empty(), "empty stream value");
     Ok(json.base_metadata.stream)
+}
+
+/// Parse updates stream for pending deployment from status object.
+pub fn parse_pending_updates_stream(status: &StatusJson) -> Result<String> {
+    let pending_json = status.deployments[0].clone();
+    ensure!(!pending_json.booted, "no pending deployment found");
+    ensure!(
+        !pending_json.base_metadata.stream.is_empty(),
+        "empty stream value"
+    );
+    Ok(pending_json.base_metadata.stream)
 }
 
 /// Parse local deployments from a status object.

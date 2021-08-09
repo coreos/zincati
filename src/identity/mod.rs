@@ -103,7 +103,7 @@ impl Identity {
             compute_node_uuid(&app_id)?
         };
         let platform = platform::read_id("/proc/cmdline")?;
-        let stream = rpm_ostree::parse_updates_stream(&status)
+        let stream = rpm_ostree::parse_booted_updates_stream(&status)
             .context("failed to introspect OS updates stream")?;
 
         let id = Self {

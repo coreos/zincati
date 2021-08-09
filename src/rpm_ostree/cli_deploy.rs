@@ -93,6 +93,7 @@ fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Result<Release>
     let mut cmd = std::process::Command::new("rpm-ostree");
     cmd.arg("deploy")
         .arg("--lock-finalization")
+        .arg("--skip-branch-check")
         .arg(format!("revision={}", release.checksum))
         .env("RPMOSTREE_CLIENT_ID", "zincati");
     if !allow_downgrade {
@@ -108,6 +109,20 @@ fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Result<Release>
         );
     }
     Ok(release)
+}
+
+/// CLI executor for cleaning up the pending deployment.
+pub fn invoke_cli_cleanup() -> Result<()> {
+    let mut cmd = std::process::Command::new("rpm-ostree");
+    cmd.arg("cleanup").arg("-p");
+    let out = cmd.output().context("failed to run 'rpm-ostree' binary")?;
+    if !out.status.success() {
+        bail!(
+            "rpm-ostree cleanup failed:\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        )
+    };
+    Ok(())
 }
 
 #[cfg(test)]
