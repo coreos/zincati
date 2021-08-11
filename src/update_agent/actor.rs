@@ -1,6 +1,6 @@
 //! Update agent actor.
 
-use super::{UpdateAgent, UpdateAgentInfo, UpdateAgentState};
+use super::{UpdateAgent, UpdateAgentInfo, UpdateAgentMachineState, UpdateAgentState};
 use crate::rpm_ostree::{self, Release};
 use crate::utils;
 use actix::prelude::*;
@@ -88,53 +88,56 @@ impl Handler<RefreshTick> for UpdateAgent {
             let tick_timestamp = chrono::Utc::now();
             LAST_REFRESH.set(tick_timestamp.timestamp());
 
-            trace!("update agent tick, current state: {:?}", *agent_state_guard);
-            let prev_state = (*agent_state_guard).clone();
+            trace!(
+                "update agent tick, current state: {:?}",
+                agent_state_guard.machine_state
+            );
+            let prev_state = agent_state_guard.machine_state.clone();
 
             match &prev_state {
-                UpdateAgentState::StartState => {
+                UpdateAgentMachineState::StartState => {
                     update_agent_info
-                        .tick_initialize(&mut *agent_state_guard)
+                        .tick_initialize(&mut agent_state_guard)
                         .await
                 }
-                UpdateAgentState::Initialized => {
+                UpdateAgentMachineState::Initialized => {
                     update_agent_info
-                        .tick_report_steady(&mut *agent_state_guard)
+                        .tick_report_steady(&mut agent_state_guard.machine_state)
                         .await
                 }
-                UpdateAgentState::ReportedSteady => {
+                UpdateAgentMachineState::ReportedSteady => {
                     update_agent_info
-                        .tick_check_updates(&mut *agent_state_guard)
+                        .tick_check_updates(&mut agent_state_guard)
                         .await
                 }
-                UpdateAgentState::NoNewUpdate => {
+                UpdateAgentMachineState::NoNewUpdate => {
                     update_agent_info
-                        .tick_check_updates(&mut *agent_state_guard)
+                        .tick_check_updates(&mut agent_state_guard)
                         .await
                 }
-                UpdateAgentState::UpdateAvailable((release, _)) => {
+                UpdateAgentMachineState::UpdateAvailable((release, _)) => {
                     let update = release.clone();
                     update_agent_info
-                        .tick_stage_update(&mut *agent_state_guard, update)
+                        .tick_stage_update(&mut agent_state_guard.machine_state, update)
                         .await
                 }
-                UpdateAgentState::UpdateStaged((release, _)) => {
+                UpdateAgentMachineState::UpdateStaged((release, _)) => {
                     let update = release.clone();
                     update_agent_info
-                        .tick_finalize_update(&mut *agent_state_guard, update)
+                        .tick_finalize_update(&mut agent_state_guard.machine_state, update)
                         .await
                 }
-                UpdateAgentState::UpdateFinalized(release) => {
+                UpdateAgentMachineState::UpdateFinalized(release) => {
                     let update = release.clone();
                     update_agent_info
-                        .tick_end(&mut *agent_state_guard, update)
+                        .tick_end(&mut agent_state_guard.machine_state, update)
                         .await
                 }
-                UpdateAgentState::EndState => (),
+                UpdateAgentMachineState::EndState => (),
             };
 
             // Update state_changed timestamp if necessary.
-            if discriminant(&prev_state) != discriminant(&*agent_state_guard) {
+            if discriminant(&prev_state) != discriminant(&agent_state_guard.machine_state) {
                 // In practice, this field will be monotonically increasing as we
                 // ensure that we only set it when a `RwLock` to state is acquired.
                 last_changed.set(chrono::Utc::now());
@@ -143,7 +146,7 @@ impl Handler<RefreshTick> for UpdateAgent {
             Self::refresh_delay(
                 update_agent_info.steady_interval,
                 &prev_state,
-                &*agent_state_guard,
+                &agent_state_guard.machine_state,
             )
         };
         let state_action = state_action.into_actor(self);
@@ -182,8 +185,8 @@ impl UpdateAgent {
     /// frequent refreshes, or can be customized by the user.
     fn refresh_delay(
         steady_interval: Duration,
-        prev_state: &UpdateAgentState,
-        cur_state: &UpdateAgentState,
+        prev_state: &UpdateAgentMachineState,
+        cur_state: &UpdateAgentMachineState,
     ) -> Option<Duration> {
         if Self::should_tick_immediately(prev_state, cur_state) {
             return None;
@@ -200,14 +203,14 @@ impl UpdateAgent {
     /// Return whether a transition from `prev_state` to `cur_state` warrants an immediate
     /// tick.
     fn should_tick_immediately(
-        prev_state: &UpdateAgentState,
-        cur_state: &UpdateAgentState,
+        prev_state: &UpdateAgentMachineState,
+        cur_state: &UpdateAgentMachineState,
     ) -> bool {
         // State changes trigger immediate tick/action.
         if discriminant(prev_state) != discriminant(cur_state) {
             // Unless we're transitioning from ReportedSteady to NoNewUpdate.
-            if !(*prev_state == UpdateAgentState::ReportedSteady
-                && *cur_state == UpdateAgentState::NoNewUpdate)
+            if !(*prev_state == UpdateAgentMachineState::ReportedSteady
+                && *cur_state == UpdateAgentMachineState::NoNewUpdate)
             {
                 return true;
             }
@@ -269,19 +272,23 @@ impl UpdateAgentInfo {
         }
         let local_depls = self.local_deployments().await;
         match local_depls {
-            Ok(depls) => UpdateAgent::log_excluded_depls(&depls, &self),
+            Ok(depls) => {
+                UpdateAgent::log_excluded_depls(&depls, &self);
+                // Set denylist.
+                state.denylist = depls;
+            }
             Err(e) => log::error!("failed to query local deployments: {}", e),
         }
         let status;
         if self.enabled {
             status = "initialization complete, auto-updates logic enabled";
             log::info!("{}", status);
-            state.initialized();
+            state.machine_state.initialized();
             self.strategy.record_details();
         } else {
             status = "initialization complete, auto-updates logic disabled by configuration";
             log::warn!("{}", status);
-            state.end();
+            state.machine_state.end();
         }
 
         utils::notify_ready();
@@ -289,7 +296,7 @@ impl UpdateAgentInfo {
     }
 
     /// Try to report steady state.
-    async fn tick_report_steady(&self, state: &mut UpdateAgentState) {
+    async fn tick_report_steady(&self, state: &mut UpdateAgentMachineState) {
         trace!("trying to report steady state");
 
         let is_steady = self.strategy.report_steady().await;
@@ -304,7 +311,6 @@ impl UpdateAgentInfo {
     async fn tick_check_updates(&self, state: &mut UpdateAgentState) {
         trace!("trying to check for udpates");
 
-        let local_depls = self.local_deployments().await;
         let timestamp_now = chrono::Utc::now();
         utils::update_unit_status(&format!(
             "periodically polling for updates (last checked {})",
@@ -312,31 +318,24 @@ impl UpdateAgentInfo {
         ));
         let allow_downgrade = self.allow_downgrade;
 
-        let release = match local_depls {
-            Ok(depls) => {
-                self.cincinnati
-                    .fetch_update_hint(&self.identity, depls, allow_downgrade)
-                    .await
-            }
-            Err(e) => {
-                log::error!("failed to query local deployments: {}", e);
-                None
-            }
-        };
+        let release = self
+            .cincinnati
+            .fetch_update_hint(&self.identity, state.denylist.clone(), allow_downgrade)
+            .await;
 
         match release {
             Some(release) => {
                 utils::update_unit_status(&format!("found update on remote: {}", release.version));
-                state.update_available(release);
+                state.machine_state.update_available(release);
             }
             None => {
-                state.no_new_update();
+                state.machine_state.no_new_update();
             }
         }
     }
 
     /// Try to stage an update.
-    async fn tick_stage_update(&self, mut state: &mut UpdateAgentState, release: Release) {
+    async fn tick_stage_update(&self, mut state: &mut UpdateAgentMachineState, release: Release) {
         trace!("trying to stage an update");
 
         let target = release.clone();
@@ -366,7 +365,7 @@ impl UpdateAgentInfo {
     }
 
     /// Try to finalize an update.
-    async fn tick_finalize_update(&self, state: &mut UpdateAgentState, release: Release) {
+    async fn tick_finalize_update(&self, state: &mut UpdateAgentMachineState, release: Release) {
         trace!("trying to finalize an update");
         FINALIZATION_ATTEMPTS.inc();
 
@@ -407,7 +406,7 @@ impl UpdateAgentInfo {
     }
 
     /// Actor job is done.
-    async fn tick_end(&self, state: &mut UpdateAgentState, release: Release) {
+    async fn tick_end(&self, state: &mut UpdateAgentMachineState, release: Release) {
         let status = format!("update applied, waiting for reboot: {}", release.version);
         log::info!("{}", status);
         state.end();
@@ -435,7 +434,7 @@ impl UpdateAgentInfo {
 
     /// Record a failed deploy attempt and return the total number of
     /// failed deployment attempts.
-    fn deploy_attempt_failed(release: Release, state: &mut UpdateAgentState) -> u8 {
+    fn deploy_attempt_failed(release: Release, state: &mut UpdateAgentMachineState) -> u8 {
         let (is_abandoned, fail_count) = state.record_failed_deploy();
         if is_abandoned {
             log::warn!(
@@ -510,42 +509,42 @@ mod tests {
         };
 
         // Transition between states with different discriminants.
-        let prev_state = UpdateAgentState::Initialized;
-        let cur_state = UpdateAgentState::ReportedSteady;
+        let prev_state = UpdateAgentMachineState::Initialized;
+        let cur_state = UpdateAgentMachineState::ReportedSteady;
         assert!(UpdateAgent::should_tick_immediately(
             &prev_state,
             &cur_state
         ));
-        let prev_state = UpdateAgentState::NoNewUpdate;
-        let cur_state = UpdateAgentState::UpdateAvailable((update.clone(), 0));
+        let prev_state = UpdateAgentMachineState::NoNewUpdate;
+        let cur_state = UpdateAgentMachineState::UpdateAvailable((update.clone(), 0));
         assert!(UpdateAgent::should_tick_immediately(
             &prev_state,
             &cur_state
         ));
         // Note we do NOT expect an immediate tick as this is a special case.
-        let prev_state = UpdateAgentState::ReportedSteady;
-        let cur_state = UpdateAgentState::NoNewUpdate;
+        let prev_state = UpdateAgentMachineState::ReportedSteady;
+        let cur_state = UpdateAgentMachineState::NoNewUpdate;
         assert!(!UpdateAgent::should_tick_immediately(
             &prev_state,
             &cur_state
         ));
 
         // Transition between states with same discriminants.
-        let prev_state = UpdateAgentState::NoNewUpdate;
-        let cur_state = UpdateAgentState::NoNewUpdate;
+        let prev_state = UpdateAgentMachineState::NoNewUpdate;
+        let cur_state = UpdateAgentMachineState::NoNewUpdate;
         assert!(!UpdateAgent::should_tick_immediately(
             &prev_state,
             &cur_state
         ));
-        let prev_state = UpdateAgentState::UpdateAvailable((update.clone(), 0));
-        let cur_state = UpdateAgentState::UpdateAvailable((update.clone(), 1));
+        let prev_state = UpdateAgentMachineState::UpdateAvailable((update.clone(), 0));
+        let cur_state = UpdateAgentMachineState::UpdateAvailable((update.clone(), 1));
         assert!(!UpdateAgent::should_tick_immediately(
             &prev_state,
             &cur_state
         ));
         let prev_state =
-            UpdateAgentState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS));
-        let cur_state = UpdateAgentState::UpdateStaged((
+            UpdateAgentMachineState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS));
+        let cur_state = UpdateAgentMachineState::UpdateStaged((
             update.clone(),
             MAX_FINALIZE_POSTPONEMENTS.saturating_sub(1),
         ));

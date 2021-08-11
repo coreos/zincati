@@ -130,14 +130,14 @@ impl Cincinnati {
     pub(crate) fn fetch_update_hint(
         &self,
         id: &Identity,
-        deployments: BTreeSet<Release>,
+        denylisted_depls: BTreeSet<Release>,
         allow_downgrade: bool,
     ) -> Pin<Box<dyn Future<Output = Option<Release>>>> {
         UPDATE_CHECKS.inc();
         log::trace!("checking upstream Cincinnati server for updates");
 
         let update = self
-            .next_update(id, deployments, allow_downgrade)
+            .next_update(id, denylisted_depls, allow_downgrade)
             .unwrap_or_else(|e| {
                 UPDATE_CHECKS_ERRORS
                     .with_label_values(&[&e.error_kind()])
@@ -152,7 +152,7 @@ impl Cincinnati {
     fn next_update(
         &self,
         id: &Identity,
-        deployments: BTreeSet<Release>,
+        denylisted_depls: BTreeSet<Release>,
         allow_downgrade: bool,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Release>, CincinnatiError>>>> {
         let booted = id.current_os.clone();
@@ -165,7 +165,7 @@ impl Cincinnati {
         let next = futures::future::ready(client)
             .and_then(|c| c.fetch_graph())
             .and_then(move |graph| async move {
-                find_update(graph, booted, deployments, allow_downgrade)
+                find_update(graph, booted, denylisted_depls, allow_downgrade)
             });
         Box::pin(next)
     }
@@ -213,7 +213,7 @@ fn refresh_deadend_status(node: &Node) -> Result<()> {
 fn find_update(
     graph: client::Graph,
     booted_depl: Release,
-    local_depls: BTreeSet<Release>,
+    denylisted_depls: BTreeSet<Release>,
     allow_downgrade: bool,
 ) -> Result<Option<Release>, CincinnatiError> {
     GRAPH_NODES.set(graph.nodes.len() as i64);
@@ -250,8 +250,8 @@ fn find_update(
     };
     BOOTED_DEADEND.set(is_deadend);
 
-    // Try to find all local deployments in the graph too.
-    let local_releases = find_local_releases(&graph, local_depls);
+    // Try to find all denylisted deployments in the graph too.
+    let denylisted_releases = find_denylisted_releases(&graph, denylisted_depls);
 
     // Find all possible update targets from booted deployment.
     let targets: Vec<_> = graph
@@ -279,14 +279,14 @@ fn find_update(
         updates.insert(release);
     }
 
-    // Exclude target already deployed locally in the past.
-    let new_updates = updates.difference(&local_releases);
+    // Exclude targets in denylist.
+    let new_updates = updates.difference(&denylisted_releases);
 
-    // Log that we will avoid updating to already deployed releases.
-    let prev_deployed_excluded = updates.intersection(&local_releases).count();
+    // Log that we will avoid updating to denylisted releases.
+    let prev_deployed_excluded = updates.intersection(&denylisted_releases).count();
     if prev_deployed_excluded > 0 {
         log::debug!(
-            "Found {} possible update target{} already deployed locally in the past; ignoring",
+            "Found {} possible update target{} present in denylist; ignoring",
             prev_deployed_excluded,
             if prev_deployed_excluded > 1 { "s" } else { "" }
         );
@@ -311,8 +311,8 @@ fn find_update(
     Ok(Some(next))
 }
 
-/// Try to match a set of (local) deployments to their graph entries.
-fn find_local_releases(graph: &client::Graph, depls: BTreeSet<Release>) -> BTreeSet<Release> {
+/// Try to match a set of (denylisted) deployments to their graph entries.
+fn find_denylisted_releases(graph: &client::Graph, depls: BTreeSet<Release>) -> BTreeSet<Release> {
     use std::collections::HashSet;
 
     let mut local_releases = BTreeSet::new();

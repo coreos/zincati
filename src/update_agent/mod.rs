@@ -14,6 +14,7 @@ use chrono::prelude::*;
 use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
 use std::cell::Cell;
+use std::collections::BTreeSet;
 use std::convert::TryInto;
 use std::fs;
 use std::rc::Rc;
@@ -95,7 +96,7 @@ where
 
 /// State machine for the agent.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum UpdateAgentState {
+enum UpdateAgentMachineState {
     /// Initial state upon actor start.
     StartState,
     /// Agent initialized.
@@ -124,15 +125,15 @@ enum UpdateAgentState {
     EndState,
 }
 
-impl Default for UpdateAgentState {
+impl Default for UpdateAgentMachineState {
     fn default() -> Self {
-        let start_state = UpdateAgentState::StartState;
+        let start_state = UpdateAgentMachineState::StartState;
         LATEST_STATE_CHANGE.set(chrono::Utc::now().timestamp());
         start_state
     }
 }
 
-impl UpdateAgentState {
+impl UpdateAgentMachineState {
     /// Progress the machine to a new state.
     fn transition_to(&mut self, state: Self) {
         use std::mem::discriminant;
@@ -145,10 +146,10 @@ impl UpdateAgentState {
 
     /// Transition to the Initialized state.
     fn initialized(&mut self) {
-        let target = UpdateAgentState::Initialized;
+        let target = UpdateAgentMachineState::Initialized;
         // Allowed starting states.
         assert!(
-            *self == UpdateAgentState::StartState,
+            *self == UpdateAgentMachineState::StartState,
             "transition not allowed: {:?} to {:?}",
             self,
             target,
@@ -159,10 +160,10 @@ impl UpdateAgentState {
 
     /// Transition to the ReportedSteady state.
     fn reported_steady(&mut self) {
-        let target = UpdateAgentState::ReportedSteady;
+        let target = UpdateAgentMachineState::ReportedSteady;
         // Allowed starting states.
         assert!(
-            *self == UpdateAgentState::Initialized,
+            *self == UpdateAgentMachineState::Initialized,
             "transition not allowed: {:?} to {:?}",
             self,
             target,
@@ -173,24 +174,26 @@ impl UpdateAgentState {
 
     /// Transition to the NoNewUpdate state.
     fn no_new_update(&mut self) {
-        let target = UpdateAgentState::NoNewUpdate;
+        let target = UpdateAgentMachineState::NoNewUpdate;
         // Allowed starting states.
         assert!(
-            *self == UpdateAgentState::ReportedSteady || *self == UpdateAgentState::NoNewUpdate,
+            *self == UpdateAgentMachineState::ReportedSteady
+                || *self == UpdateAgentMachineState::NoNewUpdate,
             "transition not allowed: {:?} to {:?}",
             self,
             target
         );
 
-        self.transition_to(UpdateAgentState::NoNewUpdate);
+        self.transition_to(UpdateAgentMachineState::NoNewUpdate);
     }
 
     /// Transition to the UpdateAvailable state with a new release.
     fn update_available(&mut self, update: Release) {
-        let target = UpdateAgentState::UpdateAvailable((update, 0));
+        let target = UpdateAgentMachineState::UpdateAvailable((update, 0));
         // Allowed starting states.
         assert!(
-            *self == UpdateAgentState::ReportedSteady || *self == UpdateAgentState::NoNewUpdate,
+            *self == UpdateAgentMachineState::ReportedSteady
+                || *self == UpdateAgentMachineState::NoNewUpdate,
             "transition not allowed: {:?} to {:?}",
             self,
             target
@@ -206,7 +209,7 @@ impl UpdateAgentState {
     /// (including the newly recorded failed attempt).
     fn record_failed_deploy(&mut self) -> (bool, u8) {
         let (release, attempts) = match self.clone() {
-            UpdateAgentState::UpdateAvailable((r, a)) => (r, a),
+            UpdateAgentMachineState::UpdateAvailable((r, a)) => (r, a),
             _ => unreachable!("transition not allowed: record_failed_deploy on {:?}", self,),
         };
         let fail_count = attempts.saturating_add(1);
@@ -223,14 +226,14 @@ impl UpdateAgentState {
 
     /// Transition to the UpdateAvailable state after a deploy failure.
     fn deploy_failed(&mut self, update: Release, fail_count: u8) {
-        let target = UpdateAgentState::UpdateAvailable((update, fail_count));
+        let target = UpdateAgentMachineState::UpdateAvailable((update, fail_count));
 
         self.transition_to(target);
     }
 
     /// Transition to the NoNewUpdate state after persistent deploy failure.
     fn update_abandoned(&mut self) {
-        let target = UpdateAgentState::NoNewUpdate;
+        let target = UpdateAgentMachineState::NoNewUpdate;
 
         self.transition_to(target);
     }
@@ -238,7 +241,7 @@ impl UpdateAgentState {
     /// Transition to the UpdateStaged state, setting the number of postponements
     /// remaining to `MAX_FINALIZE_POSTPONEMENTS`.
     fn update_staged(&mut self, update: Release) {
-        let target = UpdateAgentState::UpdateStaged((update, MAX_FINALIZE_POSTPONEMENTS));
+        let target = UpdateAgentMachineState::UpdateStaged((update, MAX_FINALIZE_POSTPONEMENTS));
 
         self.transition_to(target);
     }
@@ -271,7 +274,7 @@ impl UpdateAgentState {
         }
 
         let (release, postponements_remaining) = match self.clone() {
-            UpdateAgentState::UpdateStaged((r, p)) => (r, p),
+            UpdateAgentMachineState::UpdateStaged((r, p)) => (r, p),
             _ => unreachable!(
                 "transition not allowed: handle_interactive_sessions on {:?}",
                 self,
@@ -300,7 +303,7 @@ impl UpdateAgentState {
     /// postponements allowed by one) after a finalization postponement.
     fn record_postponement(&mut self) {
         let (release, postponements_remaining) = match self.clone() {
-            UpdateAgentState::UpdateStaged((r, p)) => (r, p),
+            UpdateAgentMachineState::UpdateStaged((r, p)) => (r, p),
             _ => unreachable!(
                 "transition not allowed: handle_interactive_sessions on {:?}",
                 self,
@@ -314,21 +317,21 @@ impl UpdateAgentState {
     /// Transition to the UpdateStaged state, setting the number of postponements
     /// remaining to postponements_remaining.
     fn reboot_postponed(&mut self, update: Release, postponements_remaining: u8) {
-        let target = UpdateAgentState::UpdateStaged((update, postponements_remaining));
+        let target = UpdateAgentMachineState::UpdateStaged((update, postponements_remaining));
 
         self.transition_to(target);
     }
 
     /// Transition to the UpdateFinalized state.
     fn update_finalized(&mut self, update: Release) {
-        let target = UpdateAgentState::UpdateFinalized(update);
+        let target = UpdateAgentMachineState::UpdateFinalized(update);
 
         self.transition_to(target);
     }
 
     /// Transition to the End state.
     fn end(&mut self) {
-        let target = UpdateAgentState::EndState;
+        let target = UpdateAgentMachineState::EndState;
 
         self.transition_to(target);
     }
@@ -337,10 +340,10 @@ impl UpdateAgentState {
     /// jitter should be added.
     fn get_refresh_delay(&self, steady_interval: Duration) -> (Duration, bool) {
         match self {
-            UpdateAgentState::ReportedSteady | UpdateAgentState::NoNewUpdate => {
+            UpdateAgentMachineState::ReportedSteady | UpdateAgentMachineState::NoNewUpdate => {
                 (steady_interval, true)
             }
-            UpdateAgentState::UpdateStaged((_, postponements)) => {
+            UpdateAgentMachineState::UpdateStaged((_, postponements)) => {
                 // If postponements is less than `MAX_FINALIZE_POSTPONEMENTS`, that means the current tick
                 // led to a postponment, and so we should add a delay of `DEFAULT_POSTPONEMENT_TIME_SECS`.
                 if *postponements < MAX_FINALIZE_POSTPONEMENTS {
@@ -349,7 +352,7 @@ impl UpdateAgentState {
                     (Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS), true)
                 }
             }
-            UpdateAgentState::EndState => (Duration::from_secs(END_INTERVAL_SECS), true),
+            UpdateAgentMachineState::EndState => (Duration::from_secs(END_INTERVAL_SECS), true),
             _ => (Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS), true),
         }
     }
@@ -358,7 +361,7 @@ impl UpdateAgentState {
 /// Update agent.
 #[derive(Debug)]
 pub(crate) struct UpdateAgent {
-    /// Current state of the agent state machine.
+    /// Current state of the agent.
     /// We use an `Rc` because consumers of this field will likely need to
     /// own it (e.g. consumers in futures).
     state: Rc<RwLock<UpdateAgentState>>,
@@ -368,6 +371,15 @@ pub(crate) struct UpdateAgent {
     state_changed: Rc<Cell<DateTime<Utc>>>,
     /// Update agent's information.
     info: UpdateAgentInfo,
+}
+
+/// Non-atomic read-write state of the update agent.
+#[derive(Debug, Default)]
+pub(crate) struct UpdateAgentState {
+    /// Current state of the agent state machine.
+    machine_state: UpdateAgentMachineState,
+    /// List of releases to ignore.
+    denylist: BTreeSet<Release>,
 }
 
 /// Read-only information about the update agent.
@@ -533,7 +545,10 @@ mod tests {
 
     #[test]
     fn default_state() {
-        assert_eq!(UpdateAgentState::default(), UpdateAgentState::StartState);
+        assert_eq!(
+            UpdateAgentMachineState::default(),
+            UpdateAgentMachineState::StartState
+        );
     }
 
     #[test]
@@ -541,20 +556,20 @@ mod tests {
         let steady_interval = Duration::from_secs(DEFAULT_STEADY_INTERVAL_SECS);
         let default_interval = Duration::from_secs(DEFAULT_REFRESH_PERIOD_SECS);
 
-        let mut machine = UpdateAgentState::default();
-        assert_eq!(machine, UpdateAgentState::StartState);
+        let mut machine = UpdateAgentMachineState::default();
+        assert_eq!(machine, UpdateAgentMachineState::StartState);
 
         machine.initialized();
-        assert_eq!(machine, UpdateAgentState::Initialized);
+        assert_eq!(machine, UpdateAgentMachineState::Initialized);
 
         machine.reported_steady();
-        assert_eq!(machine, UpdateAgentState::ReportedSteady);
+        assert_eq!(machine, UpdateAgentMachineState::ReportedSteady);
 
         let state_change_time_before = LATEST_STATE_CHANGE.get();
         thread::sleep(time::Duration::from_secs(1));
         machine.no_new_update(); // ReportedSteady to NoNewUpdate.
         let state_change_time_after = LATEST_STATE_CHANGE.get();
-        assert_eq!(machine, UpdateAgentState::NoNewUpdate);
+        assert_eq!(machine, UpdateAgentMachineState::NoNewUpdate);
         assert_ne!(state_change_time_before, state_change_time_after);
         let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
         assert_eq!(delay, steady_interval);
@@ -564,7 +579,7 @@ mod tests {
         thread::sleep(time::Duration::from_secs(1));
         machine.no_new_update(); // NoNewUpdate to NoNewUpdate.
         let state_change_time_after = LATEST_STATE_CHANGE.get();
-        assert_eq!(machine, UpdateAgentState::NoNewUpdate);
+        assert_eq!(machine, UpdateAgentMachineState::NoNewUpdate);
         // Transitioning to own state not considered state change.
         assert_eq!(state_change_time_before, state_change_time_after);
 
@@ -576,14 +591,14 @@ mod tests {
         machine.update_available(update.clone());
         assert_eq!(
             machine,
-            UpdateAgentState::UpdateAvailable((update.clone(), 0))
+            UpdateAgentMachineState::UpdateAvailable((update.clone(), 0))
         );
 
         let (persistent_err, _) = machine.record_failed_deploy();
         assert_eq!(persistent_err, false);
         assert_eq!(
             machine,
-            UpdateAgentState::UpdateAvailable((update.clone(), 1))
+            UpdateAgentMachineState::UpdateAvailable((update.clone(), 1))
         );
         let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
         assert_eq!(delay, default_interval);
@@ -592,14 +607,17 @@ mod tests {
         machine.update_staged(update.clone());
         assert_eq!(
             machine,
-            UpdateAgentState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS))
+            UpdateAgentMachineState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS))
         );
 
         machine.update_finalized(update.clone());
-        assert_eq!(machine, UpdateAgentState::UpdateFinalized(update.clone()));
+        assert_eq!(
+            machine,
+            UpdateAgentMachineState::UpdateFinalized(update.clone())
+        );
 
         machine.end();
-        assert_eq!(machine, UpdateAgentState::EndState);
+        assert_eq!(machine, UpdateAgentMachineState::EndState);
     }
 
     #[test]
@@ -609,12 +627,12 @@ mod tests {
             checksum: "ostree-checksum".to_string(),
             age_index: None,
         };
-        let mut machine = UpdateAgentState::NoNewUpdate;
+        let mut machine = UpdateAgentMachineState::NoNewUpdate;
 
         machine.update_available(update.clone());
         assert_eq!(
             machine,
-            UpdateAgentState::UpdateAvailable((update.clone(), 0))
+            UpdateAgentMachineState::UpdateAvailable((update.clone(), 0))
         );
 
         // MAX-1 temporary failures.
@@ -623,14 +641,14 @@ mod tests {
             assert_eq!(persistent_err, false);
             assert_eq!(
                 machine,
-                UpdateAgentState::UpdateAvailable((update.clone(), attempt as u8))
+                UpdateAgentMachineState::UpdateAvailable((update.clone(), attempt as u8))
             )
         }
 
         // Persistent error threshold reached.
         let (persistent_err, _) = machine.record_failed_deploy();
         assert_eq!(persistent_err, true);
-        assert_eq!(machine, UpdateAgentState::NoNewUpdate);
+        assert_eq!(machine, UpdateAgentMachineState::NoNewUpdate);
     }
 
     #[test]
@@ -643,7 +661,7 @@ mod tests {
             checksum: "ostree-checksum".to_string(),
             age_index: None,
         };
-        let mut machine = UpdateAgentState::UpdateAvailable((update.clone(), 0));
+        let mut machine = UpdateAgentMachineState::UpdateAvailable((update.clone(), 0));
         let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
         assert_eq!(delay, default_interval);
         assert!(should_jitter);
@@ -651,7 +669,7 @@ mod tests {
         machine.update_staged(update.clone());
         assert_eq!(
             machine,
-            UpdateAgentState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS))
+            UpdateAgentMachineState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS))
         );
 
         // Set up empty interactive sessions.
@@ -660,7 +678,7 @@ mod tests {
         assert!(can_finalize);
         assert_eq!(
             machine,
-            UpdateAgentState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS))
+            UpdateAgentMachineState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS))
         );
         let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
         assert_eq!(delay, default_interval);
@@ -685,7 +703,7 @@ mod tests {
                 MAX_FINALIZE_POSTPONEMENTS.saturating_sub(finalization_attempt);
             assert_eq!(
                 machine,
-                UpdateAgentState::UpdateStaged((update.clone(), postponement_remaining))
+                UpdateAgentMachineState::UpdateStaged((update.clone(), postponement_remaining))
             );
             let (delay, should_jitter) = machine.get_refresh_delay(steady_interval);
             assert_eq!(delay, postponement_interval);
@@ -701,7 +719,10 @@ mod tests {
         // Reached 0 remaining postponements.
         let can_finalize = machine.handle_interactive_sessions(&interactive_sessions_present);
         assert!(can_finalize);
-        assert_eq!(machine, UpdateAgentState::UpdateStaged((update.clone(), 0)));
+        assert_eq!(
+            machine,
+            UpdateAgentMachineState::UpdateStaged((update.clone(), 0))
+        );
     }
 
     #[test]
