@@ -118,7 +118,7 @@ impl Handler<RefreshTick> for UpdateAgent {
                 UpdateAgentMachineState::UpdateAvailable((release, _)) => {
                     let update = release.clone();
                     update_agent_info
-                        .tick_stage_update(&mut agent_state_guard.machine_state, update)
+                        .tick_stage_update(&mut agent_state_guard, update)
                         .await
                 }
                 UpdateAgentMachineState::UpdateStaged((release, _)) => {
@@ -335,7 +335,7 @@ impl UpdateAgentInfo {
     }
 
     /// Try to stage an update.
-    async fn tick_stage_update(&self, mut state: &mut UpdateAgentMachineState, release: Release) {
+    async fn tick_stage_update(&self, state: &mut UpdateAgentState, release: Release) {
         trace!("trying to stage an update");
 
         let target = release.clone();
@@ -343,15 +343,14 @@ impl UpdateAgentInfo {
 
         match deploy_outcome {
             Ok(release) => {
-                let msg = format!("update staged: {}", release.version);
-                utils::update_unit_status(&msg);
-                log::info!("{}", msg);
-                state.update_staged(release);
+                // Sanity check that the deployment we just staged is from the correct stream.
+                self.check_stream(state, release.clone()).await;
             }
             Err(e) => {
                 log::error!("failed to stage deployment: {}", e);
                 let release_ver = release.version.clone();
-                let fail_count = UpdateAgentInfo::deploy_attempt_failed(release, &mut state);
+                let fail_count =
+                    UpdateAgentInfo::deploy_attempt_failed(release, &mut state.machine_state);
                 let msg = format!(
                     "trying to stage {} ({} failed deployment attempt{})",
                     release_ver,
@@ -464,6 +463,15 @@ impl UpdateAgentInfo {
         depls
     }
 
+    /// Return the update stream of the pending deployment.
+    async fn query_pending_deployment_stream(&self) -> Result<String> {
+        let msg = rpm_ostree::QueryPendingDeploymentStream {};
+        self.rpm_ostree_actor
+            .send(msg)
+            .unwrap_or_else(|e| Err(e.into()))
+            .await
+    }
+
     /// Finalize a deployment (unlock and reboot).
     async fn finalize_deployment(&self, release: Release) -> Result<Release> {
         log::info!(
@@ -490,6 +498,52 @@ impl UpdateAgentInfo {
             .send(msg)
             .unwrap_or_else(|e| log::error!("failed to register as driver: {}", e))
             .await
+    }
+
+    /// Cleanup pending deployment.
+    async fn cleanup_pending_deployment(&self) {
+        let msg = rpm_ostree::CleanupPendingDeployment {};
+        let result = self
+            .rpm_ostree_actor
+            .send(msg)
+            .unwrap_or_else(|e| Err(e.into()))
+            .await;
+        if let Err(e) = result {
+            log::error!("failed to cleanup pending deployment: {}", e)
+        };
+    }
+
+    /// Check that the pending deployment is from the correct update stream.
+    /// If not, clean up the pending deployment.
+    async fn check_stream(&self, state: &mut UpdateAgentState, release: Release) {
+        match self.query_pending_deployment_stream().await {
+            Ok(stream) => {
+                if stream != self.identity.stream {
+                    log::error!(
+                        "deployed an update on different update stream, abandoning update {}",
+                        release.version
+                    );
+                } else {
+                    let msg = format!("update staged: {}", release.version);
+                    utils::update_unit_status(&msg);
+                    log::info!("{}", msg);
+                    state.machine_state.update_staged(release);
+                    // The release we just deployed is on the correct stream so we
+                    // return early.
+                    return;
+                }
+            }
+            Err(e) => {
+                log::error!(
+                    "failed to check pending deployment's update stream: {}, abandoning update {}",
+                    e,
+                    release.version
+                );
+            }
+        }
+        self.cleanup_pending_deployment().await;
+        state.denylist.insert(release);
+        state.machine_state.update_abandoned();
     }
 }
 

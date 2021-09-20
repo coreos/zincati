@@ -1,7 +1,8 @@
-// Allow Zincati to deploy, and finalize a staged deployment through rpm-ostree.
+// Allow Zincati to deploy, finalize, and cleanup a staged deployment through rpm-ostree.
 polkit.addRule(function(action, subject) {
     if ((action.id == "org.projectatomic.rpmostree1.deploy" ||
-         action.id == "org.projectatomic.rpmostree1.finalize-deployment") &&
+         action.id == "org.projectatomic.rpmostree1.finalize-deployment") ||
+         action.id == "org.projectatomic.rpmostree1.cleanup" &&
         subject.user == "zincati") {
         return polkit.Result.YES;
     }
