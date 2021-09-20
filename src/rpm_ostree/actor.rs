@@ -107,27 +107,27 @@ impl Handler<QueryLocalDeployments> for RpmOstreeClient {
     }
 }
 
-/// Request: query pending deployment stream.
+/// Request: query pending deployment and stream.
 #[derive(Debug, Clone)]
 pub struct QueryPendingDeploymentStream {}
 
 impl Message for QueryPendingDeploymentStream {
-    type Result = Result<String>;
+    type Result = Result<Option<(Release, String)>>;
 }
 
 impl Handler<QueryPendingDeploymentStream> for RpmOstreeClient {
-    type Result = Result<String>;
+    type Result = Result<Option<(Release, String)>>;
 
     fn handle(
         &mut self,
         _msg: QueryPendingDeploymentStream,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        trace!("request to get OS update stream of pending deployment");
+        trace!("fetching details for staged deployment");
+
         let status = super::cli_status::invoke_cli_status(false)?;
-        let stream = super::cli_status::parse_pending_updates_stream(&status)
-            .context("failed to introspect OS updates stream of pending deployment")?;
-        Ok(stream)
+        super::cli_status::parse_pending_deployment(&status)
+            .context("failed to introspect pending deployment")
     }
 }
 
