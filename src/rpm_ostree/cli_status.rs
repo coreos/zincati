@@ -104,15 +104,21 @@ pub fn parse_booted_updates_stream(status: &StatusJson) -> Result<String> {
     Ok(json.base_metadata.stream)
 }
 
-/// Parse updates stream for pending deployment from status object.
-pub fn parse_pending_updates_stream(status: &StatusJson) -> Result<String> {
-    let pending_json = status.deployments[0].clone();
-    ensure!(!pending_json.booted, "no pending deployment found");
-    ensure!(
-        !pending_json.base_metadata.stream.is_empty(),
-        "empty stream value"
-    );
-    Ok(pending_json.base_metadata.stream)
+/// Parse pending deployment from status object.
+pub fn parse_pending_deployment(status: &StatusJson) -> Result<Option<(Release, String)>> {
+    // There can be at most one staged/pending rpm-ostree deployment,
+    // thus we only consider the first matching entry (if any).
+    let staged = status.deployments.iter().find(|d| d.staged).cloned();
+
+    match staged {
+        None => Ok(None),
+        Some(json) => {
+            let stream = json.base_metadata.stream.clone();
+            ensure!(!stream.is_empty(), "empty stream value");
+            let release = json.into_release();
+            Ok(Some((release, stream)))
+        }
+    }
 }
 
 /// Parse local deployments from a status object.

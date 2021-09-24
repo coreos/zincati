@@ -90,7 +90,7 @@ EOF
     echo "updates.enabled = true" > /etc/zincati/config.d/99-test-status-updates-enabled.toml
     systemctl restart zincati.service
 
-    wait_journal_has_content "deployed an update on different update stream, abandoning update ${bad_version}"
+    wait_journal_has_content "abandoned and blocked deployment '${bad_version}'"
     ok "abandon update on different stream"
 
     wait_journal_has_content "Found 1 possible update target present in denylist; ignoring"

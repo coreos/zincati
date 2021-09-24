@@ -4,7 +4,8 @@ use super::{UpdateAgent, UpdateAgentInfo, UpdateAgentMachineState, UpdateAgentSt
 use crate::rpm_ostree::{self, Release};
 use crate::utils;
 use actix::prelude::*;
-use anyhow::{Error, Result};
+use anyhow::{bail, format_err, Error, Result};
+use fn_error_context::context;
 use futures::prelude::*;
 use log::trace;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
@@ -339,27 +340,21 @@ impl UpdateAgentInfo {
         trace!("trying to stage an update");
 
         let target = release.clone();
-        let deploy_outcome = self.attempt_deploy(target).await;
+        let deploy_outcome = self
+            .attempt_deploy(target)
+            .and_then(|release| self.confirm_valid_stream(state, release))
+            .await;
 
-        match deploy_outcome {
-            Ok(release) => {
-                // Sanity check that the deployment we just staged is from the correct stream.
-                self.check_stream(state, release.clone()).await;
-            }
-            Err(e) => {
-                log::error!("failed to stage deployment: {}", e);
-                let release_ver = release.version.clone();
-                let fail_count =
-                    UpdateAgentInfo::deploy_attempt_failed(release, &mut state.machine_state);
-                let msg = format!(
-                    "trying to stage {} ({} failed deployment attempt{})",
-                    release_ver,
-                    fail_count,
-                    if fail_count > 1 { "s" } else { "" }
-                );
-                utils::update_unit_status(&msg);
-                log::trace!("{}", msg);
-            }
+        if let Err(e) = deploy_outcome {
+            log::error!("failed to stage deployment: {}", e);
+            let fail_count =
+                UpdateAgentInfo::deploy_attempt_failed(&release, &mut state.machine_state);
+            let msg = format!(
+                "trying to stage {} (failed attempts: {})",
+                release.version, fail_count,
+            );
+            utils::update_unit_status(&msg);
+            log::trace!("{}", msg);
         };
     }
 
@@ -433,7 +428,7 @@ impl UpdateAgentInfo {
 
     /// Record a failed deploy attempt and return the total number of
     /// failed deployment attempts.
-    fn deploy_attempt_failed(release: Release, state: &mut UpdateAgentMachineState) -> u8 {
+    fn deploy_attempt_failed(release: &Release, state: &mut UpdateAgentMachineState) -> u8 {
         let (is_abandoned, fail_count) = state.record_failed_deploy();
         if is_abandoned {
             log::warn!(
@@ -463,13 +458,59 @@ impl UpdateAgentInfo {
         depls
     }
 
-    /// Return the update stream of the pending deployment.
-    async fn query_pending_deployment_stream(&self) -> Result<String> {
+    /// Validate that pending deployment is coming from the correct update stream.
+    ///
+    /// This checks that the update stream for the pending deployment matches the current
+    /// one from agent identity.
+    /// The validation logic here is meant to run right after an update has been fetched,
+    /// thus it first ensures that a pending deployment exists with version and
+    /// checksum matching the one in input.
+    async fn is_pending_deployment_on_correct_stream(&self, release: Release) -> Result<bool> {
         let msg = rpm_ostree::QueryPendingDeploymentStream {};
-        self.rpm_ostree_actor
+        let query_res = self
+            .rpm_ostree_actor
             .send(msg)
             .unwrap_or_else(|e| Err(e.into()))
-            .await
+            .await?;
+
+        let (pending, stream) = query_res.ok_or_else(|| {
+            format_err!(
+                "expected pending deployment '{}', but found none",
+                release.version
+            )
+        })?;
+
+        if pending.version != release.version {
+            bail!(
+                "expected pending deployment '{}', but found '{}' instead",
+                release.version,
+                pending.version
+            );
+        }
+        if pending.checksum != release.checksum {
+            bail!(
+                "detected checksum mismatch for pending deployment '{}', got unexpected value '{}'",
+                release.version,
+                release.checksum,
+            );
+        }
+
+        if self.identity.stream != stream {
+            log::error!(
+                "pending deployment {} expected to be on stream '{}', but found '{}' instead",
+                pending.version,
+                self.identity.stream,
+                stream
+            );
+            Ok(false)
+        } else {
+            log::trace!(
+                "validated stream '{}' for pending deployment {}",
+                stream,
+                pending.version
+            );
+            Ok(true)
+        }
     }
 
     /// Finalize a deployment (unlock and reboot).
@@ -514,36 +555,37 @@ impl UpdateAgentInfo {
     }
 
     /// Check that the pending deployment is from the correct update stream.
-    /// If not, clean up the pending deployment.
-    async fn check_stream(&self, state: &mut UpdateAgentState, release: Release) {
-        match self.query_pending_deployment_stream().await {
-            Ok(stream) => {
-                if stream != self.identity.stream {
-                    log::error!(
-                        "deployed an update on different update stream, abandoning update {}",
-                        release.version
-                    );
-                } else {
-                    let msg = format!("update staged: {}", release.version);
-                    utils::update_unit_status(&msg);
-                    log::info!("{}", msg);
-                    state.machine_state.update_staged(release);
-                    // The release we just deployed is on the correct stream so we
-                    // return early.
-                    return;
-                }
-            }
-            Err(e) => {
-                log::error!(
-                    "failed to check pending deployment's update stream: {}, abandoning update {}",
-                    e,
-                    release.version
-                );
-            }
+    ///
+    /// If valid, advance the state-machine. If mistaken, clean up the pending deployment.
+    /// If unsure, bubble up errors in order to retry later.
+    #[context("failed to confirm stream")]
+    async fn confirm_valid_stream(
+        &self,
+        state: &mut UpdateAgentState,
+        release: Release,
+    ) -> Result<()> {
+        // In some cases it may be impossible to validate/reject the update,
+        // e.g. because of temporary issues. The outer layers of the agent will
+        // try to handle these cases with retries.
+        let is_valid = self
+            .is_pending_deployment_on_correct_stream(release.clone())
+            .await?;
+
+        if !is_valid {
+            // Target deployment is not valid; scrub it, and remember to avoid it in the future.
+            self.cleanup_pending_deployment().await;
+            log::error!("abandoned and blocked deployment '{}'", release.version);
+            state.denylist.insert(release.clone());
+            state.machine_state.update_abandoned();
+        } else {
+            // Pending deployment is on the correct stream, update can safely proceed.
+            let msg = format!("update staged: {}", release.version);
+            utils::update_unit_status(&msg);
+            log::info!("{}", msg);
+            state.machine_state.update_staged(release);
         }
-        self.cleanup_pending_deployment().await;
-        state.denylist.insert(release);
-        state.machine_state.update_abandoned();
+
+        Ok(())
     }
 }
 
