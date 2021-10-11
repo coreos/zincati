@@ -2,7 +2,6 @@
 title: Cincinnati for Fedora CoreOS
 parent: Development
 nav_order: 3
-layout: default
 ---
 
 # Cincinnati for Fedora CoreOS
