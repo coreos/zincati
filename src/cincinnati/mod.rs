@@ -238,16 +238,13 @@ fn find_update(
     let cur_release = Release::from_cincinnati(cur_node.clone())
         .map_err(|e| CincinnatiError::FailedNodeParsing(e.to_string()))?;
 
-    if let Err(e) = refresh_deadend_status(&cur_node) {
+    if let Err(e) = refresh_deadend_status(cur_node) {
         log::warn!("failed to refresh dead-end status: {}", e);
     }
     // Evaluate and record whether booted OS is a dead-end release.
     // TODO(lucab): consider exposing this information in more places
     // (e.g. logs, motd, env/json file in a well-known location).
-    let is_deadend = match evaluate_deadend(&cur_node) {
-        Some(_) => 1,
-        None => 0,
-    };
+    let is_deadend: i64 = evaluate_deadend(cur_node).is_some().into();
     BOOTED_DEADEND.set(is_deadend);
 
     // Try to find all denylisted deployments in the graph too.
