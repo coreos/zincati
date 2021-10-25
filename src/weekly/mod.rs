@@ -65,8 +65,8 @@ impl WeeklyCalendar {
         }
 
         // Already in a window, return now.
-        if self.contains_datetime(&datetime) {
-            return Some(utils::datetime_as_weekly_minute(&datetime));
+        if self.contains_datetime(datetime) {
+            return Some(utils::datetime_as_weekly_minute(datetime));
         }
 
         let timepoint = utils::datetime_as_weekly_minute(datetime);
@@ -100,7 +100,7 @@ impl WeeklyCalendar {
         }
 
         // Already in a window, zero minutes.
-        if self.contains_datetime(&datetime) {
+        if self.contains_datetime(datetime) {
             return Some(chrono::Duration::zero());
         }
 

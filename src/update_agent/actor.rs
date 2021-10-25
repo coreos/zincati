@@ -274,7 +274,7 @@ impl UpdateAgentInfo {
         let local_depls = self.local_deployments().await;
         match local_depls {
             Ok(depls) => {
-                UpdateAgent::log_excluded_depls(&depls, &self);
+                UpdateAgent::log_excluded_depls(&depls, self);
                 // Set denylist.
                 state.denylist = depls;
             }
