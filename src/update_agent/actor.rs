@@ -392,8 +392,10 @@ impl UpdateAgentInfo {
         match self.finalize_deployment(release).await {
             Ok(release) => {
                 FINALIZATION_SUCCESS.inc();
-                utils::update_unit_status(&format!("update finalized: {}", release.version));
+                let status_msg = format!("update finalized: {}", release.version);
+                log::info!("{}", &status_msg);
                 state.update_finalized(release);
+                utils::update_unit_status(&status_msg);
             }
             Err(e) => log::error!("failed to finalize deployment: {}", e),
         }
@@ -401,10 +403,10 @@ impl UpdateAgentInfo {
 
     /// Actor job is done.
     async fn tick_end(&self, state: &mut UpdateAgentMachineState, release: Release) {
-        let status = format!("update applied, waiting for reboot: {}", release.version);
-        log::info!("{}", status);
+        let status_msg = format!("update applied, waiting for reboot: {}", release.version);
+        log::info!("{}", &status_msg);
         state.end();
-        utils::update_unit_status(&status);
+        utils::update_unit_status(&status_msg);
     }
 
     /// Fetch and stage an update, in finalization-locked mode.
