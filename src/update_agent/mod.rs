@@ -15,7 +15,6 @@ use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
 use std::cell::Cell;
 use std::collections::BTreeSet;
-use std::convert::TryInto;
 use std::fs;
 use std::rc::Rc;
 use std::time::Duration;
@@ -249,18 +248,18 @@ impl UpdateAgentMachineState {
     /// Determine whether to allow finalization based off of current state.
     /// Returns a boolean indicating whether a finalization is permitted.
     fn usersessions_can_finalize(&mut self) -> bool {
-        match get_interactive_user_sessions() {
-            Ok(interactive_sessions) => {
-                DETECTED_ACTIVE_USERS.set(interactive_sessions.len().try_into().unwrap());
-                self.handle_interactive_sessions(&interactive_sessions)
-            }
-            Err(e) => {
-                // If we failed to check for interactive sessions, just allow
-                // finalization.
-                log::error!("failed to check for interactive sessions: {}", e);
-                true
-            }
-        }
+        let interactive_sessions = get_interactive_user_sessions();
+
+        // If we failed to check for interactive sessions, assume nobody
+        // is logged in. Overall, we prefer forcibly finalizing updates
+        // instead of getting stuck in a retry loop here.
+        let sessions = interactive_sessions.unwrap_or_else(|e| {
+            log::error!("failed to check for interactive sessions: {}", e);
+            log::warn!("assuming no active sessions and proceeding anyway");
+            vec![]
+        });
+
+        self.handle_interactive_sessions(&sessions)
     }
 
     /// Helper for determining whether to allow a finalization by first checking whether
@@ -268,29 +267,44 @@ impl UpdateAgentMachineState {
     /// state's remaining postponements (possibly broadcasting warning messages to active sessions).
     ///
     /// Returns a boolean indicating whether finalization is permitted.
-    fn handle_interactive_sessions(&mut self, interactive_sessions: &[InteractiveSession]) -> bool {
+    fn handle_interactive_sessions(&self, interactive_sessions: &[InteractiveSession]) -> bool {
+        DETECTED_ACTIVE_USERS.set(interactive_sessions.len() as i64);
+        log::trace!(
+            "handling interactive sessions, total: {}",
+            interactive_sessions.len()
+        );
+
+        // Happy path, nobody to wait for.
         if interactive_sessions.is_empty() {
+            log::debug!("no interactive sessions detected");
             return true;
         }
 
-        let (release, postponements_remaining) = match self.clone() {
-            UpdateAgentMachineState::UpdateStaged((r, p)) => (r, p),
+        let (release, postponements_remaining) = match self {
+            UpdateAgentMachineState::UpdateStaged((r, p)) => (r, *p),
             _ => unreachable!(
                 "transition not allowed: handle_interactive_sessions on {:?}",
                 self,
             ),
         };
 
+        // Maximum grace period reached, not delaying any further.
         if postponements_remaining == 0 {
+            log::warn!("reached end of grace period while waiting for interactive sessions");
             return true;
         }
 
         if postponements_remaining == MAX_FINALIZE_POSTPONEMENTS {
             let max_reboot_delay_secs =
                 DEFAULT_POSTPONEMENT_TIME_SECS.saturating_mul(MAX_FINALIZE_POSTPONEMENTS as u64);
+            log::warn!(
+                "interactive sessions detected, entering grace period (maximum {})",
+                format_seconds(max_reboot_delay_secs)
+            );
             let warning_msg = format_reboot_warning(max_reboot_delay_secs, &release.version);
             broadcast(&warning_msg, interactive_sessions);
         } else if postponements_remaining == 1 {
+            log::warn!("last attempt to wait for the end of all interactive sessions");
             let warning_msg =
                 format_reboot_warning(DEFAULT_POSTPONEMENT_TIME_SECS, &release.version);
             broadcast(&warning_msg, interactive_sessions);
