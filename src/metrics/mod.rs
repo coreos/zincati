@@ -1,14 +1,16 @@
 //! Metrics endpoint over a Unix-domain socket.
 
 use actix::prelude::*;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use std::os::unix::net as std_net;
+use std::path::Path;
 use tokio::net as tokio_net;
 
 /// Unix socket path.
 static SOCKET_PATH: &str = "/run/zincati/public/metrics.promsock";
 
 /// Metrics exposition service.
+#[derive(Debug)]
 pub struct MetricsService {
     listener: std_net::UnixListener,
 }
@@ -16,9 +18,18 @@ pub struct MetricsService {
 impl MetricsService {
     /// Create metrics service and bind to the Unix-domain socket.
     pub fn bind_socket() -> Result<Self> {
-        let _ = std::fs::remove_file(SOCKET_PATH);
-        let listener =
-            std_net::UnixListener::bind(SOCKET_PATH).context("failed to bind metrics service")?;
+        Self::bind_socket_at(SOCKET_PATH)
+            .with_context(|| format!("failed to setup metrics service on '{}'", SOCKET_PATH))
+    }
+
+    pub(crate) fn bind_socket_at(path: impl AsRef<Path>) -> Result<Self> {
+        if let Err(e) = std::fs::remove_file(path.as_ref()) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                bail!("failed to remove socket file: {}", e);
+            }
+        };
+        let listener = std_net::UnixListener::bind(path.as_ref())
+            .context("failed to bind metrics service to Unix socket'")?;
         Ok(Self { listener })
     }
 
@@ -93,5 +104,25 @@ impl StreamHandler<Connection> for MetricsService {
             wr.write(&metrics);
         }
         wr.close();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bind_socket_at() {
+        // Error path (EPERM or EISDIR).
+        MetricsService::bind_socket_at("/proc").unwrap_err();
+
+        let tmpdir = tempfile::tempdir().unwrap();
+        let tmp_socket_path = tmpdir.path().join("test-socket");
+        // Create a socket file and leave it behind on disk.
+        let service = MetricsService::bind_socket_at(&tmp_socket_path).unwrap();
+        drop(service);
+        // Make sure that the next run can remove it and start normally.
+        let service = MetricsService::bind_socket_at(&tmp_socket_path).unwrap();
+        drop(service);
     }
 }
