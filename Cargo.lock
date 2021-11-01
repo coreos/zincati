@@ -2086,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "zincati"
-version = "0.0.24-alpha.0"
+version = "0.0.24"
 dependencies = [
  "actix",
  "anyhow",
