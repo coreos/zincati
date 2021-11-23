@@ -62,9 +62,8 @@ lto = true
 debug = true
 
 [package.metadata.release]
-disable-publish = true
-disable-push = true
-post-release-commit-message = "cargo: development version bump"
+publish = false
+push = false
 pre-release-commit-message = "cargo: zincati release {{version}}"
 sign-commit = true
 sign-tag = true
