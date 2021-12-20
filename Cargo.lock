@@ -795,14 +795,15 @@ dependencies = [
 
 [[package]]
 name = "libsystemd"
-version = "0.3.1"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3860855cc74484f60fa02d1397892c4fe80d929d5a28caef690570665616743"
+checksum = "6f4f0b5b062ba67aa075e331de778082c09e66b5ef32970ea5a1e9c37c9555d1"
 dependencies = [
  "hmac",
  "libc",
  "log",
- "nix 0.22.0",
+ "nix 0.23.1",
+ "once_cell",
  "serde",
  "sha2",
  "thiserror",
@@ -943,9 +944,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.22.0"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf1e25ee6b412c2a1e3fcb6a4499a5c1bfe7f43e014bdce9a6b6666e5aa2d187"
+checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
 dependencies = [
  "bitflags",
  "cc",
