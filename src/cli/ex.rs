@@ -29,8 +29,8 @@ impl Cmd {
             "ex subcommand must be run as `root` user, \
              and should only be used for testing purposes",
         )?;
-        let connection = zbus::Connection::new_system()?;
-        let proxy = ExperimentalProxy::new(&connection)?;
+        let connection = zbus::blocking::Connection::system()?;
+        let proxy = ExperimentalProxyBlocking::new(&connection)?;
         match self {
             Cmd::Moo { talkative } => {
                 println!("{}", proxy.moo(talkative)?);
