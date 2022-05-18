@@ -52,6 +52,7 @@ Push access to the upstream repository is required in order to publish the new t
 
 - assemble vendor archive:
   - [ ] `cargo vendor target/vendor`
+  - [ ] `rm -r target/vendor/winapi*gnu*/lib/*.a`
   - [ ] `tar -czf target/zincati-${RELEASE_VER}-vendor.tar.gz -C target vendor`
 
 - publish the release:
