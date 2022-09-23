@@ -419,13 +419,11 @@ impl UpdateAgentInfo {
             release,
             allow_downgrade: self.allow_downgrade,
         };
-        let upgrade = self
-            .rpm_ostree_actor
+
+        self.rpm_ostree_actor
             .send(msg)
             .unwrap_or_else(|e| Err(e.into()))
-            .await;
-
-        upgrade
+            .await
     }
 
     /// Record a failed deploy attempt and return the total number of
@@ -447,17 +445,14 @@ impl UpdateAgentInfo {
     /// past, as they are acceptable as future update target.
     async fn local_deployments(&self) -> Result<BTreeSet<Release>> {
         let msg = rpm_ostree::QueryLocalDeployments { omit_staged: true };
-        let depls = self
-            .rpm_ostree_actor
+        self.rpm_ostree_actor
             .send(msg)
             .unwrap_or_else(|e| Err(e.into()))
             .map_ok(move |depls| {
                 log::trace!("found {} local deployments", depls.len());
                 depls
             })
-            .await;
-
-        depls
+            .await
     }
 
     /// Validate that pending deployment is coming from the correct update stream.
@@ -523,13 +518,10 @@ impl UpdateAgentInfo {
         );
 
         let msg = rpm_ostree::FinalizeDeployment { release };
-        let upgrade = self
-            .rpm_ostree_actor
+        self.rpm_ostree_actor
             .send(msg)
             .unwrap_or_else(|e| Err(e.into()))
-            .await;
-
-        upgrade
+            .await
     }
 
     /// Attempt to register as the update driver for rpm-ostree.
