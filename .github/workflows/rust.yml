@@ -13,7 +13,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   # Minimum supported Rust version (MSRV)
-  ACTION_MSRV_TOOLCHAIN: 1.61.0
+  ACTION_MSRV_TOOLCHAIN: 1.63.0
   # Pinned toolchain for linting
   ACTION_LINTS_TOOLCHAIN: 1.64.0
 
