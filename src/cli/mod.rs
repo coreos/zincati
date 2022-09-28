@@ -5,7 +5,7 @@ mod deadend;
 mod ex;
 
 use anyhow::Result;
-use clap::{AppSettings, Parser};
+use clap::{ArgAction, Parser};
 use log::LevelFilter;
 use users::get_current_username;
 
@@ -13,7 +13,7 @@ use users::get_current_username;
 #[derive(Debug, Parser)]
 pub(crate) struct CliOptions {
     /// Verbosity level (higher is more verbose).
-    #[clap(short = 'v', parse(from_occurrences), global = true)]
+    #[clap(action = ArgAction::Count, short = 'v', global = true)]
     verbosity: u8,
 
     /// CLI sub-command.
@@ -49,10 +49,10 @@ pub(crate) enum CliCommand {
     /// Long-running agent for auto-updates.
     Agent,
     /// Set or unset deadend MOTD state.
-    #[clap(subcommand, setting = AppSettings::Hidden)]
+    #[clap(hide = true, subcommand)]
     DeadendMotd(deadend::Cmd),
     /// Print update agent state's last refresh time.
-    #[clap(subcommand, setting = AppSettings::Hidden)]
+    #[clap(hide = true, subcommand)]
     Ex(ex::Cmd),
 }
 

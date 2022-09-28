@@ -43,7 +43,7 @@ fn main() {
 /// Run till completion or failure, pretty-printing termination errors if any.
 fn run() -> i32 {
     // Parse command-line options.
-    let cli_opts = cli::CliOptions::from_args();
+    let cli_opts = cli::CliOptions::parse();
 
     // Setup logging.
     env_logger::Builder::from_default_env()
