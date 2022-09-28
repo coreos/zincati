@@ -4,9 +4,9 @@ use super::ensure_user;
 use crate::{config, dbus, metrics, rpm_ostree, update_agent, utils};
 use actix::Actor;
 use anyhow::{Context, Result};
+use clap::{crate_name, crate_version};
 use log::{info, trace};
 use prometheus::IntGauge;
-use structopt::clap::{crate_name, crate_version};
 use tokio::runtime::Runtime;
 
 lazy_static::lazy_static! {

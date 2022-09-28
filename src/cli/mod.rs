@@ -5,20 +5,19 @@ mod deadend;
 mod ex;
 
 use anyhow::Result;
+use clap::{AppSettings, Parser};
 use log::LevelFilter;
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
 use users::get_current_username;
 
 /// CLI configuration options.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub(crate) struct CliOptions {
     /// Verbosity level (higher is more verbose).
-    #[structopt(short = "v", parse(from_occurrences), global = true)]
+    #[clap(short = 'v', parse(from_occurrences), global = true)]
     verbosity: u8,
 
     /// CLI sub-command.
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     pub(crate) cmd: CliCommand,
 }
 
@@ -44,16 +43,16 @@ impl CliOptions {
 }
 
 /// CLI sub-commands.
-#[derive(Debug, StructOpt)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, Parser)]
+#[clap(rename_all = "kebab-case")]
 pub(crate) enum CliCommand {
     /// Long-running agent for auto-updates.
     Agent,
     /// Set or unset deadend MOTD state.
-    #[structopt(setting = AppSettings::Hidden)]
+    #[clap(subcommand, setting = AppSettings::Hidden)]
     DeadendMotd(deadend::Cmd),
     /// Print update agent state's last refresh time.
-    #[structopt(setting = AppSettings::Hidden)]
+    #[clap(subcommand, setting = AppSettings::Hidden)]
     Ex(ex::Cmd),
 }
 

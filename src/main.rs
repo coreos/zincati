@@ -32,8 +32,7 @@ mod utils;
 /// Logic for weekly maintenance windows.
 mod weekly;
 
-use structopt::clap::crate_name;
-use structopt::StructOpt;
+use clap::{crate_name, Parser};
 
 /// Binary entrypoint, for all CLI subcommands.
 fn main() {

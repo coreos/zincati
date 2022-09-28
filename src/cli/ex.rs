@@ -2,21 +2,21 @@
 
 use super::ensure_user;
 use anyhow::Result;
+use clap::Subcommand;
 use fn_error_context::context;
-use structopt::StructOpt;
 use zbus::dbus_proxy;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 pub enum Cmd {
     /// Replies different cow-speak depending on whether the
     /// talkative flag is set.
-    #[structopt(name = "moo")]
+    #[clap(name = "moo")]
     Moo {
-        #[structopt(long)]
+        #[clap(long)]
         talkative: bool,
     },
     /// Get last refresh time of update agent actor's state.
-    #[structopt(name = "last-refresh-time")]
+    #[clap(name = "last-refresh-time")]
     LastRefreshTime,
 }
 
