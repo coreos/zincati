@@ -16,10 +16,10 @@ use crate::identity::Identity;
 use crate::strategy::UpdateStrategy;
 use crate::update_agent;
 use anyhow::Result;
+use clap::crate_name;
 use fn_error_context::context;
 use serde::Serialize;
 use std::num::NonZeroU64;
-use structopt::clap::crate_name;
 
 /// Runtime configuration for the agent.
 ///

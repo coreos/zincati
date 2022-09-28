@@ -2,11 +2,11 @@
 
 use super::ensure_user;
 use anyhow::{Context, Result};
+use clap::Subcommand;
 use fn_error_context::context;
 use std::fs::Permissions;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
-use structopt::StructOpt;
 
 /// Absolute path to the MOTD fragments directory.
 static MOTD_FRAGMENTS_DIR: &str = "/run/motd.d/";
@@ -14,16 +14,16 @@ static MOTD_FRAGMENTS_DIR: &str = "/run/motd.d/";
 static DEADEND_MOTD_PATH: &str = "/run/motd.d/85-zincati-deadend.motd";
 
 /// Subcommand `deadend-motd`.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 pub enum Cmd {
     /// Set deadend state, with given reason.
-    #[structopt(name = "set")]
+    #[clap(name = "set")]
     Set {
-        #[structopt(long = "reason")]
+        #[clap(long = "reason")]
         reason: String,
     },
     /// Unset deadend state.
-    #[structopt(name = "unset")]
+    #[clap(name = "unset")]
     Unset,
 }
 
@@ -100,24 +100,24 @@ fn remove_motd_fragment() -> Result<()> {
 mod tests {
     use super::*;
     use crate::cli::{CliCommand, CliOptions};
-    use structopt::StructOpt;
+    use clap::Parser;
 
     #[test]
     fn test_deadend_motd_set() {
         {
             let missing_flag = vec!["zincati", "deadend-motd", "set"];
-            let cli = CliOptions::from_iter_safe(missing_flag);
+            let cli = CliOptions::try_parse_from(missing_flag);
             assert!(cli.is_err());
         }
         {
             let missing_reason = vec!["zincati", "deadend-motd", "set", "--reason"];
-            let cli = CliOptions::from_iter_safe(missing_reason);
+            let cli = CliOptions::try_parse_from(missing_reason);
             assert!(cli.is_err());
         }
         {
             let mut is_ok = false;
             let empty_reason = vec!["zincati", "deadend-motd", "set", "--reason", ""];
-            let cli = CliOptions::from_iter_safe(empty_reason).unwrap();
+            let cli = CliOptions::try_parse_from(empty_reason).unwrap();
             if let CliCommand::DeadendMotd(cmd) = &cli.cmd {
                 if let Cmd::Set { reason } = cmd {
                     assert_eq!(reason, "");
@@ -131,7 +131,7 @@ mod tests {
         {
             let mut is_ok = false;
             let reason_message = vec!["zincati", "deadend-motd", "set", "--reason", "foo"];
-            let cli = CliOptions::from_iter_safe(reason_message).unwrap();
+            let cli = CliOptions::try_parse_from(reason_message).unwrap();
             if let CliCommand::DeadendMotd(cmd) = &cli.cmd {
                 if let Cmd::Set { reason } = cmd {
                     assert_eq!(reason, "foo");
@@ -148,13 +148,13 @@ mod tests {
     fn test_deadend_motd_unset() {
         {
             let extra_flags = vec!["zincati", "deadend-motd", "unset", "--reason", "foo"];
-            let cli = CliOptions::from_iter_safe(extra_flags);
+            let cli = CliOptions::try_parse_from(extra_flags);
             assert!(cli.is_err());
         }
         {
             let mut is_ok = false;
             let unset = vec!["zincati", "deadend-motd", "unset"];
-            let cli = CliOptions::from_iter_safe(unset).unwrap();
+            let cli = CliOptions::try_parse_from(unset).unwrap();
             if let CliCommand::DeadendMotd(cmd) = &cli.cmd {
                 if let Cmd::Unset = cmd {
                     is_ok = true;
