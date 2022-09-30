@@ -17,13 +17,13 @@ static DEADEND_MOTD_PATH: &str = "/run/motd.d/85-zincati-deadend.motd";
 #[derive(Debug, Subcommand)]
 pub enum Cmd {
     /// Set deadend state, with given reason.
-    #[clap(name = "set")]
+    #[command(name = "set")]
     Set {
-        #[clap(long = "reason")]
+        #[arg(long = "reason")]
         reason: String,
     },
     /// Unset deadend state.
-    #[clap(name = "unset")]
+    #[command(name = "unset")]
     Unset,
 }
 

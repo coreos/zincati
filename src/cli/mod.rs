@@ -13,7 +13,7 @@ use users::get_current_username;
 #[derive(Debug, Parser)]
 pub(crate) struct CliOptions {
     /// Verbosity level (higher is more verbose).
-    #[clap(action = ArgAction::Count, short = 'v', global = true)]
+    #[arg(action = ArgAction::Count, short = 'v', global = true)]
     verbosity: u8,
 
     /// CLI sub-command.
@@ -44,15 +44,15 @@ impl CliOptions {
 
 /// CLI sub-commands.
 #[derive(Debug, Parser)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 pub(crate) enum CliCommand {
     /// Long-running agent for auto-updates.
     Agent,
     /// Set or unset deadend MOTD state.
-    #[clap(hide = true, subcommand)]
+    #[command(hide = true, subcommand)]
     DeadendMotd(deadend::Cmd),
     /// Print update agent state's last refresh time.
-    #[clap(hide = true, subcommand)]
+    #[command(hide = true, subcommand)]
     Ex(ex::Cmd),
 }
 

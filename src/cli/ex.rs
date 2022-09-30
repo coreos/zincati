@@ -10,13 +10,13 @@ use zbus::dbus_proxy;
 pub enum Cmd {
     /// Replies different cow-speak depending on whether the
     /// talkative flag is set.
-    #[clap(name = "moo")]
+    #[command(name = "moo")]
     Moo {
-        #[clap(long)]
+        #[arg(long)]
         talkative: bool,
     },
     /// Get last refresh time of update agent actor's state.
-    #[clap(name = "last-refresh-time")]
+    #[command(name = "last-refresh-time")]
     LastRefreshTime,
 }
 
