@@ -61,8 +61,6 @@ pub struct DeploymentJson {
 /// Metadata from base commit (only fields relevant to zincati).
 #[derive(Clone, Debug, Deserialize)]
 struct BaseCommitMetaJson {
-    #[serde(rename = "coreos-assembler.basearch")]
-    basearch: String,
     #[serde(rename = "fedora-coreos.stream")]
     stream: String,
 }
@@ -83,12 +81,6 @@ impl DeploymentJson {
             .clone()
             .unwrap_or_else(|| self.checksum.clone())
     }
-}
-
-/// Parse base architecture for booted deployment from status object.
-pub fn parse_basearch(status: &StatusJson) -> Result<String> {
-    let json = booted_json(status)?;
-    Ok(json.base_metadata.basearch)
 }
 
 /// Parse the booted deployment from status object.
@@ -157,7 +149,6 @@ fn booted_json(status: &StatusJson) -> Result<DeploymentJson> {
 
     ensure!(!booted.base_revision().is_empty(), "empty base revision");
     ensure!(!booted.version.is_empty(), "empty version");
-    ensure!(!booted.base_metadata.basearch.is_empty(), "empty basearch");
     Ok(booted)
 }
 
@@ -242,13 +233,6 @@ mod tests {
             let deployments = parse_local_deployments(&status, true);
             assert_eq!(deployments.len(), 1);
         }
-    }
-
-    #[test]
-    fn mock_booted_basearch() {
-        let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
-        let booted = booted_json(&status).unwrap();
-        assert_eq!(booted.base_metadata.basearch, "x86_64");
     }
 
     #[test]
