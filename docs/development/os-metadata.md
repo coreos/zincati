@@ -30,7 +30,6 @@ Booted deployment must provide several mandatory metadata entries:
  * `checksum`: OSTree commit revision
  * `version`: OS version
  * under `base-commit-meta`:
-   * `coreos-assembler.basearch`: base architecture
    * `fedora-coreos.stream`: update stream
 
 All those metadata entries must exist with a non-empty string value.

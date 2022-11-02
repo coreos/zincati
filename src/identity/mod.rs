@@ -93,8 +93,7 @@ impl Identity {
     pub fn try_default() -> Result<Self> {
         // Invoke rpm-ostree to get the status of the currently booted deployment.
         let status = rpm_ostree::invoke_cli_status(true)?;
-        let basearch = rpm_ostree::parse_basearch(&status)
-            .context("failed to introspect OS base architecture")?;
+        let basearch = crate::identity::current_architeture().to_string();
         let current_os =
             rpm_ostree::parse_booted(&status).context("failed to introspect booted OS image")?;
         let node_uuid = {
@@ -188,6 +187,17 @@ fn compute_node_uuid(app_id: &id128::Id128) -> Result<id128::Id128> {
     let id = id128::get_machine_app_specific(app_id)
         .map_err(|e| anyhow!("failed to get node ID: {}", e))?;
     Ok(id)
+}
+
+// Translate the architecture we were compiled for to the
+// output from the `arch` command that is used for RPM and
+// coreos-assembler builds.
+pub(crate) fn current_architeture() -> &'static str {
+    match std::env::consts::ARCH {
+        "powerpc64" if cfg!(target_endian = "big") => "ppc64",
+        "powerpc64" if cfg!(target_endian = "little") => "ppc64le",
+        o => o,
+    }
 }
 
 #[cfg(test)]
