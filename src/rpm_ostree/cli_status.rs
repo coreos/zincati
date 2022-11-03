@@ -89,11 +89,16 @@ pub fn parse_booted(status: &StatusJson) -> Result<Release> {
     Ok(json.into_release())
 }
 
+fn fedora_coreos_stream_from_deployment(deploy: &DeploymentJson) -> Result<String> {
+    let stream = deploy.base_metadata.stream.as_str();
+    ensure!(!stream.is_empty(), "empty stream value");
+    Ok(stream.to_string())
+}
+
 /// Parse updates stream for booted deployment from status object.
 pub fn parse_booted_updates_stream(status: &StatusJson) -> Result<String> {
     let json = booted_json(status)?;
-    ensure!(!json.base_metadata.stream.is_empty(), "empty stream value");
-    Ok(json.base_metadata.stream)
+    fedora_coreos_stream_from_deployment(&json)
 }
 
 /// Parse pending deployment from status object.
@@ -105,8 +110,7 @@ pub fn parse_pending_deployment(status: &StatusJson) -> Result<Option<(Release, 
     match staged {
         None => Ok(None),
         Some(json) => {
-            let stream = json.base_metadata.stream.clone();
-            ensure!(!stream.is_empty(), "empty stream value");
+            let stream = fedora_coreos_stream_from_deployment(&json)?;
             let release = json.into_release();
             Ok(Some((release, stream)))
         }
@@ -239,6 +243,7 @@ mod tests {
     fn mock_booted_updates_stream() {
         let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
         let booted = booted_json(&status).unwrap();
-        assert_eq!(booted.base_metadata.stream, "testing-devel");
+        let stream = fedora_coreos_stream_from_deployment(&booted).unwrap();
+        assert_eq!(stream, "testing-devel");
     }
 }
