@@ -3,25 +3,33 @@
 
 use super::Release;
 use anyhow::{bail, Context, Result};
+use once_cell::sync::Lazy;
 use prometheus::IntCounter;
 use std::time::Duration;
 
 const DRIVER_NAME: &str = "Zincati";
 
-lazy_static::lazy_static! {
-    static ref DEPLOY_ATTEMPTS: IntCounter = register_int_counter!(opts!(
+static DEPLOY_ATTEMPTS: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "zincati_rpm_ostree_deploy_attempts_total",
         "Total number of 'rpm-ostree deploy' attempts."
-    )).unwrap();
-    static ref DEPLOY_FAILURES: IntCounter = register_int_counter!(opts!(
+    ))
+    .unwrap()
+});
+static DEPLOY_FAILURES: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "zincati_rpm_ostree_deploy_failures_total",
         "Total number of 'rpm-ostree deploy' failures."
-    )).unwrap();
-    static ref REGISTER_DRIVER_FAILURES: IntCounter = register_int_counter!(opts!(
+    ))
+    .unwrap()
+});
+static REGISTER_DRIVER_FAILURES: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "zincati_rpm_ostree_register_driver_failures_total",
         "Total number of failures to register as driver for rpm-ostree."
-    )).unwrap();
-}
+    ))
+    .unwrap()
+});
 
 /// Deploy an upgrade (by checksum) and leave the new deployment locked.
 pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Result<Release> {
