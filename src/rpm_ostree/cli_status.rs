@@ -11,6 +11,9 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::rc::Rc;
 
+/// The well-known Fedora CoreOS base image.
+const FEDORA_COREOS_CONTAINER: &str = "quay.io/fedora/fedora-coreos";
+
 /// Path to local OSTree deployments. We use its mtime to check for modifications (e.g. new deployments)
 /// to local deployments that might warrant querying `rpm-ostree status` again to update our knowledge
 /// of the current state of deployments.
@@ -48,6 +51,7 @@ pub struct StatusJson {
 #[serde(rename_all = "kebab-case")]
 pub struct DeploymentJson {
     booted: bool,
+    container_image_reference: Option<String>,
     base_checksum: Option<String>,
     #[serde(rename = "base-commit-meta")]
     base_metadata: BaseCommitMetaJson,
@@ -62,7 +66,7 @@ pub struct DeploymentJson {
 #[derive(Clone, Debug, Deserialize)]
 struct BaseCommitMetaJson {
     #[serde(rename = "fedora-coreos.stream")]
-    stream: String,
+    stream: Option<String>,
 }
 
 impl DeploymentJson {
@@ -90,9 +94,30 @@ pub fn parse_booted(status: &StatusJson) -> Result<Release> {
 }
 
 fn fedora_coreos_stream_from_deployment(deploy: &DeploymentJson) -> Result<String> {
-    let stream = deploy.base_metadata.stream.as_str();
-    ensure!(!stream.is_empty(), "empty stream value");
-    Ok(stream.to_string())
+    if let Some(cr) = deploy.container_image_reference.as_deref() {
+        let cr = super::imageref::OstreeImageReference::try_from(cr)
+            .with_context(|| format!("Failed to parse container image reference {cr}"))?;
+        let ir = &cr.imgref;
+        let tx = ir.transport;
+        if tx != super::imageref::Transport::Registry {
+            anyhow::bail!("Unhandled container transport {tx}");
+        }
+        let name = ir.name.as_str();
+        let (name, tag) = name
+            .rsplit_once(':')
+            .ok_or_else(|| anyhow!("Failed to find tag in {name}"))?;
+        if name != FEDORA_COREOS_CONTAINER {
+            anyhow::bail!("Unhandled container image {name}");
+        }
+        ensure!(!tag.is_empty(), "empty tag value");
+        Ok(tag.to_string())
+    } else {
+        let stream = deploy.base_metadata.stream.as_deref().ok_or_else(|| {
+            anyhow!("Failed to find Fedora CoreOS stream metadata from commit object")
+        })?;
+        ensure!(!stream.is_empty(), "empty stream value");
+        Ok(stream.to_string())
+    }
 }
 
 /// Parse updates stream for booted deployment from status object.

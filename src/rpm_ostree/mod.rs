@@ -9,6 +9,8 @@ pub use actor::{
     QueryPendingDeploymentStream, RegisterAsDriver, RpmOstreeClient, StageDeployment,
 };
 
+mod imageref;
+
 #[cfg(test)]
 mod mock_tests;
 
