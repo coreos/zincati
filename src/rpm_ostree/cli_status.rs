@@ -37,6 +37,18 @@ lazy_static::lazy_static! {
     )).unwrap();
 }
 
+/// An error which should not result in a retry/restart.
+#[derive(Debug, Clone)]
+pub struct FatalError(String);
+
+impl std::fmt::Display for FatalError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::error::Error for FatalError {}
+
 /// JSON output from `rpm-ostree status --json`
 #[derive(Clone, Debug, Deserialize)]
 pub struct StatusJson {
@@ -48,6 +60,7 @@ pub struct StatusJson {
 #[serde(rename_all = "kebab-case")]
 pub struct DeploymentJson {
     booted: bool,
+    container_image_reference: Option<String>,
     base_checksum: Option<String>,
     #[serde(rename = "base-commit-meta")]
     base_metadata: BaseCommitMetaJson,
@@ -62,7 +75,7 @@ pub struct DeploymentJson {
 #[derive(Clone, Debug, Deserialize)]
 struct BaseCommitMetaJson {
     #[serde(rename = "fedora-coreos.stream")]
-    stream: String,
+    stream: Option<String>,
 }
 
 impl DeploymentJson {
@@ -85,12 +98,21 @@ impl DeploymentJson {
 
 /// Parse the booted deployment from status object.
 pub fn parse_booted(status: &StatusJson) -> Result<Release> {
-    let json = booted_json(status)?;
-    Ok(json.into_release())
+    let status = booted_json(status)?;
+    if let Some(img) = status.container_image_reference.as_ref() {
+        let msg = format!("Automatic updates disabled; booted into container image {img}");
+        crate::utils::update_unit_status(&msg);
+        return Err(anyhow::Error::new(FatalError(msg)));
+    }
+    Ok(status.into_release())
 }
 
 fn fedora_coreos_stream_from_deployment(deploy: &DeploymentJson) -> Result<String> {
-    let stream = deploy.base_metadata.stream.as_str();
+    let stream = deploy
+        .base_metadata
+        .stream
+        .as_ref()
+        .ok_or_else(|| anyhow!("Missing `fedora-coreos.stream` in commit metadata"))?;
     ensure!(!stream.is_empty(), "empty stream value");
     Ok(stream.to_string())
 }
