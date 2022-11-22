@@ -7,8 +7,6 @@
 //!  https://github.com/coreos/afterburn/blob/v4.1.0/src/util/cmdline.rs
 
 use anyhow::{Context, Result};
-use std::io::Read;
-use std::{fs, io};
 
 /// Platform key.
 static CMDLINE_PLATFORM_FLAG: &str = "ignition.platform.id";
@@ -18,16 +16,8 @@ pub(crate) fn read_id<T>(cmdline_path: T) -> Result<String>
 where
     T: AsRef<str>,
 {
-    // open the cmdline file
     let fpath = cmdline_path.as_ref();
-    let file =
-        fs::File::open(fpath).with_context(|| format!("failed to open cmdline file {}", fpath))?;
-
-    // read content
-    let mut bufrd = io::BufReader::new(file);
-    let mut contents = String::new();
-    bufrd
-        .read_to_string(&mut contents)
+    let contents = std::fs::read_to_string(fpath)
         .with_context(|| format!("failed to read cmdline file {}", fpath))?;
 
     // lookup flag by key name

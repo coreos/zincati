@@ -190,7 +190,6 @@ impl StrategyPeriodic {
 mod tests {
     use super::*;
     use crate::config::{fragments, inputs};
-    use std::io::Read;
     use tokio::runtime as rt;
 
     #[test]
@@ -301,10 +300,7 @@ mod tests {
     }
 
     fn parse_config_input(config_path: &str) -> inputs::ConfigInput {
-        let fp = std::fs::File::open(config_path).unwrap();
-        let mut bufrd = std::io::BufReader::new(fp);
-        let mut content = vec![];
-        bufrd.read_to_end(&mut content).unwrap();
+        let content = std::fs::read(config_path).unwrap();
         let frag: fragments::ConfigFragment = toml::from_slice(&content).unwrap();
         inputs::ConfigInput::merge_fragments(vec![frag])
     }

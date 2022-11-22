@@ -24,21 +24,14 @@ impl ConfigInput {
         common_path: &str,
         extensions: Vec<String>,
     ) -> Result<Self> {
-        use std::io::Read;
-
         let scanner = liboverdrop::FragmentScanner::new(dirs, common_path, true, extensions);
 
         let mut fragments = Vec::new();
         for (_, fpath) in scanner.scan() {
             trace!("reading config fragment '{}'", fpath.display());
 
-            let fp = std::fs::File::open(&fpath)
-                .with_context(|| format!("failed to open file '{}'", fpath.display()))?;
-            let mut bufrd = std::io::BufReader::new(fp);
-            let mut content = vec![];
-            bufrd
-                .read_to_end(&mut content)
-                .with_context(|| format!("failed to read content of '{}'", fpath.display()))?;
+            let content = std::fs::read(&fpath)
+                .with_context(|| format!("failed to read file '{}'", fpath.display()))?;
             let frag: fragments::ConfigFragment =
                 toml::from_slice(&content).context("failed to parse TOML")?;
 

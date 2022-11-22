@@ -99,14 +99,10 @@ pub(crate) struct UpdatePeriodicWindow {
 mod tests {
     use super::*;
     use maplit::btreeset;
-    use std::io::Read;
 
     #[test]
     fn basic_dist_config_sample() {
-        let fp = std::fs::File::open("tests/fixtures/00-config-sample.toml").unwrap();
-        let mut bufrd = std::io::BufReader::new(fp);
-        let mut content = vec![];
-        bufrd.read_to_end(&mut content).unwrap();
+        let content = std::fs::read("tests/fixtures/00-config-sample.toml").unwrap();
         let cfg: ConfigFragment = toml::from_slice(&content).unwrap();
 
         let expected = ConfigFragment {
