@@ -236,10 +236,8 @@ mod tests {
     use super::*;
 
     fn mock_status(path: &str) -> Result<StatusJson> {
-        let fp = std::fs::File::open(path).unwrap();
-        let bufrd = std::io::BufReader::new(fp);
-        let status: StatusJson = serde_json::from_reader(bufrd)?;
-        Ok(status)
+        let r = std::fs::File::open(path).map(std::io::BufReader::new)?;
+        Ok(serde_json::from_reader(r)?)
     }
 
     #[test]
