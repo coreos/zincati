@@ -1,6 +1,7 @@
 //! Miscellaneous utility functions.
 
 use libsystemd::daemon::{notify, NotifyState};
+use log::info;
 
 /// Helper function to update unit's status text.
 pub(crate) fn update_unit_status(status: &str) {
@@ -21,6 +22,8 @@ pub(crate) fn notify_stopping() {
 /// Helper function to send notifications to the service manager about service status changes.
 /// Log errors if unsuccessful.
 fn sd_notify(state: &[NotifyState]) {
+    info!("Notify: {state:?}");
+
     match notify(false, state) {
         Err(e) => log::error!(
             "failed to notify service manager of service status change: {}",

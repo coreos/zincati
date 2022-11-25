@@ -14,6 +14,8 @@ pub(crate) struct ConfigInput {
     pub(crate) cincinnati: CincinnatiInput,
     pub(crate) updates: UpdateInput,
     pub(crate) identity: IdentityInput,
+    #[cfg(feature = "drogue")]
+    pub(crate) drogue: DrogueInput,
 }
 
 impl ConfigInput {
@@ -48,6 +50,8 @@ impl ConfigInput {
         let mut cincinnatis = vec![];
         let mut updates = vec![];
         let mut identities = vec![];
+        #[cfg(feature = "drogue")]
+        let mut drogues = vec![];
 
         for snip in fragments {
             if let Some(a) = snip.agent {
@@ -62,6 +66,10 @@ impl ConfigInput {
             if let Some(i) = snip.identity {
                 identities.push(i);
             }
+            #[cfg(feature = "drogue")]
+            if let Some(d) = snip.drogue {
+                drogues.push(d);
+            }
         }
 
         Self {
@@ -69,6 +77,8 @@ impl ConfigInput {
             cincinnati: CincinnatiInput::from_fragments(cincinnatis),
             updates: UpdateInput::from_fragments(updates),
             identity: IdentityInput::from_fragments(identities),
+            #[cfg(feature = "drogue")]
+            drogue: DrogueInput::from_fragments(drogues),
         }
     }
 }
@@ -245,5 +255,66 @@ impl UpdateInput {
             fleet_lock,
             periodic,
         }
+    }
+}
+
+/// Config for the Drogue IoT agent.
+#[cfg(feature = "drogue")]
+#[derive(Debug, Serialize)]
+pub(crate) struct DrogueInput {
+    pub(crate) enabled: bool,
+
+    pub(crate) application: String,
+    pub(crate) device: String,
+    pub(crate) password: String,
+
+    pub(crate) mqtt_hostname: String,
+    pub(crate) mqtt_port: std::num::NonZeroU16,
+    pub(crate) mqtt_disable_tls: bool,
+    pub(crate) mqtt_insecure: bool,
+}
+
+#[cfg(feature = "drogue")]
+impl DrogueInput {
+    fn from_fragments(fragments: Vec<fragments::DrogueFragment>) -> Self {
+        let mut cfg = Self {
+            enabled: false,
+            application: "".to_string(),
+            device: "".to_string(),
+            password: "".to_string(),
+            mqtt_hostname: "".to_string(),
+            mqtt_port: std::num::NonZeroU16::new(8883).expect("Is greater than zero"),
+            mqtt_disable_tls: false,
+            mqtt_insecure: false,
+        };
+
+        for snip in fragments {
+            if let Some(enabled) = snip.enabled {
+                cfg.enabled = enabled;
+            }
+            if let Some(application) = snip.application {
+                cfg.application = application;
+            }
+            if let Some(device) = snip.device {
+                cfg.device = device;
+            }
+            if let Some(password) = snip.password {
+                cfg.password = password;
+            }
+            if let Some(mqtt_hostname) = snip.mqtt_hostname {
+                cfg.mqtt_hostname = mqtt_hostname;
+            }
+            if let Some(mqtt_port) = snip.mqtt_port {
+                cfg.mqtt_port = mqtt_port;
+            }
+            if let Some(mqtt_disable_tls) = snip.mqtt_disable_tls {
+                cfg.mqtt_disable_tls = mqtt_disable_tls;
+            }
+            if let Some(mqtt_insecure) = snip.mqtt_insecure {
+                cfg.mqtt_insecure = mqtt_insecure;
+            }
+        }
+
+        cfg
     }
 }

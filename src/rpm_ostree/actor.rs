@@ -35,6 +35,11 @@ impl RpmOstreeClient {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct ClientState {
+    pub state: String,
+}
+
 /// Request: stage a deployment (in finalization-locked mode).
 #[derive(Debug, Clone)]
 pub struct StageDeployment {

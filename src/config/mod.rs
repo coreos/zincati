@@ -38,6 +38,9 @@ pub(crate) struct Settings {
     pub(crate) identity: Identity,
     /// Agent update strategy.
     pub(crate) strategy: UpdateStrategy,
+    /// Drogue agent strategy.
+    #[cfg(feature = "drogue")]
+    pub(crate) drogue: crate::drogue::Config,
 }
 
 impl Settings {
@@ -72,6 +75,8 @@ impl Settings {
         let identity = Identity::with_config(cfg.identity)?;
         let strategy = UpdateStrategy::with_config(cfg.updates, &identity)?;
         let cincinnati = Cincinnati::with_config(cfg.cincinnati, &identity)?;
+        #[cfg(feature = "drogue")]
+        let drogue = crate::drogue::Config::with_config(cfg.drogue)?;
 
         Ok(Self {
             allow_downgrade,
@@ -80,6 +85,8 @@ impl Settings {
             cincinnati,
             identity,
             strategy,
+            #[cfg(feature = "drogue")]
+            drogue,
         })
     }
 }

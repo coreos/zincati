@@ -55,7 +55,12 @@ pub(crate) fn run_agent() -> Result<()> {
     trace!("creating actor system");
     let sys = actix::System::new();
 
-    sys.block_on(async {
+    let _drogue = sys.block_on(async {
+        trace!("Creating services");
+
+        #[cfg(feature = "drogue")]
+        let drogue_config = settings.drogue.clone();
+
         trace!("creating metrics service");
         let _metrics_addr = metrics::MetricsService::bind_socket()?.start();
 
@@ -67,9 +72,14 @@ pub(crate) fn run_agent() -> Result<()> {
         let agent_addr = agent.start();
 
         trace!("creating D-Bus service");
-        let _dbus_service_addr = dbus::DBusService::start(1, agent_addr);
+        let _dbus_service_addr = dbus::DBusService::start(1, agent_addr.clone());
 
-        Ok::<(), anyhow::Error>(())
+        #[cfg(feature = "drogue")]
+        trace!("starting Drogue IoT agent");
+        #[cfg(feature = "drogue")]
+        let drogue = crate::drogue::Agent::start(drogue_config, agent_addr)?;
+
+        Ok::<_, anyhow::Error>(drogue)
     })?;
 
     trace!("starting actor system");

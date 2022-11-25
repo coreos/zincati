@@ -14,16 +14,17 @@ mod mock_tests;
 
 use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, SCHEME_KEY};
 use anyhow::{anyhow, ensure, Context, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
 /// An OS release.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Release {
     /// OS version.
     pub version: String,
     /// Image base checksum.
     pub checksum: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Release age (Cincinnati `age_index`).
     pub age_index: Option<u64>,
 }

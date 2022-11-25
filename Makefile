@@ -14,7 +14,7 @@ all: build check
 
 .PHONY: build
 build:
-	cargo build "--target-dir=${TARGETDIR}" ${CARGO_ARGS}
+	cargo build "--target-dir=${TARGETDIR}" ${CARGO_ARGS} --features drogue
 
 .PHONY: install
 install: build
@@ -26,6 +26,21 @@ install: build
 	install -D -m 644 -t ${DESTDIR}/usr/share/polkit-1/rules.d dist/polkit-1/rules.d/*.rules
 	install -D -m 644 -t ${DESTDIR}/usr/share/polkit-1/actions dist/polkit-1/actions/*.policy
 	install -D -m 644 -t ${DESTDIR}/usr/share/dbus-1/system.d dist/dbus-1/system.d/*.conf
+
+
+.PHONY: install-fast
+install-fast: build
+	install -D -t test-image/overrides/rootfs/usr/libexec "${TARGETDIR}/${PROFILE}/zincati"
+	install -D -m 0644 -t test-image/overrides/rootfs/etc/zincati/config.d tests/fixtures/99-drogue-iot.toml
+
+.PHONY: image
+image: install-fast
+	cd test-image && cosa build
+
+.PHONY: image-fast
+image-fast: install-fast
+
+	cd test-image && cosa build-fast
 
 .PHONY: check
 check:

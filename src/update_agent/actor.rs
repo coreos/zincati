@@ -7,12 +7,13 @@ use actix::prelude::*;
 use anyhow::{bail, format_err, Error, Result};
 use fn_error_context::context;
 use futures::prelude::*;
-use log::trace;
+use log::{info, trace};
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use std::collections::BTreeSet;
 use std::mem::discriminant;
 use std::rc::Rc;
 use std::time::Duration;
+use tokio::sync::broadcast;
 
 /// Label for finalization attempts blocked due to active interactive user sessions.
 pub static ACTIVE_USERSESSIONS_LABEL: &str = "active_usersessions";
@@ -49,6 +50,69 @@ impl Actor for UpdateAgent {
 
         // Kick-start the state machine.
         Self::tick_now(ctx);
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct AgentState {
+    pub state: UpdateAgentState,
+}
+
+pub struct SubscribeState;
+
+impl Message for SubscribeState {
+    type Result = broadcast::Receiver<AgentState>;
+}
+
+impl Handler<SubscribeState> for UpdateAgent {
+    type Result = MessageResult<SubscribeState>;
+
+    fn handle(&mut self, _msg: SubscribeState, _ctx: &mut Self::Context) -> Self::Result {
+        MessageResult(self.broadcast.subscribe())
+    }
+}
+
+pub struct NotifyState;
+
+impl Message for NotifyState {
+    type Result = ();
+}
+
+impl Handler<NotifyState> for UpdateAgent {
+    type Result = ResponseFuture<()>;
+
+    fn handle(&mut self, _msg: NotifyState, _ctx: &mut Self::Context) -> Self::Result {
+        let state = self.state.clone();
+        let broadcast = self.broadcast.clone();
+        Box::pin(async move {
+            let state = state.read().await.clone();
+            let _ = broadcast.send(AgentState { state });
+        })
+    }
+}
+
+pub struct StartUpgrade(pub Release);
+
+impl Message for StartUpgrade {
+    type Result = ();
+}
+
+impl Handler<StartUpgrade> for UpdateAgent {
+    type Result = ResponseActFuture<Self, ()>;
+
+    fn handle(&mut self, msg: StartUpgrade, _ctx: &mut Self::Context) -> Self::Result {
+        info!("Request to start upgrading to: {:?}", msg.0);
+
+        let state = self.state.clone();
+
+        let f = async move {
+            state.write().await.machine_state.update_available(msg.0);
+        };
+
+        Box::pin(f.into_actor(self).map(|_, _, ctx| {
+            // tick after triggering update
+            let _ = ctx.address().try_send(RefreshTick {});
+        }))
     }
 }
 
@@ -134,6 +198,7 @@ impl Handler<RefreshTick> for UpdateAgent {
                         .tick_end(&mut agent_state_guard.machine_state, update)
                         .await
                 }
+                UpdateAgentMachineState::Waiting => (),
                 UpdateAgentMachineState::EndState => (),
             };
 
@@ -161,6 +226,7 @@ impl Handler<RefreshTick> for UpdateAgent {
             } else {
                 Self::tick_now(ctx);
             }
+            Self::notify_state(ctx);
             actix::fut::ok(())
         });
 
@@ -169,6 +235,11 @@ impl Handler<RefreshTick> for UpdateAgent {
 }
 
 impl UpdateAgent {
+    fn notify_state(ctx: &mut Context<Self>) {
+        // broadcast state change
+        ctx.notify(NotifyState)
+    }
+
     /// Schedule an immediate refresh of the state machine.
     pub fn tick_now(ctx: &mut Context<Self>) {
         ctx.notify(RefreshTick {})
@@ -286,6 +357,10 @@ impl UpdateAgentInfo {
             log::info!("{}", status);
             state.machine_state.initialized();
             self.strategy.record_details();
+        } else if self.drogue {
+            status = "initialization complete, auto-updates logic disabled, remote agent active";
+            log::warn!("{}", status);
+            state.machine_state.waiting();
         } else {
             status = "initialization complete, auto-updates logic disabled by configuration";
             log::warn!("{}", status);

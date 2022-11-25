@@ -16,6 +16,9 @@ pub(crate) struct ConfigFragment {
     pub(crate) identity: Option<IdentityFragment>,
     /// Update strategy configuration.
     pub(crate) updates: Option<UpdateFragment>,
+    #[cfg(feature = "drogue")]
+    /// Drogue agent configuration.
+    pub(crate) drogue: Option<DrogueFragment>,
 }
 
 /// Config fragment for agent settings.
@@ -95,6 +98,22 @@ pub(crate) struct UpdatePeriodicWindow {
     pub(crate) length_minutes: u32,
 }
 
+/// Config fragment for Drogue IoT client.
+#[cfg(feature = "drogue")]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub(crate) struct DrogueFragment {
+    pub(crate) enabled: Option<bool>,
+
+    pub(crate) application: Option<String>,
+    pub(crate) device: Option<String>,
+    pub(crate) password: Option<String>,
+
+    pub(crate) mqtt_hostname: Option<String>,
+    pub(crate) mqtt_port: Option<std::num::NonZeroU16>,
+    pub(crate) mqtt_disable_tls: Option<bool>,
+    pub(crate) mqtt_insecure: Option<bool>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,6 +160,17 @@ mod tests {
                     ]),
                     time_zone: Some("localtime".to_string()),
                 }),
+            }),
+            #[cfg(feature = "drogue")]
+            drogue: Some(DrogueFragment {
+                enabled: None,
+                application: None,
+                device: None,
+                password: None,
+                mqtt_hostname: None,
+                mqtt_port: None,
+                mqtt_disable_tls: None,
+                mqtt_insecure: None,
             }),
         };
 

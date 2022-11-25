@@ -1,7 +1,7 @@
 //! Update agent.
 
 mod actor;
-pub use actor::LastRefresh;
+pub use actor::{AgentState, LastRefresh, StartUpgrade, SubscribeState};
 
 use crate::cincinnati::Cincinnati;
 use crate::config::Settings;
@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::rc::Rc;
 use std::time::Duration;
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
 
 /// Default refresh interval for steady state (in seconds).
 pub(crate) const DEFAULT_STEADY_INTERVAL_SECS: u64 = 300; // 5 minutes.
@@ -94,7 +94,7 @@ where
 }
 
 /// State machine for the agent.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 enum UpdateAgentMachineState {
     /// Initial state upon actor start.
     StartState,
@@ -120,6 +120,8 @@ enum UpdateAgentMachineState {
     UpdateStaged((Release, u8)),
     /// Update finalized by rpm-ostree.
     UpdateFinalized(Release),
+    /// Waiting for remote commands.
+    Waiting,
     /// Final state upon actor end.
     EndState,
 }
@@ -192,7 +194,8 @@ impl UpdateAgentMachineState {
         // Allowed starting states.
         assert!(
             *self == UpdateAgentMachineState::ReportedSteady
-                || *self == UpdateAgentMachineState::NoNewUpdate,
+                || *self == UpdateAgentMachineState::NoNewUpdate
+                || *self == UpdateAgentMachineState::Waiting,
             "transition not allowed: {:?} to {:?}",
             self,
             target
@@ -350,6 +353,13 @@ impl UpdateAgentMachineState {
         self.transition_to(target);
     }
 
+    /// Transition to the Waiting state.
+    fn waiting(&mut self) {
+        let target = UpdateAgentMachineState::Waiting;
+
+        self.transition_to(target);
+    }
+
     /// Return the amount of delay between refreshes for this state, and whether
     /// jitter should be added.
     fn get_refresh_delay(&self, steady_interval: Duration) -> (Duration, bool) {
@@ -385,11 +395,14 @@ pub(crate) struct UpdateAgent {
     state_changed: Rc<Cell<DateTime<Utc>>>,
     /// Update agent's information.
     info: UpdateAgentInfo,
+
+    /// Agent status broadcast
+    broadcast: broadcast::Sender<AgentState>,
 }
 
 /// Non-atomic read-write state of the update agent.
-#[derive(Debug, Default)]
-pub(crate) struct UpdateAgentState {
+#[derive(Clone, Debug, Default, serde::Serialize)]
+pub struct UpdateAgentState {
     /// Current state of the agent state machine.
     machine_state: UpdateAgentMachineState,
     /// List of releases to ignore.
@@ -405,6 +418,8 @@ pub(crate) struct UpdateAgentInfo {
     cincinnati: Cincinnati,
     /// Whether to enable auto-updates logic.
     enabled: bool,
+    /// Whether to enable remove commands.
+    drogue: bool,
     /// Agent identity.
     identity: Identity,
     /// Refresh interval in steady state.
@@ -419,6 +434,7 @@ impl UpdateAgent {
     /// Build an update agent with the given config.
     pub(crate) fn with_config(cfg: Settings, rpm_ostree_addr: Addr<RpmOstreeClient>) -> Self {
         let steady_secs = cfg.steady_interval_secs.get();
+        let (broadcast, _) = broadcast::channel(16);
         Self {
             state: Rc::new(RwLock::new(UpdateAgentState::default())),
             state_changed: Rc::new(Cell::new(chrono::Utc::now())),
@@ -426,11 +442,13 @@ impl UpdateAgent {
                 allow_downgrade: cfg.allow_downgrade,
                 cincinnati: cfg.cincinnati,
                 enabled: cfg.enabled,
+                drogue: cfg.drogue.enabled,
                 identity: cfg.identity,
                 rpm_ostree_actor: rpm_ostree_addr,
                 steady_interval: Duration::from_secs(steady_secs),
                 strategy: cfg.strategy,
             },
+            broadcast,
         }
     }
 }

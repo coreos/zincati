@@ -48,6 +48,10 @@ url = { version = "2.3", features = ["serde"] }
 users = "0.11.0"
 zbus = "3"
 
+rumqttc = { version = "0.18.0", optional = true }
+rustls-native-certs = { version = "0.6", optional = true }
+rustls = { version = "*", optional = true }
+
 [dev-dependencies]
 http = "0.2"
 mockito = "0.31"
@@ -56,6 +60,7 @@ tempfile = "^3.2"
 
 [features]
 failpoints = [ "fail/failpoints" ]
+drogue = ["rumqttc", "rustls-native-certs", "rumqttc", "rustls/dangerous_configuration"]
 
 [profile.release]
 # We assume we're being delivered via e.g. RPM which supports split debuginfo

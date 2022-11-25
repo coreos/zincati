@@ -1,0 +1,8 @@
+[drogue]
+enabled = true
+application = "***"
+device = "test1"
+password = "***"
+
+mqtt_hostname = "mqtt.sandbox.drogue.cloud"
+mqtt_port = 8883

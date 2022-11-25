@@ -3,3 +3,4 @@
 vendor
 jsonnetfile.lock.json
 dashboard_out
+.idea/

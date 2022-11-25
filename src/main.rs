@@ -7,6 +7,7 @@
 extern crate fail;
 #[macro_use]
 extern crate prometheus;
+extern crate core;
 
 // Cincinnati client.
 mod cincinnati;
@@ -31,6 +32,10 @@ mod update_agent;
 mod utils;
 /// Logic for weekly maintenance windows.
 mod weekly;
+
+/// Drogue IoT agent.
+#[cfg(feature = "drogue")]
+mod drogue;
 
 use clap::{crate_name, Parser};
 
