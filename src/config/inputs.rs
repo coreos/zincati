@@ -265,7 +265,7 @@ pub(crate) struct DrogueInput {
     pub(crate) enabled: bool,
 
     pub(crate) application: String,
-    pub(crate) device: String,
+    pub(crate) device: Option<String>,
     pub(crate) password: String,
 
     pub(crate) mqtt_hostname: String,
@@ -280,7 +280,7 @@ impl DrogueInput {
         let mut cfg = Self {
             enabled: false,
             application: "".to_string(),
-            device: "".to_string(),
+            device: None,
             password: "".to_string(),
             mqtt_hostname: "".to_string(),
             mqtt_port: std::num::NonZeroU16::new(8883).expect("Is greater than zero"),
@@ -296,7 +296,7 @@ impl DrogueInput {
                 cfg.application = application;
             }
             if let Some(device) = snip.device {
-                cfg.device = device;
+                cfg.device = Some(device);
             }
             if let Some(password) = snip.password {
                 cfg.password = password;

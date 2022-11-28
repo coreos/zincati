@@ -79,6 +79,9 @@ pub(crate) fn run_agent() -> Result<()> {
         #[cfg(feature = "drogue")]
         let drogue = crate::drogue::Agent::start(drogue_config, agent_addr)?;
 
+        #[cfg(not(feature = "drogue"))]
+        let drogue = ();
+
         Ok::<_, anyhow::Error>(drogue)
     })?;
 

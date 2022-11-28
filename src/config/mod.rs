@@ -76,7 +76,7 @@ impl Settings {
         let strategy = UpdateStrategy::with_config(cfg.updates, &identity)?;
         let cincinnati = Cincinnati::with_config(cfg.cincinnati, &identity)?;
         #[cfg(feature = "drogue")]
-        let drogue = crate::drogue::Config::with_config(cfg.drogue)?;
+        let drogue = crate::drogue::Config::with_config(cfg.drogue, &identity)?;
 
         Ok(Self {
             allow_downgrade,

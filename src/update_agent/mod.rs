@@ -418,7 +418,7 @@ pub(crate) struct UpdateAgentInfo {
     cincinnati: Cincinnati,
     /// Whether to enable auto-updates logic.
     enabled: bool,
-    /// Whether to enable remove commands.
+    /// Whether to enable remote commands.
     drogue: bool,
     /// Agent identity.
     identity: Identity,
@@ -435,6 +435,12 @@ impl UpdateAgent {
     pub(crate) fn with_config(cfg: Settings, rpm_ostree_addr: Addr<RpmOstreeClient>) -> Self {
         let steady_secs = cfg.steady_interval_secs.get();
         let (broadcast, _) = broadcast::channel(16);
+
+        #[cfg(not(feature = "drogue"))]
+        let drogue = false;
+        #[cfg(feature = "drogue")]
+        let drogue = cfg.drogue.enabled;
+
         Self {
             state: Rc::new(RwLock::new(UpdateAgentState::default())),
             state_changed: Rc::new(Cell::new(chrono::Utc::now())),
@@ -442,7 +448,7 @@ impl UpdateAgent {
                 allow_downgrade: cfg.allow_downgrade,
                 cincinnati: cfg.cincinnati,
                 enabled: cfg.enabled,
-                drogue: cfg.drogue.enabled,
+                drogue,
                 identity: cfg.identity,
                 rpm_ostree_actor: rpm_ostree_addr,
                 steady_interval: Duration::from_secs(steady_secs),

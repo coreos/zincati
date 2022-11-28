@@ -1,5 +1,6 @@
 use crate::config::inputs::DrogueInput;
 use crate::drogue::mqtt::MqttClient;
+use crate::identity::Identity;
 use crate::update_agent::{AgentState, StartUpgrade, SubscribeState, UpdateAgent};
 use actix::Addr;
 use anyhow::{bail, Context};
@@ -34,8 +35,7 @@ mod default {
 }
 
 impl Config {
-    pub(crate) fn with_config(input: DrogueInput) -> anyhow::Result<Self> {
-        // FIXME: should use Identity as well
+    pub(crate) fn with_config(input: DrogueInput, identity: &Identity) -> anyhow::Result<Self> {
         Ok(Config {
             enabled: input.enabled,
             mqtt: MqttClient {
@@ -45,7 +45,9 @@ impl Config {
                 insecure: input.mqtt_insecure,
             },
             application: input.application,
-            device: input.device,
+            device: input
+                .device
+                .unwrap_or_else(|| identity.node_uuid.dashed_hex()),
             password: input.password,
             inflight_messages: 10,
         })
@@ -72,9 +74,10 @@ impl Agent {
     pub(crate) fn start(config: Config, update: Addr<UpdateAgent>) -> anyhow::Result<Self> {
         let mut options: MqttOptions = config.mqtt.try_into()?;
 
-        // FIXME: urlencode device
+        let device: String =
+            url::form_urlencoded::byte_serialize(config.device.as_bytes()).collect();
         options.set_credentials(
-            format!("{}@{}", config.device, config.application),
+            format!("{}@{}", device, config.application),
             config.password,
         );
 

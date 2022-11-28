@@ -18,11 +18,6 @@ pub(crate) use immediate::StrategyImmediate;
 mod periodic;
 pub(crate) use periodic::StrategyPeriodic;
 
-#[cfg(feature = "drogue")]
-mod drogue;
-//#[cfg(feature = "drogue")]
-//pub(crate) use drogue::DrogueAgent;
-
 /// Label for allow responses from querying strategy's `can_finalize` function.
 pub static CAN_FINALIZE_ALLOW_LABEL: &str = "allow";
 
