@@ -36,13 +36,17 @@ mod default {
 
 impl Config {
     pub(crate) fn with_config(input: DrogueInput, identity: &Identity) -> anyhow::Result<Self> {
+        if input.mqtt.hostname.is_empty() {
+            bail!("Empty MQTT hostname");
+        }
+
         Ok(Config {
             enabled: input.enabled,
             mqtt: MqttClient {
-                host: input.mqtt_hostname,
-                port: input.mqtt_port.into(),
-                disable_tls: input.mqtt_disable_tls,
-                insecure: input.mqtt_insecure,
+                host: input.mqtt.hostname,
+                port: input.mqtt.port.into(),
+                disable_tls: input.mqtt.disable_tls,
+                insecure: input.mqtt.insecure,
             },
             application: input.application,
             device: input

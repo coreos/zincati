@@ -2,7 +2,7 @@ use crate::config::fragments;
 use crate::update_agent::DEFAULT_STEADY_INTERVAL_SECS;
 use anyhow::{Context, Result};
 use fn_error_context::context;
-use log::trace;
+use log::debug;
 use ordered_float::NotNan;
 use serde::Serialize;
 use std::num::NonZeroU64;
@@ -30,7 +30,7 @@ impl ConfigInput {
 
         let mut fragments = Vec::new();
         for (_, fpath) in scanner.scan() {
-            trace!("reading config fragment '{}'", fpath.display());
+            debug!("reading config fragment '{}'", fpath.display());
 
             let content = std::fs::read(&fpath)
                 .with_context(|| format!("failed to read file '{}'", fpath.display()))?;
@@ -267,11 +267,16 @@ pub(crate) struct DrogueInput {
     pub(crate) application: String,
     pub(crate) device: Option<String>,
     pub(crate) password: String,
+    pub(crate) mqtt: MqttInput,
+}
 
-    pub(crate) mqtt_hostname: String,
-    pub(crate) mqtt_port: std::num::NonZeroU16,
-    pub(crate) mqtt_disable_tls: bool,
-    pub(crate) mqtt_insecure: bool,
+#[cfg(feature = "drogue")]
+#[derive(Debug, Serialize)]
+pub(crate) struct MqttInput {
+    pub(crate) hostname: String,
+    pub(crate) port: std::num::NonZeroU16,
+    pub(crate) disable_tls: bool,
+    pub(crate) insecure: bool,
 }
 
 #[cfg(feature = "drogue")]
@@ -282,10 +287,12 @@ impl DrogueInput {
             application: "".to_string(),
             device: None,
             password: "".to_string(),
-            mqtt_hostname: "".to_string(),
-            mqtt_port: std::num::NonZeroU16::new(8883).expect("Is greater than zero"),
-            mqtt_disable_tls: false,
-            mqtt_insecure: false,
+            mqtt: MqttInput {
+                hostname: "".to_string(),
+                port: std::num::NonZeroU16::new(8883).expect("Is greater than zero"),
+                disable_tls: false,
+                insecure: false,
+            },
         };
 
         for snip in fragments {
@@ -301,17 +308,19 @@ impl DrogueInput {
             if let Some(password) = snip.password {
                 cfg.password = password;
             }
-            if let Some(mqtt_hostname) = snip.mqtt_hostname {
-                cfg.mqtt_hostname = mqtt_hostname;
-            }
-            if let Some(mqtt_port) = snip.mqtt_port {
-                cfg.mqtt_port = mqtt_port;
-            }
-            if let Some(mqtt_disable_tls) = snip.mqtt_disable_tls {
-                cfg.mqtt_disable_tls = mqtt_disable_tls;
-            }
-            if let Some(mqtt_insecure) = snip.mqtt_insecure {
-                cfg.mqtt_insecure = mqtt_insecure;
+            if let Some(snip) = snip.mqtt {
+                if let Some(hostname) = snip.hostname {
+                    cfg.mqtt.hostname = hostname;
+                }
+                if let Some(port) = snip.port {
+                    cfg.mqtt.port = port;
+                }
+                if let Some(disable_tls) = snip.disable_tls {
+                    cfg.mqtt.disable_tls = disable_tls;
+                }
+                if let Some(insecure) = snip.insecure {
+                    cfg.mqtt.insecure = insecure;
+                }
             }
         }
 

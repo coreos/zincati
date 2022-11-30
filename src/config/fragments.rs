@@ -108,10 +108,16 @@ pub(crate) struct DrogueFragment {
     pub(crate) device: Option<String>,
     pub(crate) password: Option<String>,
 
-    pub(crate) mqtt_hostname: Option<String>,
-    pub(crate) mqtt_port: Option<std::num::NonZeroU16>,
-    pub(crate) mqtt_disable_tls: Option<bool>,
-    pub(crate) mqtt_insecure: Option<bool>,
+    pub(crate) mqtt: Option<MqttFragment>,
+}
+
+#[cfg(feature = "drogue")]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub(crate) struct MqttFragment {
+    pub(crate) hostname: Option<String>,
+    pub(crate) port: Option<std::num::NonZeroU16>,
+    pub(crate) disable_tls: Option<bool>,
+    pub(crate) insecure: Option<bool>,
 }
 
 #[cfg(test)]
@@ -167,10 +173,7 @@ mod tests {
                 application: None,
                 device: None,
                 password: None,
-                mqtt_hostname: None,
-                mqtt_port: None,
-                mqtt_disable_tls: None,
-                mqtt_insecure: None,
+                mqtt: None,
             }),
         };
 

@@ -1,8 +1,12 @@
+[updated]
+enabled = true
+
 [drogue]
 enabled = true
-application = "***"
+application = "ctron-zincati"
 device = "test1"
-password = "***"
+password = "test12"
 
-mqtt_hostname = "mqtt.sandbox.drogue.cloud"
-mqtt_port = 8883
+[drogue.mqtt]
+hostname = "mqtt.sandbox.drogue.cloud"
+port = 443
