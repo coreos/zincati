@@ -34,12 +34,12 @@ install-fast: build
 	install -D -m 0644 -t test-image/overrides/rootfs/etc/zincati/config.d tests/fixtures/99-drogue-iot.toml
 
 .PHONY: image
-image: install-fast
+image: install
 	cd test-image && cosa build
 
 .PHONY: image-fast
-image-fast: install-fast
-
+image-fast: DESTDIR=test-image/overrides/rootfs
+image-fast: install
 	cd test-image && cosa build-fast
 
 .PHONY: check

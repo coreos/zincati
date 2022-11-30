@@ -16,7 +16,7 @@ git clone https://github.com/coreos/zincati.git
 cd zincati
 ```
 
-It is recommend to fork a copy of the project to your own GitHub account, and add it as an additional remote:
+It is recommended to fork a copy of the project to your own GitHub account, and add it as an additional remote:
 
 ```sh
 git remote add my-fork git@github.com:<YOURUSER>/zincati.git
@@ -82,3 +82,29 @@ See [here][build-fast-instructions] for instructions on fast-building a qemu ima
 
 [build-fast-cmd]: https://github.com/coreos/coreos-assembler/blob/main/src/cmd-build-fast
 [build-fast-instructions]: https://github.com/coreos/coreos-assembler/blob/2f834d37353ca5f40b460eae2aea73ef995bc710/docs/kola/external-tests.md#fast-build-and-iteration-on-your-projects-tests
+
+### `bind` for even faster iteration
+
+Create an image as described above, just with the `test-image` directory in the root of the repository.
+
+Run the shell (when using Podman `cosa`):
+
+```sh
+cosa shell
+```
+
+Inside the shell:
+
+```she
+cd /srv/test-image
+cosa run
+```
+
+The `/srv/` directory is mapped into `/mnt/workdir`.
+
+Run the zincati agent:
+
+```sh
+sudo systemctl stop zincati
+sudo su zincati -s /mnt/workdir/overrides/rootfs/usr/libexec/zincati -- agent -v
+```
