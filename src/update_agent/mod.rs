@@ -120,8 +120,6 @@ enum UpdateAgentMachineState {
     UpdateStaged((Release, u8)),
     /// Update finalized by rpm-ostree.
     UpdateFinalized(Release),
-    /// Waiting for remote commands.
-    Waiting,
     /// Final state upon actor end.
     EndState,
 }
@@ -194,8 +192,7 @@ impl UpdateAgentMachineState {
         // Allowed starting states.
         assert!(
             *self == UpdateAgentMachineState::ReportedSteady
-                || *self == UpdateAgentMachineState::NoNewUpdate
-                || *self == UpdateAgentMachineState::Waiting,
+                || *self == UpdateAgentMachineState::NoNewUpdate,
             "transition not allowed: {:?} to {:?}",
             self,
             target
@@ -349,13 +346,6 @@ impl UpdateAgentMachineState {
     /// Transition to the End state.
     fn end(&mut self) {
         let target = UpdateAgentMachineState::EndState;
-
-        self.transition_to(target);
-    }
-
-    /// Transition to the Waiting state.
-    fn waiting(&mut self) {
-        let target = UpdateAgentMachineState::Waiting;
 
         self.transition_to(target);
     }

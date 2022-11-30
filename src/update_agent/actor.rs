@@ -198,7 +198,6 @@ impl Handler<RefreshTick> for UpdateAgent {
                         .tick_end(&mut agent_state_guard.machine_state, update)
                         .await
                 }
-                UpdateAgentMachineState::Waiting => (),
                 UpdateAgentMachineState::EndState => (),
             };
 
@@ -357,10 +356,6 @@ impl UpdateAgentInfo {
             log::info!("{}", status);
             state.machine_state.initialized();
             self.strategy.record_details();
-        } else if self.drogue {
-            status = "initialization complete, auto-updates logic disabled, remote agent active";
-            log::warn!("{}", status);
-            state.machine_state.waiting();
         } else {
             status = "initialization complete, auto-updates logic disabled by configuration";
             log::warn!("{}", status);
@@ -385,7 +380,19 @@ impl UpdateAgentInfo {
 
     /// Try to check for updates.
     async fn tick_check_updates(&self, state: &mut UpdateAgentState) {
-        trace!("trying to check for udpates");
+        match self.drogue {
+            true => self.tick_check_updates_drogue(state).await,
+            false => self.tick_check_updates_cincinatti(state).await,
+        }
+    }
+
+    async fn tick_check_updates_drogue(&self, state: &mut UpdateAgentState) {
+        // nothing to do here
+        state.machine_state.no_new_update();
+    }
+
+    async fn tick_check_updates_cincinatti(&self, state: &mut UpdateAgentState) {
+        trace!("trying to check for updates (cincinatti)");
 
         let timestamp_now = chrono::Utc::now();
         utils::update_unit_status(&format!(
