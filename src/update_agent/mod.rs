@@ -1,6 +1,7 @@
 //! Update agent.
 
 mod actor;
+mod trigger;
 pub use actor::{AgentState, LastRefresh, StartUpgrade, SubscribeState};
 
 use crate::cincinnati::Cincinnati;
@@ -8,6 +9,7 @@ use crate::config::Settings;
 use crate::identity::Identity;
 use crate::rpm_ostree::{Release, RpmOstreeClient};
 use crate::strategy::UpdateStrategy;
+use crate::update_agent::trigger::Trigger;
 use actix::Addr;
 use anyhow::{Context, Result};
 use chrono::prelude::*;
@@ -408,8 +410,8 @@ pub(crate) struct UpdateAgentInfo {
     cincinnati: Cincinnati,
     /// Whether to enable auto-updates logic.
     enabled: bool,
-    /// Whether to enable remote commands.
-    drogue: bool,
+    /// Update trigger.
+    trigger: Trigger,
     /// Agent identity.
     identity: Identity,
     /// Refresh interval in steady state.
@@ -427,9 +429,13 @@ impl UpdateAgent {
         let (broadcast, _) = broadcast::channel(16);
 
         #[cfg(not(feature = "drogue"))]
-        let drogue = false;
+        let trigger = Trigger::Cincinnati;
         #[cfg(feature = "drogue")]
-        let drogue = cfg.drogue.enabled;
+        let trigger = if cfg.drogue.enabled && !cfg.drogue.readonly {
+            Trigger::Drogue
+        } else {
+            Trigger::Cincinnati
+        };
 
         Self {
             state: Rc::new(RwLock::new(UpdateAgentState::default())),
@@ -438,7 +444,7 @@ impl UpdateAgent {
                 allow_downgrade: cfg.allow_downgrade,
                 cincinnati: cfg.cincinnati,
                 enabled: cfg.enabled,
-                drogue,
+                trigger,
                 identity: cfg.identity,
                 rpm_ostree_actor: rpm_ostree_addr,
                 steady_interval: Duration::from_secs(steady_secs),

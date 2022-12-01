@@ -2,6 +2,7 @@
 
 use super::{UpdateAgent, UpdateAgentInfo, UpdateAgentMachineState, UpdateAgentState};
 use crate::rpm_ostree::{self, Release};
+use crate::update_agent::trigger::Trigger;
 use crate::utils;
 use actix::prelude::*;
 use anyhow::{bail, format_err, Error, Result};
@@ -380,9 +381,9 @@ impl UpdateAgentInfo {
 
     /// Try to check for updates.
     async fn tick_check_updates(&self, state: &mut UpdateAgentState) {
-        match self.drogue {
-            true => self.tick_check_updates_drogue(state).await,
-            false => self.tick_check_updates_cincinatti(state).await,
+        match self.trigger {
+            Trigger::Cincinnati => self.tick_check_updates_cincinatti(state).await,
+            Trigger::Drogue => self.tick_check_updates_drogue(state).await,
         }
     }
 
