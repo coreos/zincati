@@ -122,6 +122,7 @@ pub(crate) struct MqttFragment {
     pub(crate) initial_reconnect_delay: Option<std::time::Duration>,
     #[serde(default, with = "humantime_serde")]
     pub(crate) keepalive: Option<std::time::Duration>,
+    pub(crate) client_id: Option<String>,
 }
 
 #[cfg(test)]

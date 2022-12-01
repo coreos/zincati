@@ -10,13 +10,18 @@ use rustls::{
     client::{NoClientSessionStorage, ServerCertVerified, ServerCertVerifier},
     Certificate, ClientConfig, Error, ServerName,
 };
-use std::time::Duration;
-use std::{sync::Arc, time::SystemTime};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MqttClient {
     pub host: String,
     pub port: u16,
+
+    #[serde(default)]
+    pub client_id: Option<String>,
 
     #[serde(default)]
     pub disable_tls: bool,
@@ -31,11 +36,15 @@ impl TryFrom<MqttClient> for MqttOptions {
     type Error = anyhow::Error;
 
     fn try_from(config: MqttClient) -> Result<Self, Self::Error> {
-        let client_id: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(12)
-            .map(char::from)
-            .collect();
+        // must be between 1 and 23 alphanumeric characters: [MQTT-3.1.3-5]
+        // some servers might allow more, but this isn't guaranteed.
+        let client_id: String = config.client_id.unwrap_or_else(|| {
+            thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(12)
+                .map(char::from)
+                .collect()
+        });
 
         let mut opts = MqttOptions::new(client_id, config.host, config.port);
 

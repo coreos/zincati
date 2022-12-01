@@ -1,9 +1,8 @@
-use crate::rpm_ostree::DeploymentJson;
 use crate::{
     config::inputs::DrogueInput,
     drogue::mqtt::MqttClient,
     identity::Identity,
-    rpm_ostree::{GetFullState, RpmOstreeClient, StatusJson},
+    rpm_ostree::{DeploymentJson, GetFullState, RpmOstreeClient, StatusJson},
     update_agent::{StartUpgrade, SubscribeState, UpdateAgent},
 };
 use actix::Addr;
@@ -14,6 +13,7 @@ use serde::Serialize;
 use std::{
     collections::{hash_map::Entry, HashMap},
     fmt::Debug,
+    str::from_utf8,
     sync::Arc,
     time::Duration,
 };
@@ -54,6 +54,7 @@ impl Config {
                 insecure: input.mqtt.insecure,
                 initial_reconnect_delay: input.mqtt.initial_reconnect_delay,
                 keepalive: input.mqtt.keepalive,
+                client_id: input.mqtt.client_id,
             },
             application: input.application,
             device: input
@@ -291,11 +292,11 @@ impl Runner {
         debug!("Command: {topic}");
 
         match topic.split('/').collect::<Vec<_>>().as_slice() {
-            ["command", "inbox", "", "update"] => {
-                let release = serde_json::from_slice(&publish.payload)?;
-                self.update
-                    .try_send(StartUpgrade(release))
-                    .context("Triggering update")?;
+            ["command", "inbox", "", command] => {
+                if let Err(err) = self.handle_cmd(command, &publish.payload).await {
+                    // there isn't much we can do, log and move on
+                    warn!("Failed to process command: {err}");
+                }
             }
             _ => {
                 bail!("Invalid command: {topic}");
@@ -303,6 +304,23 @@ impl Runner {
         }
 
         self.client.ack(&publish).await?;
+
+        Ok(())
+    }
+
+    async fn handle_cmd(&self, command: &str, payload: &[u8]) -> anyhow::Result<()> {
+        match command {
+            "update" => {
+                debug!("Update request - payload: {:?}", from_utf8(payload));
+                let release = serde_json::from_slice(payload)?;
+                self.update
+                    .try_send(StartUpgrade(release))
+                    .context("Triggering update")?;
+            }
+            command => {
+                bail!("Unknown command: {command}");
+            }
+        }
 
         Ok(())
     }

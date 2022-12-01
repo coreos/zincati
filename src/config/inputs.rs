@@ -279,6 +279,7 @@ pub(crate) struct MqttInput {
     pub(crate) insecure: bool,
     pub(crate) initial_reconnect_delay: std::time::Duration,
     pub(crate) keepalive: std::time::Duration,
+    pub(crate) client_id: Option<String>,
 }
 
 #[cfg(feature = "drogue")]
@@ -298,6 +299,7 @@ impl DrogueInput {
                 insecure: false,
                 initial_reconnect_delay: Duration::from_secs(1),
                 keepalive: Duration::from_secs(60),
+                client_id: None,
             },
         };
 
@@ -332,6 +334,9 @@ impl DrogueInput {
                 }
                 if let Some(keepalive) = snip.keepalive {
                     cfg.mqtt.keepalive = keepalive;
+                }
+                if let Some(client_id) = snip.client_id {
+                    cfg.mqtt.client_id = Some(client_id);
                 }
             }
         }
