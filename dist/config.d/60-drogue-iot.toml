@@ -1,0 +1,32 @@
+[updates]
+# If you want to perform updates, you still need to enable them.
+# enabled = true
+
+[drogue]
+# Enable the Drogue IoT agent and provide the device credentials.
+# enabled = true
+# application = "ctron-zincati"
+# device = "test1"
+# password = "test12"
+
+# The agent can also be set into a "readonly" mode, where it only reports the state,
+# but will not trigger any actions.
+# readonly = false
+
+[drogue.mqtt]
+# Hostname and port to the MQTT endpoint.
+# hostname = "mqtt.sandbox.drogue.cloud"
+# port = 443
+
+# It is possible to disable TLS server validation, but not recommened.
+# insecure = false
+
+# By default MQTT is used with TLS. However, plain MQTT can be enabled by
+# setting this to 'true'.
+# disableTls = false
+
+# Period to send pings
+# keepalive = "30s"
+
+# An explicit client ID, otherwise a random ID will be generated.
+# clientId = "MQTTclientID"
