@@ -28,6 +28,7 @@ mod mqtt;
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct Config {
     pub enabled: bool,
+    pub readonly: bool,
 
     pub mqtt: MqttClient,
 
@@ -47,6 +48,7 @@ impl Config {
 
         Ok(Config {
             enabled: input.enabled,
+            readonly: input.readonly,
             mqtt: MqttClient {
                 host: input.mqtt.hostname,
                 port: input.mqtt.port.into(),
@@ -81,6 +83,7 @@ struct Runner {
     client: AsyncClient,
     update: Addr<UpdateAgent>,
     ostree: Addr<RpmOstreeClient>,
+    readonly: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -163,6 +166,7 @@ impl Agent {
             client: client.clone(),
             update,
             ostree,
+            readonly: config.readonly,
         };
         tokio::spawn(async move {
             let _ = runner.run(rx, event_loop).await;
@@ -288,6 +292,14 @@ impl Runner {
 
     /// Handle incoming MQTT messages.
     async fn handle_msg(&self, publish: Publish) -> anyhow::Result<()> {
+        if self.readonly {
+            log::info!(
+                "Discarding command ({}), as we are configured read-only",
+                publish.topic
+            );
+            return Ok(());
+        }
+
         let topic = &publish.topic;
         debug!("Command: {topic}");
 

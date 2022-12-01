@@ -263,6 +263,7 @@ impl UpdateInput {
 #[derive(Debug, Serialize)]
 pub(crate) struct DrogueInput {
     pub(crate) enabled: bool,
+    pub(crate) readonly: bool,
 
     pub(crate) application: String,
     pub(crate) device: Option<String>,
@@ -289,6 +290,7 @@ impl DrogueInput {
 
         let mut cfg = Self {
             enabled: false,
+            readonly: false,
             application: "".to_string(),
             device: None,
             password: "".to_string(),
@@ -306,6 +308,9 @@ impl DrogueInput {
         for snip in fragments {
             if let Some(enabled) = snip.enabled {
                 cfg.enabled = enabled;
+            }
+            if let Some(readonly) = snip.readonly {
+                cfg.readonly = readonly;
             }
             if let Some(application) = snip.application {
                 cfg.application = application;

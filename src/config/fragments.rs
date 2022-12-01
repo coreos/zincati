@@ -103,6 +103,7 @@ pub(crate) struct UpdatePeriodicWindow {
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub(crate) struct DrogueFragment {
     pub(crate) enabled: Option<bool>,
+    pub(crate) readonly: Option<bool>,
 
     pub(crate) application: Option<String>,
     pub(crate) device: Option<String>,
