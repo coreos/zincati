@@ -52,30 +52,30 @@ impl std::error::Error for FatalError {}
 /// JSON output from `rpm-ostree status --json`
 #[derive(Clone, Debug, Deserialize)]
 pub struct StatusJson {
-    deployments: Vec<DeploymentJson>,
+    pub deployments: Vec<DeploymentJson>,
 }
 
 /// Partial deployment object (only fields relevant to zincati).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DeploymentJson {
-    booted: bool,
-    container_image_reference: Option<String>,
-    base_checksum: Option<String>,
+    pub booted: bool,
+    pub container_image_reference: Option<String>,
+    pub base_checksum: Option<String>,
     #[serde(rename = "base-commit-meta")]
-    base_metadata: BaseCommitMetaJson,
-    checksum: String,
+    pub base_metadata: BaseCommitMetaJson,
+    pub checksum: String,
     // NOTE(lucab): missing field means "not staged".
     #[serde(default)]
-    staged: bool,
-    version: String,
+    pub staged: bool,
+    pub version: String,
 }
 
 /// Metadata from base commit (only fields relevant to zincati).
 #[derive(Clone, Debug, Deserialize)]
-struct BaseCommitMetaJson {
+pub struct BaseCommitMetaJson {
     #[serde(rename = "fedora-coreos.stream")]
-    stream: Option<String>,
+    pub stream: Option<String>,
 }
 
 impl DeploymentJson {
@@ -162,6 +162,11 @@ pub fn local_deployments(
     let local_depls = parse_local_deployments(&status, omit_staged);
 
     Ok(local_depls)
+}
+
+/// Get a copy of the full status.
+pub fn get_status(client: &mut RpmOstreeClient) -> Result<StatusJson> {
+    status_json(client).map(|s| (*s).clone())
 }
 
 /// Return JSON object for booted deployment.

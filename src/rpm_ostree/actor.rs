@@ -19,7 +19,7 @@ pub struct StatusCache {
 /// Client actor for rpm-ostree.
 #[derive(Debug, Default, Clone)]
 pub struct RpmOstreeClient {
-    // NB: This is OK for now because `rpm-ostree` actor is curently spawned on a single thread,
+    // NB: This is OK for now because `rpm-ostree` actor is currently spawned on a single thread,
     // but if we move to a larger threadpool, each actor thread will have its own cache.
     pub status_cache: Option<StatusCache>,
 }
@@ -83,6 +83,22 @@ impl Handler<FinalizeDeployment> for RpmOstreeClient {
         let release = super::cli_finalize::finalize_deployment(msg.release);
         trace!("rpm-ostree CLI returned: {:?}", release);
         release
+    }
+}
+
+/// Request: full state
+#[derive(Debug, Clone)]
+pub struct GetFullState;
+
+impl Message for GetFullState {
+    type Result = Result<StatusJson>;
+}
+
+impl Handler<GetFullState> for RpmOstreeClient {
+    type Result = Result<StatusJson>;
+
+    fn handle(&mut self, _: GetFullState, _: &mut Self::Context) -> Self::Result {
+        super::cli_status::get_status(self)
     }
 }
 

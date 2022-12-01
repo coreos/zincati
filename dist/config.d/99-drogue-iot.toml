@@ -1,4 +1,4 @@
-[updated]
+[updates]
 enabled = true
 
 [drogue]
@@ -10,3 +10,4 @@ password = "test12"
 [drogue.mqtt]
 hostname = "mqtt.sandbox.drogue.cloud"
 port = 443
+# keepalive = "30s"

@@ -10,6 +10,7 @@ use rustls::{
     client::{NoClientSessionStorage, ServerCertVerified, ServerCertVerifier},
     Certificate, ClientConfig, Error, ServerName,
 };
+use std::time::Duration;
 use std::{sync::Arc, time::SystemTime};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -21,6 +22,9 @@ pub struct MqttClient {
     pub disable_tls: bool,
     #[serde(default)]
     pub insecure: bool,
+
+    pub initial_reconnect_delay: Duration,
+    pub keepalive: Duration,
 }
 
 impl TryFrom<MqttClient> for MqttOptions {
@@ -35,7 +39,7 @@ impl TryFrom<MqttClient> for MqttOptions {
 
         let mut opts = MqttOptions::new(client_id, config.host, config.port);
 
-        opts.set_manual_acks(true);
+        opts.set_manual_acks(true).set_keep_alive(config.keepalive);
 
         if !config.disable_tls {
             opts.set_transport(Transport::Tls(setup_tls(config.insecure)?));

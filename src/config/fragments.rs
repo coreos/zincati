@@ -118,6 +118,10 @@ pub(crate) struct MqttFragment {
     pub(crate) port: Option<std::num::NonZeroU16>,
     pub(crate) disable_tls: Option<bool>,
     pub(crate) insecure: Option<bool>,
+    #[serde(default, with = "humantime_serde")]
+    pub(crate) initial_reconnect_delay: Option<std::time::Duration>,
+    #[serde(default, with = "humantime_serde")]
+    pub(crate) keepalive: Option<std::time::Duration>,
 }
 
 #[cfg(test)]

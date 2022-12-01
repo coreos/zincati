@@ -1,19 +1,31 @@
-use crate::config::inputs::DrogueInput;
-use crate::drogue::mqtt::MqttClient;
-use crate::identity::Identity;
-use crate::update_agent::{AgentState, StartUpgrade, SubscribeState, UpdateAgent};
+use crate::rpm_ostree::DeploymentJson;
+use crate::{
+    config::inputs::DrogueInput,
+    drogue::mqtt::MqttClient,
+    identity::Identity,
+    rpm_ostree::{GetFullState, RpmOstreeClient, StatusJson},
+    update_agent::{StartUpgrade, SubscribeState, UpdateAgent},
+};
 use actix::Addr;
 use anyhow::{bail, Context};
-use log::{debug, info, warn};
+use log::{debug, info, trace, warn};
 use rumqttc::{AsyncClient, Event, EventLoop, Incoming, MqttOptions, Outgoing, Publish, QoS};
-use std::sync::Arc;
-use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::RwLock;
-use tokio::{select, sync::oneshot};
+use serde::Serialize;
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fmt::Debug,
+    sync::Arc,
+    time::Duration,
+};
+use tokio::{
+    select,
+    sync::{broadcast::error::RecvError, oneshot, RwLock},
+    time::MissedTickBehavior,
+};
 
 mod mqtt;
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct Config {
     pub enabled: bool,
 
@@ -24,14 +36,7 @@ pub struct Config {
     // FIXME: need to add TLS-PSK and X.509 here too
     pub password: String,
 
-    #[serde(default = "default::inflight_messages")]
-    pub inflight_messages: usize,
-}
-
-mod default {
-    pub const fn inflight_messages() -> usize {
-        10
-    }
+    pub event_buffer: usize,
 }
 
 impl Config {
@@ -47,13 +52,15 @@ impl Config {
                 port: input.mqtt.port.into(),
                 disable_tls: input.mqtt.disable_tls,
                 insecure: input.mqtt.insecure,
+                initial_reconnect_delay: input.mqtt.initial_reconnect_delay,
+                keepalive: input.mqtt.keepalive,
             },
             application: input.application,
             device: input
                 .device
                 .unwrap_or_else(|| identity.node_uuid.dashed_hex()),
             password: input.password,
-            inflight_messages: 10,
+            event_buffer: 128,
         })
     }
 }
@@ -69,13 +76,75 @@ struct Inner {
 }
 
 struct Runner {
-    state: Arc<RwLock<Option<AgentState>>>,
+    state: Arc<RwLock<State>>,
     client: AsyncClient,
     update: Addr<UpdateAgent>,
+    ostree: Addr<RpmOstreeClient>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct State {
+    state: HashMap<String, Vec<u8>>,
+}
+
+impl State {
+    pub fn set<C, P>(&mut self, channel: C, payload: &P) -> anyhow::Result<Update>
+    where
+        C: Into<String>,
+        P: Serialize + Debug,
+    {
+        let channel = channel.into();
+        trace!("Setting new state: {channel} = {payload:?}");
+        let payload = serde_json::to_vec(payload)?;
+
+        let update = match self.state.entry(channel.clone()) {
+            Entry::Occupied(mut entry) => {
+                let current = entry.get_mut();
+                if current != &payload {
+                    *current = payload.clone();
+                    vec![(channel, payload)]
+                } else {
+                    vec![]
+                }
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(payload.clone());
+                vec![(channel, payload)]
+            }
+        };
+
+        Ok(Update(update))
+    }
+
+    pub fn get(&self) -> Update {
+        Update(
+            self.state
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        )
+    }
+}
+
+/// Updates to publish
+pub struct Update(Vec<(String, Vec<u8>)>);
+
+impl Update {
+    /// Publish changes to an MQTT client.
+    pub fn publish(self, client: &AsyncClient) -> anyhow::Result<()> {
+        for p in self.0 {
+            client.try_publish(p.0, QoS::AtMostOnce, false, p.1)?;
+        }
+        Ok(())
+    }
 }
 
 impl Agent {
-    pub(crate) fn start(config: Config, update: Addr<UpdateAgent>) -> anyhow::Result<Self> {
+    pub(crate) fn start(
+        config: Config,
+        update: Addr<UpdateAgent>,
+        ostree: Addr<RpmOstreeClient>,
+    ) -> anyhow::Result<Self> {
         let mut options: MqttOptions = config.mqtt.try_into()?;
 
         let device: String =
@@ -85,13 +154,14 @@ impl Agent {
             config.password,
         );
 
-        let (client, event_loop) = AsyncClient::new(options, config.inflight_messages);
+        let (client, event_loop) = AsyncClient::new(options, config.event_buffer);
         let (tx, rx) = oneshot::channel();
 
         let runner = Runner {
             state: Default::default(),
             client: client.clone(),
             update,
+            ostree,
         };
         tokio::spawn(async move {
             let _ = runner.run(rx, event_loop).await;
@@ -112,7 +182,8 @@ impl Runner {
 
         select! {
             _ = self.run_loop(event_loop) => {},
-            _ = self.run_update() => {},
+            _ = self.run_updater() => {},
+            _ = self.run_ostree() => {},
             _ = rx => {},
         }
 
@@ -121,28 +192,54 @@ impl Runner {
         Ok(())
     }
 
-    async fn run_update(&self) -> anyhow::Result<()> {
+    /// Run updating the state from the OStree client
+    async fn run_ostree(&self) -> anyhow::Result<()> {
+        let mut interval = tokio::time::interval(Duration::from_secs(5));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+        loop {
+            match self.ostree.send(GetFullState).await {
+                Ok(Ok(result)) => {
+                    debug!("Current OStree state: {result:?}");
+                    self.state
+                        .write()
+                        .await
+                        .set("ostree", &OsTreeState::from(result))?
+                        .publish(&self.client)?;
+                }
+                other => {
+                    info!("Unexpected outcome of refresh: {other:?}");
+                }
+            }
+
+            interval.tick().await;
+        }
+    }
+
+    /// Run updating the state information.
+    async fn run_updater(&self) -> anyhow::Result<()> {
         let mut rx = self.update.send(SubscribeState).await?;
 
         loop {
             match rx.recv().await {
                 Ok(state) => {
-                    let payload = serde_json::to_vec(&state)?;
-
-                    *self.state.write().await = Some(state);
-
-                    self.client
-                        .publish("zincati", QoS::AtMostOnce, false, payload)
-                        .await?;
+                    self.state
+                        .write()
+                        .await
+                        .set("updater", &state)?
+                        .publish(&self.client)?;
                 }
                 Err(RecvError::Lagged(amount)) => {
-                    log::info!("Lagged {amount} updates");
+                    info!("Lagged {amount} updates");
                 }
                 Err(RecvError::Closed) => return Ok(()),
             }
         }
     }
 
+    /// Drive the MQTT event loop.
+    ///
+    /// This will also handle re-connects.
     async fn run_loop(&self, mut event_loop: EventLoop) {
         loop {
             match event_loop.poll().await {
@@ -188,12 +285,13 @@ impl Runner {
         }
     }
 
+    /// Handle incoming MQTT messages.
     async fn handle_msg(&self, publish: Publish) -> anyhow::Result<()> {
         let topic = &publish.topic;
         debug!("Command: {topic}");
 
         match topic.split('/').collect::<Vec<_>>().as_slice() {
-            ["command", "inbox", _, "update"] => {
+            ["command", "inbox", "", "update"] => {
                 let release = serde_json::from_slice(&publish.payload)?;
                 self.update
                     .try_send(StartUpgrade(release))
@@ -205,23 +303,72 @@ impl Runner {
         }
 
         self.client.ack(&publish).await?;
+
         Ok(())
     }
 
+    /// Handle the case the connection was established.
     async fn handle_connected(&self) -> anyhow::Result<()> {
         self.client
             .subscribe("command/inbox//#", QoS::AtLeastOnce)
             .await?;
 
         // send last known state
-        if let Some(state) = &*self.state.read().await {
-            if let Ok(payload) = serde_json::to_vec(state) {
-                let _ = self
-                    .client
-                    .try_publish("zincati", QoS::AtMostOnce, false, payload);
-            }
-        }
+        self.state.read().await.get().publish(&self.client)?;
 
+        // ok
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeploymentState {
+    pub version: String,
+    pub booted: bool,
+    pub staged: bool,
+    pub checksum: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_checksum: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_image_reference: Option<String>,
+    pub base_metadata: BaseMetadataState,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BaseMetadataState {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream: Option<String>,
+}
+
+impl From<DeploymentJson> for DeploymentState {
+    fn from(json: DeploymentJson) -> Self {
+        Self {
+            version: json.version,
+            booted: json.booted,
+            staged: json.staged,
+            checksum: json.checksum,
+            base_checksum: json.base_checksum,
+            container_image_reference: json.container_image_reference,
+            base_metadata: BaseMetadataState {
+                stream: json.base_metadata.stream,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OsTreeState {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub deployments: Vec<DeploymentState>,
+}
+
+impl From<StatusJson> for OsTreeState {
+    fn from(json: StatusJson) -> Self {
+        Self {
+            deployments: json.deployments.into_iter().map(|s| s.into()).collect(),
+        }
     }
 }

@@ -277,11 +277,15 @@ pub(crate) struct MqttInput {
     pub(crate) port: std::num::NonZeroU16,
     pub(crate) disable_tls: bool,
     pub(crate) insecure: bool,
+    pub(crate) initial_reconnect_delay: std::time::Duration,
+    pub(crate) keepalive: std::time::Duration,
 }
 
 #[cfg(feature = "drogue")]
 impl DrogueInput {
     fn from_fragments(fragments: Vec<fragments::DrogueFragment>) -> Self {
+        use std::time::Duration;
+
         let mut cfg = Self {
             enabled: false,
             application: "".to_string(),
@@ -292,6 +296,8 @@ impl DrogueInput {
                 port: std::num::NonZeroU16::new(8883).expect("Is greater than zero"),
                 disable_tls: false,
                 insecure: false,
+                initial_reconnect_delay: Duration::from_secs(1),
+                keepalive: Duration::from_secs(60),
             },
         };
 
@@ -320,6 +326,12 @@ impl DrogueInput {
                 }
                 if let Some(insecure) = snip.insecure {
                     cfg.mqtt.insecure = insecure;
+                }
+                if let Some(initial_reconnect_delay) = snip.initial_reconnect_delay {
+                    cfg.mqtt.initial_reconnect_delay = initial_reconnect_delay;
+                }
+                if let Some(keepalive) = snip.keepalive {
+                    cfg.mqtt.keepalive = keepalive;
                 }
             }
         }

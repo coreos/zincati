@@ -68,7 +68,7 @@ pub(crate) fn run_agent() -> Result<()> {
         let rpm_ostree_addr = rpm_ostree::RpmOstreeClient::start(1);
 
         trace!("creating update agent");
-        let agent = update_agent::UpdateAgent::with_config(settings, rpm_ostree_addr);
+        let agent = update_agent::UpdateAgent::with_config(settings, rpm_ostree_addr.clone());
         let agent_addr = agent.start();
 
         trace!("creating D-Bus service");
@@ -77,7 +77,7 @@ pub(crate) fn run_agent() -> Result<()> {
         #[cfg(feature = "drogue")]
         trace!("starting Drogue IoT agent");
         #[cfg(feature = "drogue")]
-        let drogue = crate::drogue::Agent::start(drogue_config, agent_addr)?;
+        let drogue = crate::drogue::Agent::start(drogue_config, agent_addr, rpm_ostree_addr)?;
 
         #[cfg(not(feature = "drogue"))]
         let drogue = ();
