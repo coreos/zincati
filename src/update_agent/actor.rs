@@ -2,7 +2,6 @@
 
 use super::{UpdateAgent, UpdateAgentInfo, UpdateAgentMachineState, UpdateAgentState};
 use crate::rpm_ostree::{self, Release};
-use crate::update_agent::trigger::Trigger;
 use crate::utils;
 use actix::prelude::*;
 use anyhow::{bail, format_err, Error, Result};
@@ -381,41 +380,7 @@ impl UpdateAgentInfo {
 
     /// Try to check for updates.
     async fn tick_check_updates(&self, state: &mut UpdateAgentState) {
-        match self.trigger {
-            Trigger::Cincinnati => self.tick_check_updates_cincinatti(state).await,
-            Trigger::Drogue => self.tick_check_updates_drogue(state).await,
-        }
-    }
-
-    async fn tick_check_updates_drogue(&self, state: &mut UpdateAgentState) {
-        // nothing to do here
-        state.machine_state.no_new_update();
-    }
-
-    async fn tick_check_updates_cincinatti(&self, state: &mut UpdateAgentState) {
-        trace!("trying to check for updates (cincinatti)");
-
-        let timestamp_now = chrono::Utc::now();
-        utils::update_unit_status(&format!(
-            "periodically polling for updates (last checked {})",
-            timestamp_now.format("%a %Y-%m-%d %H:%M:%S %Z")
-        ));
-        let allow_downgrade = self.allow_downgrade;
-
-        let release = self
-            .cincinnati
-            .fetch_update_hint(&self.identity, state.denylist.clone(), allow_downgrade)
-            .await;
-
-        match release {
-            Some(release) => {
-                utils::update_unit_status(&format!("found update on remote: {}", release.version));
-                state.machine_state.update_available(release);
-            }
-            None => {
-                state.machine_state.no_new_update();
-            }
-        }
+        self.trigger.tick(state).await;
     }
 
     /// Try to stage an update.
