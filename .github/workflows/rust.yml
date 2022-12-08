@@ -52,6 +52,19 @@ jobs:
           default: true
       - name: cargo test (release)
         run: cargo test --release
+  tests-drogue:
+    name: "Tests, enabling 'drogue' feature"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: "stable"
+          default: true
+      - name: cargo check
+        run: cargo check --features drogue
   linting:
     name: "Lints, pinned toolchain"
     runs-on: ubuntu-latest
