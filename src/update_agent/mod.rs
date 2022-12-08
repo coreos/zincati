@@ -425,7 +425,7 @@ impl UpdateAgent {
         let steady_secs = cfg.steady_interval_secs.get();
         let (broadcast, _) = broadcast::channel(16);
 
-        let trigger = if cfg!(feature = "drogue") && cfg.drogue.enabled && !cfg.drogue.readonly {
+        let trigger = if Self::is_remote(&cfg) {
             Trigger::Remote
         } else {
             Trigger::cincinnati(cfg.cincinnati, cfg.identity.clone(), cfg.allow_downgrade)
@@ -445,6 +445,13 @@ impl UpdateAgent {
             },
             broadcast,
         }
+    }
+
+    fn is_remote(#[allow(unused)] cfg: &Settings) -> bool {
+        #[cfg(feature = "drogue")]
+        return cfg.drogue.enabled && !cfg.drogue.readonly;
+        #[cfg(not(feature = "drogue"))]
+        return false;
     }
 }
 
