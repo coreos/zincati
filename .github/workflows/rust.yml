@@ -25,10 +25,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
       - name: Install toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@v1
         with:
-          toolchain: "stable"
-          default: true
+          toolchain: stable
       - name: cargo build
         run: cargo build
       - name: cargo test
@@ -46,10 +45,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
       - name: Install toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: ${{ env['ACTION_MSRV_TOOLCHAIN']  }}
-          default: true
       - name: cargo test (release)
         run: cargo test --release
   linting:
@@ -59,10 +57,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
       - name: Install toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: ${{ env['ACTION_LINTS_TOOLCHAIN']  }}
-          default: true
           components: rustfmt, clippy
       - name: cargo clippy (warnings)
         run: cargo clippy -- -D warnings
@@ -81,10 +78,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
       - name: Install toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: ${{ matrix.channel }}
-          default: true
       - name: cargo build
         run: cargo build
       - name: cargo test
