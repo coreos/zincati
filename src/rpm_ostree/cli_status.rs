@@ -51,19 +51,19 @@ impl std::error::Error for FatalError {}
 
 /// JSON output from `rpm-ostree status --json`
 #[derive(Clone, Debug, Deserialize)]
-pub struct StatusJson {
-    deployments: Vec<DeploymentJson>,
+pub struct Status {
+    deployments: Vec<Deployment>,
 }
 
 /// Partial deployment object (only fields relevant to zincati).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct DeploymentJson {
+pub struct Deployment {
     booted: bool,
     container_image_reference: Option<String>,
     base_checksum: Option<String>,
     #[serde(rename = "base-commit-meta")]
-    base_metadata: BaseCommitMetaJson,
+    base_metadata: BaseCommitMeta,
     checksum: String,
     // NOTE(lucab): missing field means "not staged".
     #[serde(default)]
@@ -73,12 +73,12 @@ pub struct DeploymentJson {
 
 /// Metadata from base commit (only fields relevant to zincati).
 #[derive(Clone, Debug, Deserialize)]
-struct BaseCommitMetaJson {
+struct BaseCommitMeta {
     #[serde(rename = "fedora-coreos.stream")]
     stream: Option<String>,
 }
 
-impl DeploymentJson {
+impl Deployment {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
         Release {
@@ -97,8 +97,8 @@ impl DeploymentJson {
 }
 
 /// Parse the booted deployment from status object.
-pub fn parse_booted(status: &StatusJson) -> Result<Release> {
-    let status = booted_json(status)?;
+pub fn parse_booted(status: &Status) -> Result<Release> {
+    let status = booted_status(status)?;
     if let Some(img) = status.container_image_reference.as_ref() {
         let msg = format!("Automatic updates disabled; booted into container image {img}");
         crate::utils::update_unit_status(&msg);
@@ -107,7 +107,7 @@ pub fn parse_booted(status: &StatusJson) -> Result<Release> {
     Ok(status.into_release())
 }
 
-fn fedora_coreos_stream_from_deployment(deploy: &DeploymentJson) -> Result<String> {
+fn fedora_coreos_stream_from_deployment(deploy: &Deployment) -> Result<String> {
     let stream = deploy
         .base_metadata
         .stream
@@ -118,13 +118,13 @@ fn fedora_coreos_stream_from_deployment(deploy: &DeploymentJson) -> Result<Strin
 }
 
 /// Parse updates stream for booted deployment from status object.
-pub fn parse_booted_updates_stream(status: &StatusJson) -> Result<String> {
-    let json = booted_json(status)?;
+pub fn parse_booted_updates_stream(status: &Status) -> Result<String> {
+    let json = booted_status(status)?;
     fedora_coreos_stream_from_deployment(&json)
 }
 
 /// Parse pending deployment from status object.
-pub fn parse_pending_deployment(status: &StatusJson) -> Result<Option<(Release, String)>> {
+pub fn parse_pending_deployment(status: &Status) -> Result<Option<(Release, String)>> {
     // There can be at most one staged/pending rpm-ostree deployment,
     // thus we only consider the first matching entry (if any).
     let staged = status.deployments.iter().find(|d| d.staged).cloned();
@@ -140,7 +140,7 @@ pub fn parse_pending_deployment(status: &StatusJson) -> Result<Option<(Release, 
 }
 
 /// Parse local deployments from a status object.
-fn parse_local_deployments(status: &StatusJson, omit_staged: bool) -> BTreeSet<Release> {
+fn parse_local_deployments(status: &Status, omit_staged: bool) -> BTreeSet<Release> {
     let mut deployments = BTreeSet::<Release>::new();
     for entry in &status.deployments {
         if omit_staged && entry.staged {
@@ -158,14 +158,14 @@ pub fn local_deployments(
     client: &mut RpmOstreeClient,
     omit_staged: bool,
 ) -> Result<BTreeSet<Release>> {
-    let status = status_json(client)?;
+    let status = get_status(client)?;
     let local_depls = parse_local_deployments(&status, omit_staged);
 
     Ok(local_depls)
 }
 
 /// Return JSON object for booted deployment.
-fn booted_json(status: &StatusJson) -> Result<DeploymentJson> {
+fn booted_status(status: &Status) -> Result<Deployment> {
     let booted = status
         .clone()
         .deployments
@@ -179,7 +179,7 @@ fn booted_json(status: &StatusJson) -> Result<DeploymentJson> {
 }
 
 /// Ensure our status cache is up to date; if empty or out of date, run `rpm-ostree status` to populate it.
-fn status_json(client: &mut RpmOstreeClient) -> Result<Rc<StatusJson>> {
+fn get_status(client: &mut RpmOstreeClient) -> Result<Rc<Status>> {
     STATUS_CACHE_ATTEMPTS.inc();
     let ostree_depls_data = fs::metadata(OSTREE_DEPLS_PATH)
         .with_context(|| format!("failed to query directory {}", OSTREE_DEPLS_PATH))?;
@@ -204,7 +204,7 @@ fn status_json(client: &mut RpmOstreeClient) -> Result<Rc<StatusJson>> {
 }
 
 /// CLI executor for `rpm-ostree status --json`.
-pub fn invoke_cli_status(booted_only: bool) -> Result<StatusJson> {
+pub fn invoke_cli_status(booted_only: bool) -> Result<Status> {
     RPM_OSTREE_STATUS_ATTEMPTS.inc();
 
     let mut cmd = std::process::Command::new("rpm-ostree");
@@ -227,7 +227,7 @@ pub fn invoke_cli_status(booted_only: bool) -> Result<StatusJson> {
             String::from_utf8_lossy(&cmdrun.stderr)
         );
     }
-    let status: StatusJson = serde_json::from_slice(&cmdrun.stdout)?;
+    let status: Status = serde_json::from_slice(&cmdrun.stdout)?;
     Ok(status)
 }
 
@@ -235,7 +235,7 @@ pub fn invoke_cli_status(booted_only: bool) -> Result<StatusJson> {
 mod tests {
     use super::*;
 
-    fn mock_status(path: &str) -> Result<StatusJson> {
+    fn mock_status(path: &str) -> Result<Status> {
         let r = std::fs::File::open(path).map(std::io::BufReader::new)?;
         Ok(serde_json::from_reader(r)?)
     }
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn mock_booted_updates_stream() {
         let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
-        let booted = booted_json(&status).unwrap();
+        let booted = booted_status(&status).unwrap();
         let stream = fedora_coreos_stream_from_deployment(&booted).unwrap();
         assert_eq!(stream, "testing-devel");
     }
