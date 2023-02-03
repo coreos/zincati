@@ -1050,9 +1050,9 @@ checksum = "201de327520df007757c1f0adce6e827fe8562fbc28bfd9c15571c66ca1f5f79"
 
 [[package]]
 name = "liboverdrop"
-version = "0.0.2"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a8bcc76c5aad4677420857a8744ec8aef80b1b21c5501e2f8c7ac3fda2e19ba"
+checksum = "08e5373d7512834e2fbbe4100111483a99c28ca3818639f67ab2337672301f8e"
 dependencies = [
  "log",
 ]
