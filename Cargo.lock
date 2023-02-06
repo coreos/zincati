@@ -83,24 +83,13 @@ dependencies = [
 
 [[package]]
 name = "async-broadcast"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d26004fe83b2d1cd3a97609b21e39f9a31535822210fe83205d2ce48866ea61"
+checksum = "1b19760fa2b7301cf235360ffd6d3558b1ed4249edd16d6cca8d690cee265b95"
 dependencies = [
  "event-listener",
  "futures-core",
  "parking_lot",
-]
-
-[[package]]
-name = "async-channel"
-version = "1.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e14485364214912d3b19cc3435dde4df66065127f05fa0d75c712f36f12c2f28"
-dependencies = [
- "concurrent-queue 1.2.4",
- "event-listener",
- "futures-core",
 ]
 
 [[package]]
@@ -111,7 +100,7 @@ checksum = "17adb73da160dfb475c183343c8cccd80721ea5a605d3eb57125f0a7b7a92d0b"
 dependencies = [
  "async-lock",
  "async-task",
- "concurrent-queue 2.0.0",
+ "concurrent-queue",
  "fastrand",
  "futures-lite",
  "slab",
@@ -119,13 +108,13 @@ dependencies = [
 
 [[package]]
 name = "async-io"
-version = "1.10.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8121296a9f05be7f34aa4196b1747243b3b62e048bb7906f644f3fbfc490cf7"
+checksum = "8c374dda1ed3e7d8f0d9ba58715f924862c63eae6849c92d3a18e7fbde9e2794"
 dependencies = [
  "async-lock",
  "autocfg",
- "concurrent-queue 1.2.4",
+ "concurrent-queue",
  "futures-lite",
  "libc",
  "log",
@@ -134,7 +123,7 @@ dependencies = [
  "slab",
  "socket2",
  "waker-fn",
- "winapi",
+ "windows-sys 0.42.0",
 ]
 
 [[package]]
@@ -247,12 +236,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec8a7b6a70fde80372154c65702f00a0f56f3e1c36abbc6c440484be248856db"
 
 [[package]]
-name = "cache-padded"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1db59621ec70f09c5e9b597b220c7a2b43611f4710dc03ceb8748637775692c"
-
-[[package]]
 name = "cc"
 version = "1.0.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -336,15 +319,6 @@ dependencies = [
  "atty",
  "lazy_static",
  "winapi",
-]
-
-[[package]]
-name = "concurrent-queue"
-version = "1.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af4780a44ab5696ea9e28294517f1fffb421a83a25af521333c838635509db9c"
-dependencies = [
- "cache-padded",
 ]
 
 [[package]]
@@ -1328,9 +1302,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-stream"
-version = "0.1.2"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01ca8c99d73c6e92ac1358f9f692c22c0bfd9c4701fa086f5d365c0d4ea818ea"
+checksum = "360a24bdacdb7801a1a6af8500392864791c130ebe8bd9a063158cab00040c90"
 dependencies = [
  "futures-core",
  "pin-project-lite",
@@ -2408,12 +2382,11 @@ dependencies = [
 
 [[package]]
 name = "zbus"
-version = "3.6.1"
+version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbaaf011914a4f69a9ec6361225d8440be69673bda9c888275da99c6e8aad03f"
+checksum = "76f1a9e02a5659c712de386c2af5156c51a530fac0668d3ff85fa26a2bc006ba"
 dependencies = [
  "async-broadcast",
- "async-channel",
  "async-executor",
  "async-io",
  "async-lock",
@@ -2447,9 +2420,9 @@ dependencies = [
 
 [[package]]
 name = "zbus_macros"
-version = "3.6.1"
+version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a64de32c103d3a845f37adf0f46397d6346c8d48028e218db44dcde981733880"
+checksum = "414cd9f07964695e00bfef8e589d1752ea0480b8a619f2064cbaccb8a6c2ed59"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2460,9 +2433,9 @@ dependencies = [
 
 [[package]]
 name = "zbus_names"
-version = "2.4.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c737644108627748a660d038974160e0cbb62605536091bdfa28fd7f64d43c8"
+checksum = "f34f314916bd89bdb9934154627fab152f4f28acdda03e7c4c68181b214fe7e3"
 dependencies = [
  "serde",
  "static_assertions",
@@ -2517,9 +2490,9 @@ dependencies = [
 
 [[package]]
 name = "zvariant"
-version = "3.9.0"
+version = "3.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56f8c89c183461e11867ded456db252eae90874bc6769b7adbea464caa777e51"
+checksum = "576cc41e65c7f283e5460f5818073e68fb1f1631502b969ef228c2e03c862efb"
 dependencies = [
  "byteorder",
  "enumflags2",
@@ -2531,9 +2504,9 @@ dependencies = [
 
 [[package]]
 name = "zvariant_derive"
-version = "3.9.0"
+version = "3.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "155247a5d1ab55e335421c104ccd95d64f17cebbd02f50cdbc1c33385f9c4d81"
+checksum = "0fd4aafc0dee96ae7242a24249ce9babf21e1562822f03df650d4e68c20e41ed"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
