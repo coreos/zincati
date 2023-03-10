@@ -1,6 +1,5 @@
 # Zincati
 
-![Checks status](https://img.shields.io/github/checks-status/coreos/zincati/main)
 [![crates.io](https://img.shields.io/crates/v/zincati.svg)](https://crates.io/crates/zincati)
 
 Zincati is an auto-update agent for Fedora CoreOS hosts.
