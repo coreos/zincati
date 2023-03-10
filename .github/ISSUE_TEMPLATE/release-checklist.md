@@ -31,8 +31,7 @@ Push access to the upstream repository is required in order to publish the new t
 :warning:: if `origin` is not the name of the locally configured remote that points to the upstream git repository (i.e. `git@github.com:coreos/zincati.git`), be sure to assign the correct remote name to the `UPSTREAM_REMOTE` variable.
 
 - make sure the project is clean and prepare the environment:
-  - [ ] Make sure `cargo-release` is up to date: `cargo install cargo-release`
-  - [ ] Make sure `cargo-vendor-filterer` is up to date: `cargo install cargo-vendor-filterer`
+  - [ ] Make sure `cargo-release` and `cargo-vendor-filterer` are up to date: `cargo install cargo-release cargo-vendor-filterer`
   - [ ] `cargo test --all-features`
   - [ ] `cargo clean`
   - [ ] `git clean -fd`
