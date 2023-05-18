@@ -24,10 +24,8 @@ impl ConfigInput {
         common_path: &str,
         extensions: Vec<String>,
     ) -> Result<Self> {
-        let scanner = liboverdrop::FragmentScanner::new(dirs, common_path, true, extensions);
-
         let mut fragments = Vec::new();
-        for (_, fpath) in scanner.scan() {
+        for (_, fpath) in liboverdrop::scan(dirs, common_path, extensions.as_slice(), true) {
             trace!("reading config fragment '{}'", fpath.display());
 
             let content = std::fs::read(&fpath)
