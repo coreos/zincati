@@ -461,10 +461,10 @@ mod tests {
         let calendar = WeeklyCalendar::new(windows);
         assert_eq!(calendar.windows.iter().count(), 1);
 
-        let datetime = Utc.ymd(2019, 6, 25).and_hms(21, 10, 0);
+        let datetime = Utc.with_ymd_and_hms(2019, 6, 25, 21, 10, 0).unwrap();
         assert!(calendar.contains_datetime(&datetime));
         // Sanity check that `WeeklyCalendar` is `TimeZone`-agnostic.
-        let datetime = Local.ymd(2019, 6, 25).and_hms(21, 10, 0);
+        let datetime = Local.with_ymd_and_hms(2019, 6, 25, 21, 10, 0).unwrap();
         assert!(calendar.contains_datetime(&datetime));
     }
 
@@ -591,11 +591,36 @@ mod tests {
         let calendar = WeeklyCalendar::new(w1.clone());
 
         let tz = Tz::named("UTC").unwrap();
-        let dt0 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 12).and_hms(0, 0, 0));
-        let dt1 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 12).and_hms(1, 5, 0));
-        let dt2 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 12).and_hms(2, 16, 0));
-        let dt3 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 16).and_hms(15, 14, 56));
-        let dt4 = (&tz).from_utc_datetime(&NaiveDate::from_ymd(2021, 4, 18).and_hms(23, 35, 00));
+        let dt0 = (&tz).from_utc_datetime(
+            &NaiveDate::from_ymd_opt(2021, 4, 12)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+        );
+        let dt1 = (&tz).from_utc_datetime(
+            &NaiveDate::from_ymd_opt(2021, 4, 12)
+                .unwrap()
+                .and_hms_opt(1, 5, 0)
+                .unwrap(),
+        );
+        let dt2 = (&tz).from_utc_datetime(
+            &NaiveDate::from_ymd_opt(2021, 4, 12)
+                .unwrap()
+                .and_hms_opt(2, 16, 0)
+                .unwrap(),
+        );
+        let dt3 = (&tz).from_utc_datetime(
+            &NaiveDate::from_ymd_opt(2021, 4, 16)
+                .unwrap()
+                .and_hms_opt(15, 14, 56)
+                .unwrap(),
+        );
+        let dt4 = (&tz).from_utc_datetime(
+            &NaiveDate::from_ymd_opt(2021, 4, 18)
+                .unwrap()
+                .and_hms_opt(23, 35, 00)
+                .unwrap(),
+        );
 
         let cases = vec![
             (
