@@ -30,14 +30,24 @@ Push access to the upstream repository is required in order to publish the new t
 
 :warning:: if `origin` is not the name of the locally configured remote that points to the upstream git repository (i.e. `git@github.com:coreos/zincati.git`), be sure to assign the correct remote name to the `UPSTREAM_REMOTE` variable.
 
-- make sure the project is clean and prepare the environment:
+- prepare environment:
+  - [ ] `RELEASE_VER=x.y.z`
+  - [ ] `UPSTREAM_REMOTE=origin`
+  - [ ] `git checkout -b pre-release-${RELEASE_VER}`
+
+- update all dependencies:
+  - [ ] `cargo update`
+  - [ ] `git add Cargo.lock && git commit -m "cargo: update dependencies"`
+
+- land the changes:
+  - [ ] PR the changes, get them reviewed, approved and merged
+
+- make sure the project is clean:
   - [ ] Make sure `cargo-release` and `cargo-vendor-filterer` are up to date: `cargo install cargo-release cargo-vendor-filterer`
   - [ ] `cargo vendor-filterer target/vendor`
   - [ ] `cargo test --all-features --config 'source.crates-io.replace-with="vv"' --config 'source.vv.directory="target/vendor"'`
   - [ ] `cargo clean`
   - [ ] `git clean -fd`
-  - [ ] `RELEASE_VER=x.y.z`
-  - [ ] `UPSTREAM_REMOTE=origin`
 
 - create release commit on a dedicated branch and tag it (the commit and tag will be signed with the GPG signing key you configured):
   - [ ] `git checkout -b release-${RELEASE_VER}`
