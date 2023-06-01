@@ -115,30 +115,20 @@ mod tests {
             assert!(cli.is_err());
         }
         {
-            let mut is_ok = false;
             let empty_reason = vec!["zincati", "deadend-motd", "set", "--reason", ""];
             let cli = CliOptions::try_parse_from(empty_reason).unwrap();
-            if let CliCommand::DeadendMotd(cmd) = &cli.cmd {
-                if let Cmd::Set { reason } = cmd {
-                    assert_eq!(reason, "");
-                    is_ok = true;
-                }
-            }
-            if !is_ok {
+            if let CliCommand::DeadendMotd(Cmd::Set { reason }) = &cli.cmd {
+                assert_eq!(reason, "");
+            } else {
                 panic!("unexpected result: {:?}", cli);
             }
         }
         {
-            let mut is_ok = false;
             let reason_message = vec!["zincati", "deadend-motd", "set", "--reason", "foo"];
             let cli = CliOptions::try_parse_from(reason_message).unwrap();
-            if let CliCommand::DeadendMotd(cmd) = &cli.cmd {
-                if let Cmd::Set { reason } = cmd {
-                    assert_eq!(reason, "foo");
-                    is_ok = true;
-                }
-            }
-            if !is_ok {
+            if let CliCommand::DeadendMotd(Cmd::Set { reason }) = &cli.cmd {
+                assert_eq!(reason, "foo");
+            } else {
                 panic!("unexpected result: {:?}", cli);
             }
         }
@@ -152,15 +142,9 @@ mod tests {
             assert!(cli.is_err());
         }
         {
-            let mut is_ok = false;
             let unset = vec!["zincati", "deadend-motd", "unset"];
             let cli = CliOptions::try_parse_from(unset).unwrap();
-            if let CliCommand::DeadendMotd(cmd) = &cli.cmd {
-                if let Cmd::Unset = cmd {
-                    is_ok = true;
-                }
-            }
-            if !is_ok {
+            if !matches!(&cli.cmd, CliCommand::DeadendMotd(Cmd::Unset)) {
                 panic!("unexpected result: {:?}", cli);
             }
         }
