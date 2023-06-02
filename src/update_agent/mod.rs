@@ -610,7 +610,7 @@ mod tests {
         );
 
         let (persistent_err, _) = machine.record_failed_deploy();
-        assert_eq!(persistent_err, false);
+        assert!(!persistent_err);
         assert_eq!(
             machine,
             UpdateAgentMachineState::UpdateAvailable((update.clone(), 1))
@@ -626,10 +626,7 @@ mod tests {
         );
 
         machine.update_finalized(update.clone());
-        assert_eq!(
-            machine,
-            UpdateAgentMachineState::UpdateFinalized(update.clone())
-        );
+        assert_eq!(machine, UpdateAgentMachineState::UpdateFinalized(update));
 
         machine.end();
         assert_eq!(machine, UpdateAgentMachineState::EndState);
@@ -653,16 +650,16 @@ mod tests {
         // MAX-1 temporary failures.
         for attempt in 1..MAX_DEPLOY_ATTEMPTS {
             let (persistent_err, _) = machine.record_failed_deploy();
-            assert_eq!(persistent_err, false);
+            assert!(!persistent_err);
             assert_eq!(
                 machine,
-                UpdateAgentMachineState::UpdateAvailable((update.clone(), attempt as u8))
+                UpdateAgentMachineState::UpdateAvailable((update.clone(), attempt))
             )
         }
 
         // Persistent error threshold reached.
         let (persistent_err, _) = machine.record_failed_deploy();
-        assert_eq!(persistent_err, true);
+        assert!(persistent_err);
         assert_eq!(machine, UpdateAgentMachineState::NoNewUpdate);
     }
 
@@ -734,10 +731,7 @@ mod tests {
         // Reached 0 remaining postponements.
         let can_finalize = machine.handle_interactive_sessions(&interactive_sessions_present);
         assert!(can_finalize);
-        assert_eq!(
-            machine,
-            UpdateAgentMachineState::UpdateStaged((update.clone(), 0))
-        );
+        assert_eq!(machine, UpdateAgentMachineState::UpdateStaged((update, 0)));
     }
 
     #[test]
@@ -745,8 +739,8 @@ mod tests {
         assert_eq!("1 second", format_seconds(1));
         assert_eq!("2 seconds", format_seconds(2));
         assert_eq!("1 minute", format_seconds(60));
-        assert_eq!("1 minute and 1 second", format_seconds(1 * 60 + 1));
-        assert_eq!("1 minute and 30 seconds", format_seconds(1 * 60 + 30));
+        assert_eq!("1 minute and 1 second", format_seconds(60 + 1));
+        assert_eq!("1 minute and 30 seconds", format_seconds(60 + 30));
         assert_eq!("2 minutes", format_seconds(2 * 60));
         assert_eq!("42 minutes and 23 seconds", format_seconds(42 * 60 + 23));
     }

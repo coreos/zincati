@@ -148,6 +148,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::nonminimal_bool)]
     fn release_cmp() {
         {
             let n0 = Release {
@@ -160,10 +161,10 @@ mod tests {
                 checksum: "p1".to_string(),
                 age_index: Some(1),
             };
-            assert_eq!(n0 < n1, true);
-            assert_eq!(n0 == n0, true);
-            assert_eq!(n0 < n0, false);
-            assert_eq!(n0 > n0, false);
+            assert!(n0 < n1);
+            assert!(n0 == n0);
+            assert!(!(n0 < n0));
+            assert!(!(n0 > n0));
         }
         {
             let n0 = Release {
@@ -176,9 +177,9 @@ mod tests {
                 checksum: "p1".to_string(),
                 age_index: Some(0),
             };
-            assert_eq!(n0 < n1, true);
-            assert_eq!(n0 < n0, false);
-            assert_eq!(n0 > n0, false);
+            assert!(n0 < n1);
+            assert!(!(n0 < n0));
+            assert!(!(n0 > n0));
         }
         {
             let n0 = Release {
@@ -191,9 +192,9 @@ mod tests {
                 checksum: "p1".to_string(),
                 age_index: Some(0),
             };
-            assert_eq!(n0 < n1, true);
-            assert_eq!(n0 < n0, false);
-            assert_eq!(n0 > n0, false);
+            assert!(n0 < n1);
+            assert!(!(n0 < n0));
+            assert!(!(n0 > n0));
         }
     }
 }

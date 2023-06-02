@@ -28,7 +28,7 @@ fn test_pre_reboot_lock() {
     m_pre_reboot.assert();
 
     let lock = res.unwrap();
-    assert_eq!(lock, true);
+    assert!(lock);
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn test_steady_state_lock() {
     m_steady_state.assert();
 
     let unlock = res.unwrap();
-    assert_eq!(unlock, true);
+    assert!(unlock);
 }
 
 #[test]

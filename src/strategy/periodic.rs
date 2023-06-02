@@ -203,7 +203,7 @@ mod tests {
         let default = StrategyPeriodic::default();
         let runtime = rt::Runtime::new().unwrap();
         let steady = runtime.block_on(default.can_finalize()).unwrap();
-        assert_eq!(steady, false);
+        assert!(!steady);
     }
 
     #[test]
@@ -211,7 +211,7 @@ mod tests {
         let default = StrategyPeriodic::default();
         let runtime = rt::Runtime::new().unwrap();
         let steady = runtime.block_on(default.report_steady()).unwrap();
-        assert_eq!(steady, true);
+        assert!(steady);
     }
 
     #[test]
@@ -230,7 +230,7 @@ mod tests {
         let non_utc_time_cfg = parse_config_input("tests/fixtures/30-periodic-sample-non-utc.toml");
         // Create current datetime with non UTC time.
         let naive_utc_dt = Utc::now().naive_utc();
-        let tz = Tz::named(&non_utc_time_cfg.updates.periodic.time_zone.clone()).unwrap();
+        let tz = Tz::named(&non_utc_time_cfg.updates.periodic.time_zone).unwrap();
         let dt = (&tz).from_utc_datetime(&naive_utc_dt);
         let weekday = dt.weekday();
         let time = format!("{}:{}", dt.hour(), dt.minute());
@@ -238,7 +238,7 @@ mod tests {
         let mut non_utc_time_update_input: inputs::UpdateInput = non_utc_time_cfg.updates;
         non_utc_time_update_input.periodic.intervals = vec![inputs::PeriodicIntervalInput {
             start_day: weekday.to_string(),
-            start_time: time.to_string(),
+            start_time: time,
             length_minutes: 2,
         }];
 
@@ -257,14 +257,14 @@ mod tests {
             Tz::named("America/Toronto").unwrap()
         );
         // Check that strategy allows reboot now.
-        assert_eq!(steady, true);
+        assert!(steady);
 
         let utc_strategy = StrategyPeriodic::new(utc_update_input).unwrap();
         let runtime = rt::Runtime::new().unwrap();
         let steady = runtime.block_on(utc_strategy.can_finalize()).unwrap();
         assert_eq!(utc_strategy.time_zone, Tz::named("UTC").unwrap());
         // Check that reboot is NOT allowed for UTC strategy.
-        assert_eq!(steady, false);
+        assert!(!steady);
     }
 
     #[test]
@@ -274,20 +274,18 @@ mod tests {
         let local_time_path = Path::new("/etc/localtime");
         let expected_tz;
         // If symlink `/etc/localtime` doesn't exist, we expect to default to UTC.
-        if let Err(_) = read_link(local_time_path) {
+        if read_link(local_time_path).is_err() {
             expected_tz = Some(Tz::named("UTC").unwrap());
+        } else if let Ok(tz_path) = local_time_path.canonicalize() {
+            let tz_str = tz_path
+                .strip_prefix(Path::new("/usr/share/zoneinfo"))
+                .unwrap()
+                .to_str()
+                .unwrap();
+            expected_tz = Some(Tz::named(tz_str).unwrap());
         } else {
-            if let Ok(tz_path) = local_time_path.canonicalize() {
-                let tz_str = tz_path
-                    .strip_prefix(Path::new("/usr/share/zoneinfo"))
-                    .unwrap()
-                    .to_str()
-                    .unwrap();
-                expected_tz = Some(Tz::named(tz_str).unwrap());
-            } else {
-                // `/etc/localtime` exists but points to an invalid time zone.
-                expected_tz = None;
-            }
+            // `/etc/localtime` exists but points to an invalid time zone.
+            expected_tz = None;
         }
         let config = parse_config_input("tests/fixtures/31-periodic-sample-non-utc.toml");
         let strategy = StrategyPeriodic::new(config.updates);

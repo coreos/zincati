@@ -635,7 +635,7 @@ mod tests {
         let prev_state =
             UpdateAgentMachineState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS));
         let cur_state = UpdateAgentMachineState::UpdateStaged((
-            update.clone(),
+            update,
             MAX_FINALIZE_POSTPONEMENTS.saturating_sub(1),
         ));
         assert!(!UpdateAgent::should_tick_immediately(
