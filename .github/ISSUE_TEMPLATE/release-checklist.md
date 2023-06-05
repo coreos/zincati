@@ -44,6 +44,7 @@ Push access to the upstream repository is required in order to publish the new t
 
 - make sure the project is clean:
   - [ ] Make sure `cargo-release` and `cargo-vendor-filterer` are up to date: `cargo install cargo-release cargo-vendor-filterer`
+  - [ ] `git checkout main && git pull ${UPSTREAM_REMOTE} main`
   - [ ] `cargo vendor-filterer target/vendor`
   - [ ] `cargo test --all-features --config 'source.crates-io.replace-with="vv"' --config 'source.vv.directory="target/vendor"'`
   - [ ] `cargo clean`
@@ -82,8 +83,8 @@ Push access to the upstream repository is required in order to publish the new t
   - [ ] `cargo clean`
   - [ ] `git checkout main`
   - [ ] `git pull ${UPSTREAM_REMOTE} main`
-  - [ ] `git push ${UPSTREAM_REMOTE} :release-${RELEASE_VER}`
-  - [ ] `git branch -d release-${RELEASE_VER}`
+  - [ ] `git push ${UPSTREAM_REMOTE} :pre-release-${RELEASE_VER} :release-${RELEASE_VER}`
+  - [ ] `git branch -d pre-release-${RELEASE_VER} release-${RELEASE_VER}`
 
 - Fedora packaging:
   - [ ] update the `rust-zincati` spec file in [Fedora](https://src.fedoraproject.org/rpms/rust-zincati)

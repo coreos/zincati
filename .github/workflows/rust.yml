@@ -18,7 +18,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   # Pinned toolchain for linting
-  ACTIONS_LINTS_TOOLCHAIN: 1.69.0
+  ACTIONS_LINTS_TOOLCHAIN: 1.70.0
 
 jobs:
   tests-stable:
@@ -34,11 +34,11 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
       - name: cargo build
-        run: cargo build
+        run: cargo build --all-targets
       - name: cargo test
-        run: cargo test
+        run: cargo test --all-targets
       - name: cargo test (failpoints)
-        run: cargo test --features failpoints
+        run: cargo test --all-targets --features failpoints
   tests-release-stable:
     name: Tests (release), stable toolchain
     runs-on: ubuntu-latest
@@ -52,9 +52,9 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
       - name: cargo build (release)
-        run: cargo build --release
+        run: cargo build --all-targets --release
       - name: cargo test (release)
-        run: cargo test --release
+        run: cargo test --all-targets --release
   tests-release-msrv:
     name: Tests (release), minimum supported toolchain
     runs-on: ubuntu-latest
@@ -74,9 +74,9 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
       - name: cargo build (release)
-        run: cargo build --release
+        run: cargo build --all-targets --release
       - name: cargo test (release)
-        run: cargo test --release
+        run: cargo test --all-targets --release
   linting:
     name: Lints, pinned toolchain
     runs-on: ubuntu-latest
@@ -93,7 +93,7 @@ jobs:
       - name: cargo fmt (check)
         run: cargo fmt -- --check -l
       - name: cargo clippy (warnings)
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
   tests-other-channels:
     name: Tests, unstable toolchain
     runs-on: ubuntu-latest
@@ -111,6 +111,6 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
       - name: cargo build
-        run: cargo build
+        run: cargo build --all-targets
       - name: cargo test
-        run: cargo test
+        run: cargo test --all-targets
