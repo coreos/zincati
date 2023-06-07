@@ -1204,13 +1204,14 @@ dependencies = [
 
 [[package]]
 name = "mockito"
-version = "0.31.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80f9fece9bd97ab74339fe19f4bcaf52b76dcc18e5364c7977c1838f76b38de9"
+checksum = "ea57936ab3bf56156f135f20ee24b840e5a8ad97a8e1710eace33ac078f8f537"
 dependencies = [
  "assert-json-diff",
  "colored",
- "httparse",
+ "futures",
+ "hyper",
  "lazy_static",
  "log",
  "rand",
@@ -1218,6 +1219,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "similar",
+ "tokio",
 ]
 
 [[package]]
@@ -1996,7 +1998,19 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
+ "tokio-macros",
  "windows-sys 0.45.0",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "1.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d266c00fde287f55d3f1c3e96c500c362a2b8c695076ec180f27918820bc6df8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.104",
 ]
 
 [[package]]
