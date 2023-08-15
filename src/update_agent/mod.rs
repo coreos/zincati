@@ -68,7 +68,7 @@ lazy_static::lazy_static! {
 #[derive(Debug, Deserialize)]
 pub struct SessionJson {
     user: String,
-    #[serde(deserialize_with = "empty_string_as_none")]
+    #[serde(deserialize_with = "deserialize_systemd_tty_canonicalized")]
     tty: Option<String>,
 }
 
@@ -79,14 +79,18 @@ pub struct InteractiveSession {
     tty_dev: String,
 }
 
-/// Function to deserialize field to `Option<String>`, where empty strings are
-/// deserialized into `None`.
-fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+/// Function to deserialize field to `Option<String>`, where empty strings or
+/// `n/a` (not applicable) strings are deserialized into `None`. In systemd v254+
+/// loginctl list-sessions --json started outputting `n/a` instead of an empty
+/// string for tty.
+fn deserialize_systemd_tty_canonicalized<'de, D>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    if s.is_empty() {
+    if s.is_empty() || s == "n/a" {
         Ok(None)
     } else {
         Ok(Some(s))
