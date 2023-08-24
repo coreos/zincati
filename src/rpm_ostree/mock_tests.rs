@@ -36,7 +36,8 @@ fn test_simple_graph() {
 }
 "#;
 
-    let m_graph = server.mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
+    let m_graph = server
+        .mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
         .match_header("accept", Matcher::Regex("application/json".to_string()))
         .with_body(simple_graph)
         .with_status(200)
@@ -86,7 +87,8 @@ fn test_downgrade() {
 }
 "#;
 
-    let m_graph = server.mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
+    let m_graph = server
+        .mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
         .match_header("accept", Matcher::Regex("application/json".to_string()))
         .with_body(simple_graph)
         .with_status(200)

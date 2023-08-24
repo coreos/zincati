@@ -8,12 +8,13 @@ use tokio::runtime as rt;
 fn test_empty_graph() {
     let mut server = mockito::Server::new();
     let empty_graph = r#"{ "nodes": [], "edges": [] }"#;
-    let m_graph = server.mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
+    let m_graph = server
+        .mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
         .with_status(200)
         .with_header("accept", "application/json")
         .with_body(empty_graph)
         .create();
-    
+
     let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = Cincinnati {
