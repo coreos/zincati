@@ -5,6 +5,7 @@ use tokio::runtime as rt;
 
 #[test]
 fn test_pre_reboot_lock() {
+    let mut server = mockito::Server::new();
     let body = r#"
 {
   "client_params": {
@@ -13,7 +14,9 @@ fn test_pre_reboot_lock() {
   }
 }
 "#;
-    let m_pre_reboot = mockito::mock("POST", Matcher::Exact(format!("/{}", V1_PRE_REBOOT)))
+
+    let m_pre_reboot = server
+        .mock("POST", Matcher::Exact(format!("/{}", V1_PRE_REBOOT)))
         .match_header("fleet-lock-protocol", "true")
         .match_body(Matcher::PartialJsonString(body.to_string()))
         .with_status(200)
@@ -21,9 +24,7 @@ fn test_pre_reboot_lock() {
 
     let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
-    let client = ClientBuilder::new(mockito::server_url(), &id)
-        .build()
-        .unwrap();
+    let client = ClientBuilder::new(server.url(), &id).build().unwrap();
     let res = runtime.block_on(client.pre_reboot());
     m_pre_reboot.assert();
 
@@ -33,13 +34,15 @@ fn test_pre_reboot_lock() {
 
 #[test]
 fn test_pre_reboot_error() {
+    let mut server = mockito::Server::new();
     let body = r#"
 {
   "kind": "f1",
   "value": "pre-reboot failure"
 }
 "#;
-    let m_pre_reboot = mockito::mock("POST", Matcher::Exact(format!("/{}", V1_PRE_REBOOT)))
+    let m_pre_reboot = server
+        .mock("POST", Matcher::Exact(format!("/{}", V1_PRE_REBOOT)))
         .match_header("fleet-lock-protocol", "true")
         .with_status(404)
         .with_body(body)
@@ -47,9 +50,7 @@ fn test_pre_reboot_error() {
 
     let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
-    let client = ClientBuilder::new(mockito::server_url(), &id)
-        .build()
-        .unwrap();
+    let client = ClientBuilder::new(server.url(), &id).build().unwrap();
     let res = runtime.block_on(client.pre_reboot());
     m_pre_reboot.assert();
 
@@ -58,6 +59,7 @@ fn test_pre_reboot_error() {
 
 #[test]
 fn test_steady_state_lock() {
+    let mut server = mockito::Server::new();
     let body = r#"
 {
   "client_params": {
@@ -66,7 +68,8 @@ fn test_steady_state_lock() {
   }
 }
 "#;
-    let m_steady_state = mockito::mock("POST", Matcher::Exact(format!("/{}", V1_STEADY_STATE)))
+    let m_steady_state = server
+        .mock("POST", Matcher::Exact(format!("/{}", V1_STEADY_STATE)))
         .match_header("fleet-lock-protocol", "true")
         .match_body(Matcher::PartialJsonString(body.to_string()))
         .with_status(200)
@@ -74,9 +77,7 @@ fn test_steady_state_lock() {
 
     let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
-    let client = ClientBuilder::new(mockito::server_url(), &id)
-        .build()
-        .unwrap();
+    let client = ClientBuilder::new(server.url(), &id).build().unwrap();
     let res = runtime.block_on(client.steady_state());
     m_steady_state.assert();
 
@@ -86,13 +87,15 @@ fn test_steady_state_lock() {
 
 #[test]
 fn test_steady_state_error() {
+    let mut server = mockito::Server::new();
     let body = r#"
 {
   "kind": "f1",
   "value": "pre-reboot failure"
 }
 "#;
-    let m_steady_state = mockito::mock("POST", Matcher::Exact(format!("/{}", V1_STEADY_STATE)))
+    let m_steady_state = server
+        .mock("POST", Matcher::Exact(format!("/{}", V1_STEADY_STATE)))
         .match_header("fleet-lock-protocol", "true")
         .with_status(404)
         .with_body(body)
@@ -100,9 +103,7 @@ fn test_steady_state_error() {
 
     let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
-    let client = ClientBuilder::new(mockito::server_url(), &id)
-        .build()
-        .unwrap();
+    let client = ClientBuilder::new(server.url(), &id).build().unwrap();
     let res = runtime.block_on(client.steady_state());
     m_steady_state.assert();
 
