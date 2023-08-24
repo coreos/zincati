@@ -6,6 +6,7 @@ use tokio::runtime as rt;
 
 #[test]
 fn test_simple_graph() {
+    let mut server = mockito::Server::new();
     let simple_graph = r#"
 {
   "nodes": [
@@ -35,7 +36,7 @@ fn test_simple_graph() {
 }
 "#;
 
-    let m_graph = mockito::mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
+    let m_graph = server.mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
         .match_header("accept", Matcher::Regex("application/json".to_string()))
         .with_body(simple_graph)
         .with_status(200)
@@ -44,7 +45,7 @@ fn test_simple_graph() {
     let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = Cincinnati {
-        base_url: mockito::server_url(),
+        base_url: server.url(),
     };
     let update = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), false));
     m_graph.assert();
@@ -55,6 +56,7 @@ fn test_simple_graph() {
 
 #[test]
 fn test_downgrade() {
+    let mut server = mockito::Server::new();
     let simple_graph = r#"
 {
   "nodes": [
@@ -84,7 +86,7 @@ fn test_downgrade() {
 }
 "#;
 
-    let m_graph = mockito::mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
+    let m_graph = server.mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
         .match_header("accept", Matcher::Regex("application/json".to_string()))
         .with_body(simple_graph)
         .with_status(200)
@@ -94,7 +96,7 @@ fn test_downgrade() {
     let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = Cincinnati {
-        base_url: mockito::server_url(),
+        base_url: server.url(),
     };
 
     // Downgrades denied.
