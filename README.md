@@ -6,6 +6,15 @@ Zincati is an auto-update agent for Fedora CoreOS hosts.
 
 It works as a client for [Cincinnati] and [rpm-ostree], taking care of automatically updating/rebooting machines.
 
+## Note: future directions
+
+Zincati is currently a very important part of the existing Fedora CoreOS workflow.  However,
+it is likely to be obsoleted in the future with a container native flow.  For more information,
+see https://github.com/coreos/fedora-coreos-tracker/issues/1263
+
+# More information
+
+
 Features:
  * Agent for [continuous auto-updates][auto-updates], with support for phased rollouts
  * [Configuration][configuration] via TOML dropins and overlaid directories
