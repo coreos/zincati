@@ -6,17 +6,19 @@ use tokio::runtime as rt;
 
 #[test]
 fn test_empty_graph() {
+    let mut server = mockito::Server::new();
     let empty_graph = r#"{ "nodes": [], "edges": [] }"#;
-    let m_graph = mockito::mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
-        .match_header("accept", Matcher::Regex("application/json".to_string()))
-        .with_body(&empty_graph)
+    let m_graph = server
+        .mock("GET", Matcher::Regex(r"^/v1/graph?.+$".to_string()))
         .with_status(200)
+        .with_header("accept", "application/json")
+        .with_body(empty_graph)
         .create();
 
     let runtime = rt::Runtime::new().unwrap();
     let id = Identity::mock_default();
     let client = Cincinnati {
-        base_url: mockito::server_url(),
+        base_url: server.url(),
     };
     let update = runtime.block_on(client.next_update(&id, BTreeSet::new(), false));
     m_graph.assert();

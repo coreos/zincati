@@ -7,7 +7,7 @@ After=network.target
 # Wait for the boot to be marked as successful. In cluster contexts,
 # this prevents rolling out broken updates to all nodes in the fleet.
 Requires=boot-complete.target
-After=boot-complete.target
+After=multi-user.target boot-complete.target
 # Make sure we don't inadvertently reboot the system before a machine-id is
 # created so that we don't cause ConditionFirstBoot=true units to run twice
 # See discussions in https://github.com/systemd/systemd/issues/4511.
@@ -21,6 +21,8 @@ Environment=ZINCATI_VERBOSITY="-v"
 Type=notify
 ExecStart=/usr/libexec/zincati agent ${ZINCATI_VERBOSITY}
 Restart=on-failure
+# This status signals a non-restartable condition
+RestartPreventExitStatus=7
 RestartSec=10s
 
 [Install]

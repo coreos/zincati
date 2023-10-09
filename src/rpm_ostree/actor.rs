@@ -1,9 +1,9 @@
 //! rpm-ostree client actor.
 
-use super::cli_status::StatusJson;
+use super::cli_status::Status;
 use super::Release;
 use actix::prelude::*;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use filetime::FileTime;
 use log::trace;
 use std::collections::BTreeSet;
@@ -12,7 +12,7 @@ use std::rc::Rc;
 /// Cache of local deployments.
 #[derive(Clone, Debug)]
 pub struct StatusCache {
-    pub status: Rc<StatusJson>,
+    pub status: Rc<Status>,
     pub mtime: FileTime,
 }
 
@@ -104,6 +104,48 @@ impl Handler<QueryLocalDeployments> for RpmOstreeClient {
         let releases = super::cli_status::local_deployments(self, query_msg.omit_staged);
         trace!("rpm-ostree CLI returned: {:?}", releases);
         releases
+    }
+}
+
+/// Request: query pending deployment and stream.
+#[derive(Debug, Clone)]
+pub struct QueryPendingDeploymentStream {}
+
+impl Message for QueryPendingDeploymentStream {
+    type Result = Result<Option<(Release, String)>>;
+}
+
+impl Handler<QueryPendingDeploymentStream> for RpmOstreeClient {
+    type Result = Result<Option<(Release, String)>>;
+
+    fn handle(
+        &mut self,
+        _msg: QueryPendingDeploymentStream,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
+        trace!("fetching details for staged deployment");
+
+        let status = super::cli_status::invoke_cli_status(false)?;
+        super::cli_status::parse_pending_deployment(&status)
+            .context("failed to introspect pending deployment")
+    }
+}
+
+/// Request: cleanup pending deployment.
+#[derive(Debug, Clone)]
+pub struct CleanupPendingDeployment {}
+
+impl Message for CleanupPendingDeployment {
+    type Result = Result<()>;
+}
+
+impl Handler<CleanupPendingDeployment> for RpmOstreeClient {
+    type Result = Result<()>;
+
+    fn handle(&mut self, _msg: CleanupPendingDeployment, _ctx: &mut Self::Context) -> Self::Result {
+        trace!("request to cleanup pending deployment");
+        super::cli_deploy::invoke_cli_cleanup()?;
+        Ok(())
     }
 }
 

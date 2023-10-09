@@ -1,69 +1,77 @@
 [package]
 name = "zincati"
-version = "0.0.24-alpha.0"
+version = "0.0.25"
 description = "Update agent for Fedora CoreOS"
 homepage = "https://coreos.github.io/zincati"
 license = "Apache-2.0"
 keywords = ["cincinnati", "coreos", "fedora", "rpm-ostree"]
 authors = ["Luca Bruno <luca.bruno@coreos.com>"]
 repository = "https://github.com/coreos/zincati"
-edition = "2018"
+edition = "2021"
+rust-version = "1.71.0"
 
 [dependencies]
-actix = "0.12"
+actix = "0.13"
 anyhow = "1.0"
 cfg-if = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
-env_logger = "0.9"
+chrono = { version = "0.4.31", features = ["serde"] }
+clap = { version = "4.4", features = ["cargo", "derive"] }
+coreos-stream-metadata = "0.1.0"
+env_logger = "0.10"
 envsubst = "0.2"
-fail = "0.4"
+fail = "0.5"
 filetime = "0.2"
 fn-error-context = "0.2"
 futures = "0.3"
 glob = "0.3"
-intervaltree = "0.2.6"
+intervaltree = "0.2.7"
 lazy_static = "1.4"
 libc = "0.2"
-liboverdrop = "0.0.2"
-libsystemd = "0.3"
+liboverdrop = "0.1.0"
+libsystemd = "0.6"
 log = "0.4"
 maplit = "1.0"
 num-traits = "0.2"
-ordered-float = { version = "2.7", features = ["serde"] }
-prometheus = { version = "0.12", default-features = false }
+once_cell = "1.18.0"
+ordered-float = { version = "4.1", features = ["serde"] }
+prometheus = { version = "0.13", default-features = false }
 rand = "0.8"
-regex = "1.4"
+regex = "1.9"
 reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-structopt = "0.3"
-tempfile = "^3.2"
+tempfile = ">= 3.7, < 4.0"
 thiserror = "1.0"
-tokio = { version = "1.10", features = ["fs", "signal", "rt", "rt-multi-thread"] }
+tokio = { version = "1.26", features = ["fs", "signal", "rt", "rt-multi-thread"] }
 toml = "0.5"
 tzfile = "0.1.3"
-url = { version = "2.2", features = ["serde"] }
+url = { version = "2.4", features = ["serde"] }
 users = "0.11.0"
-zbus = "1.9.1"
-zvariant = "2.8.0"
+zbus = "3"
 
 [dev-dependencies]
 http = "0.2"
-mockito = "0.30"
-proptest = "1.0"
-tempfile = "^3.2"
+mockito = "1.1"
+proptest = "1.3"
+tempfile = ">= 3.7, < 4.0"
 
 [features]
 failpoints = [ "fail/failpoints" ]
 
 [profile.release]
-lto = true
+# We assume we're being delivered via e.g. RPM which supports split debuginfo
+debug = true
 
 [package.metadata.release]
-disable-publish = true
-disable-push = true
-post-release-commit-message = "cargo: development version bump"
+publish = false
+push = false
 pre-release-commit-message = "cargo: zincati release {{version}}"
 sign-commit = true
 sign-tag = true
 tag-message = "zincati {{version}}"
+
+# See https://github.com/coreos/cargo-vendor-filterer
+[package.metadata.vendor-filter]
+platforms = ["*-unknown-linux-gnu"]
+tier = "2"
+all-features = true

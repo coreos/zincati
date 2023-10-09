@@ -93,8 +93,7 @@ impl Identity {
     pub fn try_default() -> Result<Self> {
         // Invoke rpm-ostree to get the status of the currently booted deployment.
         let status = rpm_ostree::invoke_cli_status(true)?;
-        let basearch = rpm_ostree::parse_basearch(&status)
-            .context("failed to introspect OS base architecture")?;
+        let basearch = coreos_stream_metadata::this_architecture().to_string();
         let current_os =
             rpm_ostree::parse_booted(&status).context("failed to introspect booted OS image")?;
         let node_uuid = {
@@ -103,7 +102,7 @@ impl Identity {
             compute_node_uuid(&app_id)?
         };
         let platform = platform::read_id("/proc/cmdline")?;
-        let stream = rpm_ostree::parse_updates_stream(&status)
+        let stream = rpm_ostree::parse_booted_updates_stream(&status)
             .context("failed to introspect OS updates stream")?;
 
         let id = Self {

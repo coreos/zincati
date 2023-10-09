@@ -2,21 +2,21 @@
 
 use super::ensure_user;
 use anyhow::Result;
+use clap::Subcommand;
 use fn_error_context::context;
-use structopt::StructOpt;
 use zbus::dbus_proxy;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 pub enum Cmd {
     /// Replies different cow-speak depending on whether the
     /// talkative flag is set.
-    #[structopt(name = "moo")]
+    #[command(name = "moo")]
     Moo {
-        #[structopt(long)]
+        #[arg(long)]
         talkative: bool,
     },
     /// Get last refresh time of update agent actor's state.
-    #[structopt(name = "last-refresh-time")]
+    #[command(name = "last-refresh-time")]
     LastRefreshTime,
 }
 
@@ -29,8 +29,8 @@ impl Cmd {
             "ex subcommand must be run as `root` user, \
              and should only be used for testing purposes",
         )?;
-        let connection = zbus::Connection::new_system()?;
-        let proxy = ExperimentalProxy::new(&connection)?;
+        let connection = zbus::blocking::Connection::system()?;
+        let proxy = ExperimentalProxyBlocking::new(&connection)?;
         match self {
             Cmd::Moo { talkative } => {
                 println!("{}", proxy.moo(talkative)?);

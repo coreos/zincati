@@ -32,8 +32,7 @@ mod utils;
 /// Logic for weekly maintenance windows.
 mod weekly;
 
-use structopt::clap::crate_name;
-use structopt::StructOpt;
+use clap::{crate_name, Parser};
 
 /// Binary entrypoint, for all CLI subcommands.
 fn main() {
@@ -44,7 +43,7 @@ fn main() {
 /// Run till completion or failure, pretty-printing termination errors if any.
 fn run() -> i32 {
     // Parse command-line options.
-    let cli_opts = cli::CliOptions::from_args();
+    let cli_opts = cli::CliOptions::parse();
 
     // Setup logging.
     env_logger::Builder::from_default_env()
@@ -57,20 +56,27 @@ fn run() -> i32 {
     match cli_opts.run() {
         Ok(_) => libc::EXIT_SUCCESS,
         Err(e) => {
-            log_error_chain(e);
-            libc::EXIT_FAILURE
+            log_error_chain(&e);
+            if e.root_cause()
+                .downcast_ref::<crate::rpm_ostree::FatalError>()
+                .is_some()
+            {
+                7
+            } else {
+                libc::EXIT_FAILURE
+            }
         }
     }
 }
 
 /// Pretty-print a chain of errors, as a series of error-priority log messages.
-fn log_error_chain(err_chain: anyhow::Error) {
+fn log_error_chain(err_chain: &anyhow::Error) {
     let mut chain_iter = err_chain.chain();
     let top_err = match chain_iter.next() {
         Some(e) => e.to_string(),
         None => "(unspecified failure)".to_string(),
     };
-    log::error!("critical error: {}", top_err);
+    log::error!("error: {}", top_err);
     for err in chain_iter {
         log::error!(" -> {}", err);
     }

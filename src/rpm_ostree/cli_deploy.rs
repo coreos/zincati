@@ -3,25 +3,33 @@
 
 use super::Release;
 use anyhow::{bail, Context, Result};
+use once_cell::sync::Lazy;
 use prometheus::IntCounter;
 use std::time::Duration;
 
 const DRIVER_NAME: &str = "Zincati";
 
-lazy_static::lazy_static! {
-    static ref DEPLOY_ATTEMPTS: IntCounter = register_int_counter!(opts!(
+static DEPLOY_ATTEMPTS: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "zincati_rpm_ostree_deploy_attempts_total",
         "Total number of 'rpm-ostree deploy' attempts."
-    )).unwrap();
-    static ref DEPLOY_FAILURES: IntCounter = register_int_counter!(opts!(
+    ))
+    .unwrap()
+});
+static DEPLOY_FAILURES: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "zincati_rpm_ostree_deploy_failures_total",
         "Total number of 'rpm-ostree deploy' failures."
-    )).unwrap();
-    static ref REGISTER_DRIVER_FAILURES: IntCounter = register_int_counter!(opts!(
+    ))
+    .unwrap()
+});
+static REGISTER_DRIVER_FAILURES: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "zincati_rpm_ostree_register_driver_failures_total",
         "Total number of failures to register as driver for rpm-ostree."
-    )).unwrap();
-}
+    ))
+    .unwrap()
+});
 
 /// Deploy an upgrade (by checksum) and leave the new deployment locked.
 pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Result<Release> {
@@ -93,6 +101,7 @@ fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Result<Release>
     let mut cmd = std::process::Command::new("rpm-ostree");
     cmd.arg("deploy")
         .arg("--lock-finalization")
+        .arg("--skip-branch-check")
         .arg(format!("revision={}", release.checksum))
         .env("RPMOSTREE_CLIENT_ID", "zincati");
     if !allow_downgrade {
@@ -108,6 +117,20 @@ fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Result<Release>
         );
     }
     Ok(release)
+}
+
+/// CLI executor for cleaning up the pending deployment.
+pub fn invoke_cli_cleanup() -> Result<()> {
+    let mut cmd = std::process::Command::new("rpm-ostree");
+    cmd.arg("cleanup").arg("-p");
+    let out = cmd.output().context("failed to run 'rpm-ostree' binary")?;
+    if !out.status.success() {
+        bail!(
+            "rpm-ostree cleanup failed:\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        )
+    };
+    Ok(())
 }
 
 #[cfg(test)]

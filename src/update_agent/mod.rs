@@ -15,7 +15,6 @@ use prometheus::{IntCounter, IntGauge};
 use serde::{Deserialize, Deserializer};
 use std::cell::Cell;
 use std::collections::BTreeSet;
-use std::convert::TryInto;
 use std::fs;
 use std::rc::Rc;
 use std::time::Duration;
@@ -69,7 +68,7 @@ lazy_static::lazy_static! {
 #[derive(Debug, Deserialize)]
 pub struct SessionJson {
     user: String,
-    #[serde(deserialize_with = "empty_string_as_none")]
+    #[serde(deserialize_with = "deserialize_systemd_tty_canonicalized")]
     tty: Option<String>,
 }
 
@@ -80,14 +79,18 @@ pub struct InteractiveSession {
     tty_dev: String,
 }
 
-/// Function to deserialize field to `Option<String>`, where empty strings are
-/// deserialized into `None`.
-fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+/// Function to deserialize field to `Option<String>`, where empty strings or
+/// `n/a` (not applicable) strings are deserialized into `None`. In systemd v254+
+/// loginctl list-sessions --json started outputting `n/a` instead of an empty
+/// string for tty.
+fn deserialize_systemd_tty_canonicalized<'de, D>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    if s.is_empty() {
+    if s.is_empty() || s == "n/a" {
         Ok(None)
     } else {
         Ok(Some(s))
@@ -249,18 +252,18 @@ impl UpdateAgentMachineState {
     /// Determine whether to allow finalization based off of current state.
     /// Returns a boolean indicating whether a finalization is permitted.
     fn usersessions_can_finalize(&mut self) -> bool {
-        match get_interactive_user_sessions() {
-            Ok(interactive_sessions) => {
-                DETECTED_ACTIVE_USERS.set(interactive_sessions.len().try_into().unwrap());
-                self.handle_interactive_sessions(&interactive_sessions)
-            }
-            Err(e) => {
-                // If we failed to check for interactive sessions, just allow
-                // finalization.
-                log::error!("failed to check for interactive sessions: {}", e);
-                true
-            }
-        }
+        let interactive_sessions = get_interactive_user_sessions();
+
+        // If we failed to check for interactive sessions, assume nobody
+        // is logged in. Overall, we prefer forcibly finalizing updates
+        // instead of getting stuck in a retry loop here.
+        let sessions = interactive_sessions.unwrap_or_else(|e| {
+            log::error!("failed to check for interactive sessions: {}", e);
+            log::warn!("assuming no active sessions and proceeding anyway");
+            vec![]
+        });
+
+        self.handle_interactive_sessions(&sessions)
     }
 
     /// Helper for determining whether to allow a finalization by first checking whether
@@ -268,29 +271,44 @@ impl UpdateAgentMachineState {
     /// state's remaining postponements (possibly broadcasting warning messages to active sessions).
     ///
     /// Returns a boolean indicating whether finalization is permitted.
-    fn handle_interactive_sessions(&mut self, interactive_sessions: &[InteractiveSession]) -> bool {
+    fn handle_interactive_sessions(&self, interactive_sessions: &[InteractiveSession]) -> bool {
+        DETECTED_ACTIVE_USERS.set(interactive_sessions.len() as i64);
+        log::trace!(
+            "handling interactive sessions, total: {}",
+            interactive_sessions.len()
+        );
+
+        // Happy path, nobody to wait for.
         if interactive_sessions.is_empty() {
+            log::debug!("no interactive sessions detected");
             return true;
         }
 
-        let (release, postponements_remaining) = match self.clone() {
-            UpdateAgentMachineState::UpdateStaged((r, p)) => (r, p),
+        let (release, postponements_remaining) = match self {
+            UpdateAgentMachineState::UpdateStaged((r, p)) => (r, *p),
             _ => unreachable!(
                 "transition not allowed: handle_interactive_sessions on {:?}",
                 self,
             ),
         };
 
+        // Maximum grace period reached, not delaying any further.
         if postponements_remaining == 0 {
+            log::warn!("reached end of grace period while waiting for interactive sessions");
             return true;
         }
 
         if postponements_remaining == MAX_FINALIZE_POSTPONEMENTS {
             let max_reboot_delay_secs =
                 DEFAULT_POSTPONEMENT_TIME_SECS.saturating_mul(MAX_FINALIZE_POSTPONEMENTS as u64);
+            log::warn!(
+                "interactive sessions detected, entering grace period (maximum {})",
+                format_seconds(max_reboot_delay_secs)
+            );
             let warning_msg = format_reboot_warning(max_reboot_delay_secs, &release.version);
             broadcast(&warning_msg, interactive_sessions);
         } else if postponements_remaining == 1 {
+            log::warn!("last attempt to wait for the end of all interactive sessions");
             let warning_msg =
                 format_reboot_warning(DEFAULT_POSTPONEMENT_TIME_SECS, &release.version);
             broadcast(&warning_msg, interactive_sessions);
@@ -596,7 +614,7 @@ mod tests {
         );
 
         let (persistent_err, _) = machine.record_failed_deploy();
-        assert_eq!(persistent_err, false);
+        assert!(!persistent_err);
         assert_eq!(
             machine,
             UpdateAgentMachineState::UpdateAvailable((update.clone(), 1))
@@ -612,10 +630,7 @@ mod tests {
         );
 
         machine.update_finalized(update.clone());
-        assert_eq!(
-            machine,
-            UpdateAgentMachineState::UpdateFinalized(update.clone())
-        );
+        assert_eq!(machine, UpdateAgentMachineState::UpdateFinalized(update));
 
         machine.end();
         assert_eq!(machine, UpdateAgentMachineState::EndState);
@@ -639,16 +654,16 @@ mod tests {
         // MAX-1 temporary failures.
         for attempt in 1..MAX_DEPLOY_ATTEMPTS {
             let (persistent_err, _) = machine.record_failed_deploy();
-            assert_eq!(persistent_err, false);
+            assert!(!persistent_err);
             assert_eq!(
                 machine,
-                UpdateAgentMachineState::UpdateAvailable((update.clone(), attempt as u8))
+                UpdateAgentMachineState::UpdateAvailable((update.clone(), attempt))
             )
         }
 
         // Persistent error threshold reached.
         let (persistent_err, _) = machine.record_failed_deploy();
-        assert_eq!(persistent_err, true);
+        assert!(persistent_err);
         assert_eq!(machine, UpdateAgentMachineState::NoNewUpdate);
     }
 
@@ -720,10 +735,7 @@ mod tests {
         // Reached 0 remaining postponements.
         let can_finalize = machine.handle_interactive_sessions(&interactive_sessions_present);
         assert!(can_finalize);
-        assert_eq!(
-            machine,
-            UpdateAgentMachineState::UpdateStaged((update.clone(), 0))
-        );
+        assert_eq!(machine, UpdateAgentMachineState::UpdateStaged((update, 0)));
     }
 
     #[test]
@@ -731,8 +743,8 @@ mod tests {
         assert_eq!("1 second", format_seconds(1));
         assert_eq!("2 seconds", format_seconds(2));
         assert_eq!("1 minute", format_seconds(60));
-        assert_eq!("1 minute and 1 second", format_seconds(1 * 60 + 1));
-        assert_eq!("1 minute and 30 seconds", format_seconds(1 * 60 + 30));
+        assert_eq!("1 minute and 1 second", format_seconds(60 + 1));
+        assert_eq!("1 minute and 30 seconds", format_seconds(60 + 30));
         assert_eq!("2 minutes", format_seconds(2 * 60));
         assert_eq!("42 minutes and 23 seconds", format_seconds(42 * 60 + 23));
     }

@@ -1,7 +1,6 @@
 ---
 parent: Development
 nav_order: 4
-layout: default
 ---
 
 # FleetLock protocol

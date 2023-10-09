@@ -4,7 +4,8 @@ use super::{UpdateAgent, UpdateAgentInfo, UpdateAgentMachineState, UpdateAgentSt
 use crate::rpm_ostree::{self, Release};
 use crate::utils;
 use actix::prelude::*;
-use anyhow::{Error, Result};
+use anyhow::{bail, format_err, Error, Result};
+use fn_error_context::context;
 use futures::prelude::*;
 use log::trace;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
@@ -118,7 +119,7 @@ impl Handler<RefreshTick> for UpdateAgent {
                 UpdateAgentMachineState::UpdateAvailable((release, _)) => {
                     let update = release.clone();
                     update_agent_info
-                        .tick_stage_update(&mut agent_state_guard.machine_state, update)
+                        .tick_stage_update(&mut agent_state_guard, update)
                         .await
                 }
                 UpdateAgentMachineState::UpdateStaged((release, _)) => {
@@ -273,7 +274,7 @@ impl UpdateAgentInfo {
         let local_depls = self.local_deployments().await;
         match local_depls {
             Ok(depls) => {
-                UpdateAgent::log_excluded_depls(&depls, &self);
+                UpdateAgent::log_excluded_depls(&depls, self);
                 // Set denylist.
                 state.denylist = depls;
             }
@@ -335,32 +336,25 @@ impl UpdateAgentInfo {
     }
 
     /// Try to stage an update.
-    async fn tick_stage_update(&self, mut state: &mut UpdateAgentMachineState, release: Release) {
+    async fn tick_stage_update(&self, state: &mut UpdateAgentState, release: Release) {
         trace!("trying to stage an update");
 
         let target = release.clone();
-        let deploy_outcome = self.attempt_deploy(target).await;
+        let deploy_outcome = self
+            .attempt_deploy(target)
+            .and_then(|release| self.confirm_valid_stream(state, release))
+            .await;
 
-        match deploy_outcome {
-            Ok(release) => {
-                let msg = format!("update staged: {}", release.version);
-                utils::update_unit_status(&msg);
-                log::info!("{}", msg);
-                state.update_staged(release);
-            }
-            Err(e) => {
-                log::error!("failed to stage deployment: {}", e);
-                let release_ver = release.version.clone();
-                let fail_count = UpdateAgentInfo::deploy_attempt_failed(release, &mut state);
-                let msg = format!(
-                    "trying to stage {} ({} failed deployment attempt{})",
-                    release_ver,
-                    fail_count,
-                    if fail_count > 1 { "s" } else { "" }
-                );
-                utils::update_unit_status(&msg);
-                log::trace!("{}", msg);
-            }
+        if let Err(e) = deploy_outcome {
+            log::error!("failed to stage deployment: {}", e);
+            let fail_count =
+                UpdateAgentInfo::deploy_attempt_failed(&release, &mut state.machine_state);
+            let msg = format!(
+                "trying to stage {} (failed attempts: {})",
+                release.version, fail_count,
+            );
+            utils::update_unit_status(&msg);
+            log::trace!("{}", msg);
         };
     }
 
@@ -398,8 +392,10 @@ impl UpdateAgentInfo {
         match self.finalize_deployment(release).await {
             Ok(release) => {
                 FINALIZATION_SUCCESS.inc();
-                utils::update_unit_status(&format!("update finalized: {}", release.version));
+                let status_msg = format!("update finalized: {}", release.version);
+                log::info!("{}", &status_msg);
                 state.update_finalized(release);
+                utils::update_unit_status(&status_msg);
             }
             Err(e) => log::error!("failed to finalize deployment: {}", e),
         }
@@ -407,10 +403,10 @@ impl UpdateAgentInfo {
 
     /// Actor job is done.
     async fn tick_end(&self, state: &mut UpdateAgentMachineState, release: Release) {
-        let status = format!("update applied, waiting for reboot: {}", release.version);
-        log::info!("{}", status);
+        let status_msg = format!("update applied, waiting for reboot: {}", release.version);
+        log::info!("{}", &status_msg);
         state.end();
-        utils::update_unit_status(&status);
+        utils::update_unit_status(&status_msg);
     }
 
     /// Fetch and stage an update, in finalization-locked mode.
@@ -423,18 +419,16 @@ impl UpdateAgentInfo {
             release,
             allow_downgrade: self.allow_downgrade,
         };
-        let upgrade = self
-            .rpm_ostree_actor
+
+        self.rpm_ostree_actor
             .send(msg)
             .unwrap_or_else(|e| Err(e.into()))
-            .await;
-
-        upgrade
+            .await
     }
 
     /// Record a failed deploy attempt and return the total number of
     /// failed deployment attempts.
-    fn deploy_attempt_failed(release: Release, state: &mut UpdateAgentMachineState) -> u8 {
+    fn deploy_attempt_failed(release: &Release, state: &mut UpdateAgentMachineState) -> u8 {
         let (is_abandoned, fail_count) = state.record_failed_deploy();
         if is_abandoned {
             log::warn!(
@@ -451,17 +445,69 @@ impl UpdateAgentInfo {
     /// past, as they are acceptable as future update target.
     async fn local_deployments(&self) -> Result<BTreeSet<Release>> {
         let msg = rpm_ostree::QueryLocalDeployments { omit_staged: true };
-        let depls = self
-            .rpm_ostree_actor
+        self.rpm_ostree_actor
             .send(msg)
             .unwrap_or_else(|e| Err(e.into()))
             .map_ok(move |depls| {
                 log::trace!("found {} local deployments", depls.len());
                 depls
             })
-            .await;
+            .await
+    }
 
-        depls
+    /// Validate that pending deployment is coming from the correct update stream.
+    ///
+    /// This checks that the update stream for the pending deployment matches the current
+    /// one from agent identity.
+    /// The validation logic here is meant to run right after an update has been fetched,
+    /// thus it first ensures that a pending deployment exists with version and
+    /// checksum matching the one in input.
+    async fn is_pending_deployment_on_correct_stream(&self, release: Release) -> Result<bool> {
+        let msg = rpm_ostree::QueryPendingDeploymentStream {};
+        let query_res = self
+            .rpm_ostree_actor
+            .send(msg)
+            .unwrap_or_else(|e| Err(e.into()))
+            .await?;
+
+        let (pending, stream) = query_res.ok_or_else(|| {
+            format_err!(
+                "expected pending deployment '{}', but found none",
+                release.version
+            )
+        })?;
+
+        if pending.version != release.version {
+            bail!(
+                "expected pending deployment '{}', but found '{}' instead",
+                release.version,
+                pending.version
+            );
+        }
+        if pending.checksum != release.checksum {
+            bail!(
+                "detected checksum mismatch for pending deployment '{}', got unexpected value '{}'",
+                release.version,
+                release.checksum,
+            );
+        }
+
+        if self.identity.stream != stream {
+            log::error!(
+                "pending deployment {} expected to be on stream '{}', but found '{}' instead",
+                pending.version,
+                self.identity.stream,
+                stream
+            );
+            Ok(false)
+        } else {
+            log::trace!(
+                "validated stream '{}' for pending deployment {}",
+                stream,
+                pending.version
+            );
+            Ok(true)
+        }
     }
 
     /// Finalize a deployment (unlock and reboot).
@@ -472,13 +518,10 @@ impl UpdateAgentInfo {
         );
 
         let msg = rpm_ostree::FinalizeDeployment { release };
-        let upgrade = self
-            .rpm_ostree_actor
+        self.rpm_ostree_actor
             .send(msg)
             .unwrap_or_else(|e| Err(e.into()))
-            .await;
-
-        upgrade
+            .await
     }
 
     /// Attempt to register as the update driver for rpm-ostree.
@@ -490,6 +533,53 @@ impl UpdateAgentInfo {
             .send(msg)
             .unwrap_or_else(|e| log::error!("failed to register as driver: {}", e))
             .await
+    }
+
+    /// Cleanup pending deployment.
+    async fn cleanup_pending_deployment(&self) {
+        let msg = rpm_ostree::CleanupPendingDeployment {};
+        let result = self
+            .rpm_ostree_actor
+            .send(msg)
+            .unwrap_or_else(|e| Err(e.into()))
+            .await;
+        if let Err(e) = result {
+            log::error!("failed to cleanup pending deployment: {}", e)
+        };
+    }
+
+    /// Check that the pending deployment is from the correct update stream.
+    ///
+    /// If valid, advance the state-machine. If mistaken, clean up the pending deployment.
+    /// If unsure, bubble up errors in order to retry later.
+    #[context("failed to confirm stream")]
+    async fn confirm_valid_stream(
+        &self,
+        state: &mut UpdateAgentState,
+        release: Release,
+    ) -> Result<()> {
+        // In some cases it may be impossible to validate/reject the update,
+        // e.g. because of temporary issues. The outer layers of the agent will
+        // try to handle these cases with retries.
+        let is_valid = self
+            .is_pending_deployment_on_correct_stream(release.clone())
+            .await?;
+
+        if !is_valid {
+            // Target deployment is not valid; scrub it, and remember to avoid it in the future.
+            self.cleanup_pending_deployment().await;
+            log::error!("abandoned and blocked deployment '{}'", release.version);
+            state.denylist.insert(release.clone());
+            state.machine_state.update_abandoned();
+        } else {
+            // Pending deployment is on the correct stream, update can safely proceed.
+            let msg = format!("update staged: {}", release.version);
+            utils::update_unit_status(&msg);
+            log::info!("{}", msg);
+            state.machine_state.update_staged(release);
+        }
+
+        Ok(())
     }
 }
 
@@ -545,7 +635,7 @@ mod tests {
         let prev_state =
             UpdateAgentMachineState::UpdateStaged((update.clone(), MAX_FINALIZE_POSTPONEMENTS));
         let cur_state = UpdateAgentMachineState::UpdateStaged((
-            update.clone(),
+            update,
             MAX_FINALIZE_POSTPONEMENTS.saturating_sub(1),
         ));
         assert!(!UpdateAgent::should_tick_immediately(

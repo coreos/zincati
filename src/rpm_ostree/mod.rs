@@ -1,11 +1,12 @@
 mod cli_deploy;
 mod cli_finalize;
 mod cli_status;
-pub use cli_status::{invoke_cli_status, parse_basearch, parse_booted, parse_updates_stream};
+pub use cli_status::{invoke_cli_status, parse_booted, parse_booted_updates_stream, FatalError};
 
 mod actor;
 pub use actor::{
-    FinalizeDeployment, QueryLocalDeployments, RegisterAsDriver, RpmOstreeClient, StageDeployment,
+    CleanupPendingDeployment, FinalizeDeployment, QueryLocalDeployments,
+    QueryPendingDeploymentStream, RegisterAsDriver, RpmOstreeClient, StageDeployment,
 };
 
 #[cfg(test)]
@@ -147,6 +148,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::nonminimal_bool)]
     fn release_cmp() {
         {
             let n0 = Release {
@@ -159,10 +161,10 @@ mod tests {
                 checksum: "p1".to_string(),
                 age_index: Some(1),
             };
-            assert_eq!(n0 < n1, true);
-            assert_eq!(n0 == n0, true);
-            assert_eq!(n0 < n0, false);
-            assert_eq!(n0 > n0, false);
+            assert!(n0 < n1);
+            assert!(n0 == n0);
+            assert!(!(n0 < n0));
+            assert!(!(n0 > n0));
         }
         {
             let n0 = Release {
@@ -175,9 +177,9 @@ mod tests {
                 checksum: "p1".to_string(),
                 age_index: Some(0),
             };
-            assert_eq!(n0 < n1, true);
-            assert_eq!(n0 < n0, false);
-            assert_eq!(n0 > n0, false);
+            assert!(n0 < n1);
+            assert!(!(n0 < n0));
+            assert!(!(n0 > n0));
         }
         {
             let n0 = Release {
@@ -190,9 +192,9 @@ mod tests {
                 checksum: "p1".to_string(),
                 age_index: Some(0),
             };
-            assert_eq!(n0 < n1, true);
-            assert_eq!(n0 < n0, false);
-            assert_eq!(n0 > n0, false);
+            assert!(n0 < n1);
+            assert!(!(n0 < n0));
+            assert!(!(n0 > n0));
         }
     }
 }

@@ -10,17 +10,22 @@ use anyhow::Result;
 use core::convert::TryFrom;
 use fn_error_context::context;
 use log::trace;
-use zbus::fdo;
-use zvariant::ObjectPath;
+use zbus::blocking::{self, fdo};
+use zbus::names::WellKnownName;
+use zbus::zvariant::ObjectPath;
 
 pub struct DBusService {
     agent_addr: Addr<UpdateAgent>,
+    connection: Option<blocking::Connection>,
 }
 
 impl DBusService {
     /// Create new DBusService
     fn new(agent_addr: Addr<UpdateAgent>) -> DBusService {
-        DBusService { agent_addr }
+        DBusService {
+            agent_addr,
+            connection: None,
+        }
     }
 
     /// Start the threadpool for DBusService actor.
@@ -29,28 +34,22 @@ impl DBusService {
     }
 
     #[context("failed to start object server")]
-    fn start_object_server(&mut self) -> Result<()> {
-        let connection = zbus::Connection::new_system()?;
+    fn start_object_server(&mut self) -> Result<blocking::Connection> {
+        let connection = blocking::Connection::system()?;
 
         fdo::DBusProxy::new(&connection)?.request_name(
-            "org.coreos.zincati",
-            fdo::RequestNameFlags::ReplaceExisting.into(),
+            WellKnownName::from_static_str("org.coreos.zincati")?,
+            zbus::fdo::RequestNameFlags::ReplaceExisting.into(),
         )?;
 
-        let mut object_server = zbus::ObjectServer::new(&connection);
-        let experimental_interface = Experimental {
-            agent_addr: self.agent_addr.clone(),
-        };
-        object_server.at(
+        connection.object_server().at(
             &ObjectPath::try_from("/org/coreos/zincati")?,
-            experimental_interface,
+            Experimental {
+                agent_addr: self.agent_addr.clone(),
+            },
         )?;
 
-        loop {
-            if let Err(err) = object_server.try_handle_next() {
-                log::warn!("{}", err);
-            }
-        }
+        Ok(connection)
     }
 }
 
@@ -60,8 +59,13 @@ impl Actor for DBusService {
     fn started(&mut self, _ctx: &mut Self::Context) {
         trace!("D-Bus service actor started");
 
-        if let Err(err) = self.start_object_server() {
-            log::error!("failed to start D-Bus service actor: {}", err);
+        if let Some(conn) = self.connection.take() {
+            drop(conn);
         }
+
+        match self.start_object_server() {
+            Err(err) => log::error!("failed to start D-Bus service actor: {}", err),
+            Ok(conn) => self.connection = Some(conn),
+        };
     }
 }

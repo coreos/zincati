@@ -217,7 +217,7 @@ mod tests {
                 Err(_) => Duration::from_secs(1),
             };
             prop_assert!(res.as_secs() > 0);
-            prop_assert!((res.as_secs() / 60) < MAX_WEEKLY_MINS.into());
+            prop_assert!((res.as_secs() / 60) < u64::from(MAX_WEEKLY_MINS));
         }
 
         #[test]

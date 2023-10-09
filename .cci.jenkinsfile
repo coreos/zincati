@@ -18,5 +18,5 @@ cosaPod(buildroot: true) {
     checkout scm
 
     unstash name: 'build'
-    fcosBuild(overlays: ["install"])
+    cosaBuild(overlays: ["install"])
 }
