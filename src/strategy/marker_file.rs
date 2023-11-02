@@ -145,7 +145,7 @@ mod tests {
         // for ownership by root.
         let runtime = rt::Runtime::new().unwrap();
         let can_finalize =
-            StrategyMarkerFile::marker_file_allow_finalization(&*TEMPDIR_MARKER_FILE_PATH);
+            StrategyMarkerFile::marker_file_allow_finalization(&TEMPDIR_MARKER_FILE_PATH);
         let can_finalize = runtime.block_on(can_finalize).unwrap();
         assert!(can_finalize);
 
@@ -156,7 +156,7 @@ mod tests {
         )
         .unwrap();
         let can_finalize =
-            StrategyMarkerFile::marker_file_allow_finalization(&*TEMPDIR_MARKER_FILE_PATH);
+            StrategyMarkerFile::marker_file_allow_finalization(&TEMPDIR_MARKER_FILE_PATH);
         runtime
             .block_on(can_finalize)
             .expect_err("file with incorrect permissions unexpectedly allowed finalization");
@@ -177,31 +177,31 @@ mod tests {
         });
         let f = fs::File::create(&*TEMPDIR_MARKER_FILE_PATH).unwrap();
         serde_json::to_writer(BufWriter::new(f), &json).unwrap();
-        let expired = is_expired(&*TEMPDIR_MARKER_FILE_PATH);
+        let expired = is_expired(&TEMPDIR_MARKER_FILE_PATH);
         let runtime = rt::Runtime::new().unwrap();
         let expired = runtime.block_on(expired).unwrap();
-        assert_eq!(expired, true);
+        assert!(expired);
 
         // Expect timepstamp with value `u64::MAX` to not be expired.
         let json = json!({ "allowUntil": u64::MAX });
         let f = fs::File::create(&*TEMPDIR_MARKER_FILE_PATH).unwrap();
         serde_json::to_writer(BufWriter::new(f), &json).unwrap();
-        let expired = is_expired(&*TEMPDIR_MARKER_FILE_PATH);
+        let expired = is_expired(&TEMPDIR_MARKER_FILE_PATH);
         let expired = runtime.block_on(expired).unwrap();
-        assert_eq!(expired, false);
+        assert!(!expired);
 
         // If no `allowUntil` field, marker file should not expire.
         let json = json!({});
         let f = fs::File::create(&*TEMPDIR_MARKER_FILE_PATH).unwrap();
         serde_json::to_writer(BufWriter::new(f), &json).unwrap();
-        let expired = is_expired(&*TEMPDIR_MARKER_FILE_PATH);
+        let expired = is_expired(&TEMPDIR_MARKER_FILE_PATH);
         let expired = runtime.block_on(expired).unwrap();
-        assert_eq!(expired, false);
+        assert!(!expired);
 
         // Improper JSON.
         let json = "allowUntil=1619640863";
         fs::write(&*TEMPDIR_MARKER_FILE_PATH, json).unwrap();
-        let expired = is_expired(&*TEMPDIR_MARKER_FILE_PATH);
+        let expired = is_expired(&TEMPDIR_MARKER_FILE_PATH);
         runtime
             .block_on(expired)
             .expect_err("improper JSON unexpectedly parsed without error");
