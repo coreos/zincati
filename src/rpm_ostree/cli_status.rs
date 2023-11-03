@@ -39,15 +39,15 @@ lazy_static::lazy_static! {
 
 /// An error which should not result in a retry/restart.
 #[derive(Debug, Clone)]
-pub struct FatalError(String);
+pub struct SystemInoperable(String);
 
-impl std::fmt::Display for FatalError {
+impl std::fmt::Display for SystemInoperable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl std::error::Error for FatalError {}
+impl std::error::Error for SystemInoperable {}
 
 /// JSON output from `rpm-ostree status --json`
 #[derive(Clone, Debug, Deserialize)]
@@ -101,8 +101,9 @@ pub fn parse_booted(status: &Status) -> Result<Release> {
     let status = booted_status(status)?;
     if let Some(img) = status.container_image_reference.as_ref() {
         let msg = format!("Automatic updates disabled; booted into container image {img}");
+        crate::utils::notify_ready();
         crate::utils::update_unit_status(&msg);
-        return Err(anyhow::Error::new(FatalError(msg)));
+        return Err(anyhow::Error::new(SystemInoperable(msg)));
     }
     Ok(status.into_release())
 }
