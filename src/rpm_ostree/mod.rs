@@ -1,7 +1,9 @@
 mod cli_deploy;
 mod cli_finalize;
 mod cli_status;
-pub use cli_status::{invoke_cli_status, parse_booted, parse_booted_updates_stream, FatalError};
+pub use cli_status::{
+    invoke_cli_status, parse_booted, parse_booted_updates_stream, SystemInoperable,
+};
 
 mod actor;
 pub use actor::{

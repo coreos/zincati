@@ -58,10 +58,10 @@ fn run() -> i32 {
         Err(e) => {
             log_error_chain(&e);
             if e.root_cause()
-                .downcast_ref::<crate::rpm_ostree::FatalError>()
+                .downcast_ref::<crate::rpm_ostree::SystemInoperable>()
                 .is_some()
             {
-                7
+                0
             } else {
                 libc::EXIT_FAILURE
             }

@@ -21,8 +21,6 @@ Environment=ZINCATI_VERBOSITY="-v"
 Type=notify
 ExecStart=/usr/libexec/zincati agent ${ZINCATI_VERBOSITY}
 Restart=on-failure
-# This status signals a non-restartable condition
-RestartPreventExitStatus=7
 RestartSec=10s
 
 [Install]
