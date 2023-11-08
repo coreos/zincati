@@ -22,6 +22,7 @@ Type=notify
 ExecStart=/usr/libexec/zincati agent ${ZINCATI_VERBOSITY}
 Restart=on-failure
 RestartSec=10s
+RuntimeMaxSec=3w
 
 [Install]
 WantedBy=multi-user.target
