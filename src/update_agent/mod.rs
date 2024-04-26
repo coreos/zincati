@@ -16,6 +16,7 @@ use serde::{Deserialize, Deserializer};
 use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::fs;
+use std::path::Path;
 use std::rc::Rc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -36,6 +37,10 @@ const DEFAULT_POSTPONEMENT_TIME_SECS: u64 = 60; // 1 minute.
 /// Maximum failed deploy attempts in a row in `UpdateAvailable` state
 /// before abandoning a target update.
 const MAX_DEPLOY_ATTEMPTS: u8 = 12;
+
+/// This is undocumented; it's for testing Zincati in e.g. cosa where you have
+/// an interactive session but you don't want to wait for the full timeout.
+const INTERACTIVE_SESSION_OVERRIDE: &str = "/run/zincati/override-interactive-check";
 
 /// Maximum number of postponements to finalizing an update in the
 /// `UpdateStaged` state before forcing an update finalization and reboot.
@@ -281,6 +286,15 @@ impl UpdateAgentMachineState {
         // Happy path, nobody to wait for.
         if interactive_sessions.is_empty() {
             log::debug!("no interactive sessions detected");
+            return true;
+        }
+
+        // Allow even with interactive sessions if we're overriding this check
+        if Path::new(INTERACTIVE_SESSION_OVERRIDE).exists() {
+            log::debug!(
+                "ignoring interactive sessions due to {}",
+                INTERACTIVE_SESSION_OVERRIDE
+            );
             return true;
         }
 
