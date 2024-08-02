@@ -51,7 +51,7 @@ zbus = "3"
 
 [dev-dependencies]
 http = "0.2"
-mockito = "1.4"
+mockito = "1.5"
 proptest = "1.4"
 tempfile = ">= 3.7, < 4.0"
 
