@@ -17,6 +17,6 @@ jobs:
     container: quay.io/coreos-assembler/fcos-buildroot:testing-devel
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Build and test
         run: make
