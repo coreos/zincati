@@ -99,12 +99,6 @@ impl Deployment {
 /// Parse the booted deployment from status object.
 pub fn parse_booted(status: &Status) -> Result<Release> {
     let status = booted_status(status)?;
-    if let Some(img) = status.container_image_reference.as_ref() {
-        let msg = format!("Automatic updates disabled; booted into container image {img}");
-        crate::utils::notify_ready();
-        crate::utils::update_unit_status(&msg);
-        return Err(anyhow::Error::new(SystemInoperable(msg)));
-    }
     Ok(status.into_release())
 }
 
@@ -122,6 +116,11 @@ fn fedora_coreos_stream_from_deployment(deploy: &Deployment) -> Result<String> {
 pub fn parse_booted_updates_stream(status: &Status) -> Result<String> {
     let json = booted_status(status)?;
     fedora_coreos_stream_from_deployment(&json)
+}
+
+/// Parse oci image reference for booted deployment from status object.
+pub fn parse_booted_oci_reference(status: &Status) -> Result<Option<String>> {
+    booted_status(status).map(|s| s.container_image_reference)
 }
 
 /// Parse pending deployment from status object.
@@ -257,6 +256,14 @@ mod tests {
             let status = mock_status("tests/fixtures/rpm-ostree-staged.json").unwrap();
             let deployments = parse_local_deployments(&status, true);
             assert_eq!(deployments.len(), 1);
+        }
+        {
+            let status = mock_status("tests/fixtures/rpm-ostree-oci-status.json").unwrap();
+            let deployments = parse_local_deployments(&status, false);
+            assert_eq!(deployments.len(), 1);
+            assert!(parse_booted_oci_reference(&status).unwrap().is_some());
+            assert_eq!(parse_booted_oci_reference(&status).unwrap().unwrap(),
+                "ostree-unverified-registry:quay.io/fedora/fedora-coreos@sha256:d12dd2fcb57ecfde0941be604f4dcd43ce0409b86e5ee4e362184c802b80fb84")
         }
     }
 
