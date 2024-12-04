@@ -19,6 +19,7 @@ fn test_empty_graph() {
     let id = Identity::mock_default();
     let client = Cincinnati {
         base_url: server.url(),
+        oci_param: false,
     };
     let update = runtime.block_on(client.next_update(&id, BTreeSet::new(), false));
     m_graph.assert();

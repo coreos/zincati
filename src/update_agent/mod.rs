@@ -431,6 +431,8 @@ pub(crate) struct UpdateAgentInfo {
     rpm_ostree_actor: Addr<RpmOstreeClient>,
     /// Update strategy.
     strategy: UpdateStrategy,
+    /// Wether or not to use OCI for transport
+    use_oci: bool,
 }
 
 impl UpdateAgent {
@@ -448,6 +450,7 @@ impl UpdateAgent {
                 rpm_ostree_actor: rpm_ostree_addr,
                 steady_interval: Duration::from_secs(steady_secs),
                 strategy: cfg.strategy,
+                use_oci: cfg.use_oci,
             },
         }
     }

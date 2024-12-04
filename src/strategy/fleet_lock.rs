@@ -107,6 +107,7 @@ mod tests {
                 intervals: vec![],
                 time_zone: "UTC".to_string(),
             },
+            use_oci: false,
         };
 
         let res = StrategyFleetLock::new(input, &id);
@@ -127,6 +128,7 @@ mod tests {
                 intervals: vec![],
                 time_zone: "localtime".to_string(),
             },
+            use_oci: false,
         };
 
         let res = StrategyFleetLock::new(input, &id);

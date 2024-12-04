@@ -47,6 +47,7 @@ fn test_simple_graph() {
     let id = Identity::mock_default();
     let client = Cincinnati {
         base_url: server.url(),
+        oci_param: false,
     };
     let update = runtime.block_on(client.fetch_update_hint(&id, BTreeSet::new(), false));
     m_graph.assert();
@@ -99,6 +100,7 @@ fn test_downgrade() {
     let id = Identity::mock_default();
     let client = Cincinnati {
         base_url: server.url(),
+        oci_param: false,
     };
 
     // Downgrades denied.

@@ -38,6 +38,8 @@ pub(crate) struct Settings {
     pub(crate) identity: Identity,
     /// Agent update strategy.
     pub(crate) strategy: UpdateStrategy,
+    /// Wether to pull updates from OCI images
+    pub(crate) use_oci: bool,
 }
 
 impl Settings {
@@ -68,10 +70,11 @@ impl Settings {
     fn validate(cfg: inputs::ConfigInput) -> Result<Self> {
         let allow_downgrade = cfg.updates.allow_downgrade;
         let enabled = cfg.updates.enabled;
+        let use_oci = cfg.updates.use_oci;
         let steady_interval_secs = cfg.agent.steady_interval_secs;
         let identity = Identity::with_config(cfg.identity)?;
         let strategy = UpdateStrategy::with_config(cfg.updates, &identity)?;
-        let cincinnati = Cincinnati::with_config(cfg.cincinnati, &identity)?;
+        let cincinnati = Cincinnati::with_config(cfg.cincinnati, &identity, use_oci)?;
 
         Ok(Self {
             allow_downgrade,
@@ -80,6 +83,7 @@ impl Settings {
             cincinnati,
             identity,
             strategy,
+            use_oci,
         })
     }
 }

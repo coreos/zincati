@@ -63,6 +63,8 @@ pub(crate) struct UpdateFragment {
     pub(crate) fleet_lock: Option<UpdateFleetLock>,
     /// `periodic` strategy config.
     pub(crate) periodic: Option<UpdatePeriodic>,
+    /// Wether to pull updates from OCI images
+    pub(crate) use_oci: Option<bool>,
 }
 
 /// Config fragment for `fleet_lock` update strategy.
@@ -141,6 +143,7 @@ mod tests {
                     ]),
                     time_zone: Some("localtime".to_string()),
                 }),
+                use_oci: Some(false),
             }),
         };
 

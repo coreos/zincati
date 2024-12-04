@@ -14,7 +14,7 @@ pub use actor::{
 #[cfg(test)]
 mod mock_tests;
 
-use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, SCHEME_KEY};
+use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, OCI_SCHEME, SCHEME_KEY};
 use anyhow::{anyhow, ensure, Context, Result};
 use serde::Serialize;
 use std::cmp::Ordering;
@@ -70,7 +70,7 @@ impl Release {
             .ok_or_else(|| anyhow!("missing metadata key: {}", SCHEME_KEY))?;
 
         ensure!(
-            scheme == CHECKSUM_SCHEME,
+            scheme == CHECKSUM_SCHEME || scheme == OCI_SCHEME,
             "unexpected payload scheme: {}",
             scheme
         );
