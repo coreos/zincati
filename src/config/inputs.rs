@@ -162,6 +162,8 @@ pub(crate) struct UpdateInput {
     pub(crate) fleet_lock: FleetLockInput,
     /// `periodic` strategy config.
     pub(crate) periodic: PeriodicInput,
+    /// Wether to pull updates from OCI images
+    pub(crate) use_oci: bool,
 }
 
 /// Config for "fleet_lock" strategy.
@@ -201,6 +203,7 @@ impl UpdateInput {
             intervals: vec![],
             time_zone: "UTC".to_string(),
         };
+        let mut use_oci = false;
 
         for snip in fragments {
             if let Some(a) = snip.allow_downgrade {
@@ -234,6 +237,9 @@ impl UpdateInput {
                     }
                 }
             }
+            if let Some(oci) = snip.use_oci {
+                use_oci = oci;
+            }
         }
 
         Self {
@@ -242,6 +248,7 @@ impl UpdateInput {
             strategy,
             fleet_lock,
             periodic,
+            use_oci,
         }
     }
 }

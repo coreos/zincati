@@ -32,10 +32,10 @@ static REGISTER_DRIVER_FAILURES: Lazy<IntCounter> = Lazy::new(|| {
 });
 
 /// Deploy an upgrade (by checksum) and leave the new deployment locked.
-pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Result<Release> {
+pub fn deploy_locked(release: Release, allow_downgrade: bool, oci: bool) -> Result<Release> {
     DEPLOY_ATTEMPTS.inc();
 
-    let result = invoke_cli_deploy(release, allow_downgrade);
+    let result = invoke_cli_deploy(release, allow_downgrade, oci);
     if result.is_err() {
         DEPLOY_FAILURES.inc();
     }
@@ -94,16 +94,22 @@ fn invoke_cli_register() -> Result<()> {
 }
 
 /// CLI executor for deploying upgrades.
-fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Result<Release> {
+fn invoke_cli_deploy(release: Release, allow_downgrade: bool, oci: bool) -> Result<Release> {
     fail_point!("deploy_locked_err", |_| bail!("deploy_locked_err"));
     fail_point!("deploy_locked_ok", |_| Ok(release.clone()));
 
     let mut cmd = std::process::Command::new("rpm-ostree");
-    cmd.arg("deploy")
-        .arg("--lock-finalization")
-        .arg("--skip-branch-check")
-        .arg(format!("revision={}", release.checksum))
-        .env("RPMOSTREE_CLIENT_ID", "zincati");
+    if oci {
+        // TODO use --custom-origin-url and --custom-origin-description
+        cmd.arg("rebase")
+            .arg(format!("ostree-unverified-registry:{}", release.checksum));
+    } else {
+        cmd.arg("deploy")
+            .arg("--lock-finalization")
+            .arg("--skip-branch-check")
+            .arg(format!("revision={}", release.checksum));
+    }
+    cmd.env("RPMOSTREE_CLIENT_ID", "zincati");
     if !allow_downgrade {
         cmd.arg("--disallow-downgrade");
     }
@@ -149,7 +155,7 @@ mod tests {
             checksum: "bar".to_string(),
             age_index: None,
         };
-        let result = deploy_locked(release, true);
+        let result = deploy_locked(release, true, false);
         assert!(result.is_err());
         assert!(DEPLOY_ATTEMPTS.get() >= 1);
         assert!(DEPLOY_FAILURES.get() >= 1);
@@ -166,7 +172,7 @@ mod tests {
             checksum: "bar".to_string(),
             age_index: None,
         };
-        let result = deploy_locked(release.clone(), true).unwrap();
+        let result = deploy_locked(release.clone(), true, false).unwrap();
         assert_eq!(result, release);
         assert!(DEPLOY_ATTEMPTS.get() >= 1);
     }

@@ -13,6 +13,7 @@ base_url = "http://cincinnati.example.com:80/"
 allow_downgrade = true
 enabled = false
 strategy = "fleet_lock"
+use_oci = false
 
 [updates.fleet_lock]
 base_url = "http://fleet-lock.example.com:8080/"

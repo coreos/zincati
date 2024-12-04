@@ -418,6 +418,7 @@ impl UpdateAgentInfo {
         let msg = rpm_ostree::StageDeployment {
             release,
             allow_downgrade: self.allow_downgrade,
+            oci: self.use_oci,
         };
 
         self.rpm_ostree_actor

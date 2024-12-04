@@ -35,6 +35,9 @@ pub static DEADEND_REASON_KEY: &str = "org.fedoraproject.coreos.updates.deadend_
 /// Metadata value for "checksum" payload scheme.
 pub static CHECKSUM_SCHEME: &str = "checksum";
 
+/// Metadata value for "oci" payload scheme.
+pub static OCI_SCHEME: &str = "oci";
+
 lazy_static::lazy_static! {
     static ref GRAPH_NODES: IntGauge = register_int_gauge!(opts!(
         "zincati_cincinnati_graph_nodes_count",
@@ -102,12 +105,18 @@ impl DeadEndState {
 pub struct Cincinnati {
     /// Service base URL.
     pub base_url: String,
+    /// Wether to pass `oci` query parameter
+    pub oci_param: bool,
 }
 
 impl Cincinnati {
     /// Process Cincinnati configuration.
     #[context("failed to validate cincinnati configuration")]
-    pub(crate) fn with_config(cfg: inputs::CincinnatiInput, id: &Identity) -> Result<Self> {
+    pub(crate) fn with_config(
+        cfg: inputs::CincinnatiInput,
+        id: &Identity,
+        use_oci: bool,
+    ) -> Result<Self> {
         if cfg.base_url.is_empty() {
             anyhow::bail!("empty Cincinnati base URL");
         }
@@ -122,7 +131,10 @@ impl Cincinnati {
         };
         log::info!("Cincinnati service: {}", &base_url);
 
-        let c = Self { base_url };
+        let c = Self {
+            base_url,
+            oci_param: use_oci,
+        };
         Ok(c)
     }
 
@@ -156,7 +168,10 @@ impl Cincinnati {
         allow_downgrade: bool,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Release>, CincinnatiError>>>> {
         let booted = id.current_os.clone();
-        let params = id.cincinnati_params();
+        let mut params = id.cincinnati_params();
+        if self.oci_param {
+            let _ = params.insert(String::from("oci"), String::from("true"));
+        }
         let client = client::ClientBuilder::new(self.base_url.to_string())
             .query_params(Some(params))
             .build()
