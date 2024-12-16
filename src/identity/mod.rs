@@ -49,6 +49,8 @@ pub(crate) struct Identity {
     pub(crate) rollout_wariness: Option<NotNan<f64>>,
     /// Stream label.
     pub(crate) stream: String,
+    /// Wether the current deployment is from an OCI container or an ostree reference.
+    pub(crate) oci: bool,
 }
 
 impl Identity {
@@ -104,6 +106,9 @@ impl Identity {
         let platform = platform::read_id("/proc/cmdline")?;
         let stream = rpm_ostree::parse_booted_updates_stream(&status)
             .context("failed to introspect OS updates stream")?;
+        let oci = rpm_ostree::parse_booted_oci_reference(&status)
+            .context("failed to introspect booted OCI reference")?
+            .is_some();
 
         let id = Self {
             basearch,
@@ -113,6 +118,7 @@ impl Identity {
             group: DEFAULT_GROUP.to_string(),
             node_uuid,
             rollout_wariness: None,
+            oci,
         };
         Ok(id)
     }
@@ -139,6 +145,9 @@ impl Identity {
         vars.insert("node_uuid".to_string(), self.node_uuid.lower_hex());
         vars.insert("platform".to_string(), self.platform.clone());
         vars.insert("stream".to_string(), self.stream.clone());
+        if self.oci {
+            vars.insert("oci".to_string(), "true".to_string());
+        }
         if let Some(rw) = self.rollout_wariness {
             vars.insert("rollout_wariness".to_string(), format!("{:.06}", rw));
         }
@@ -159,6 +168,7 @@ impl Identity {
             platform: "mock-azure".to_string(),
             rollout_wariness: Some(NotNan::new(0.5).unwrap()),
             stream: "mock-stable".to_string(),
+            oci: false,
         }
     }
 
