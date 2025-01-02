@@ -2,7 +2,8 @@ mod cli_deploy;
 mod cli_finalize;
 mod cli_status;
 pub use cli_status::{
-    invoke_cli_status, parse_booted, parse_booted_updates_stream, SystemInoperable,
+    invoke_cli_status, parse_booted, parse_booted_oci_reference, parse_booted_updates_stream,
+    SystemInoperable,
 };
 
 mod actor;
@@ -14,7 +15,7 @@ pub use actor::{
 #[cfg(test)]
 mod mock_tests;
 
-use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, SCHEME_KEY};
+use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, OCI_SCHEME, SCHEME_KEY};
 use anyhow::{anyhow, ensure, Context, Result};
 use serde::Serialize;
 use std::cmp::Ordering;
@@ -70,7 +71,7 @@ impl Release {
             .ok_or_else(|| anyhow!("missing metadata key: {}", SCHEME_KEY))?;
 
         ensure!(
-            scheme == CHECKSUM_SCHEME,
+            scheme == CHECKSUM_SCHEME || scheme == OCI_SCHEME,
             "unexpected payload scheme: {}",
             scheme
         );

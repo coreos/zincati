@@ -35,6 +35,9 @@ pub static DEADEND_REASON_KEY: &str = "org.fedoraproject.coreos.updates.deadend_
 /// Metadata value for "checksum" payload scheme.
 pub static CHECKSUM_SCHEME: &str = "checksum";
 
+/// Metadata value for "oci" payload scheme.
+pub static OCI_SCHEME: &str = "oci";
+
 lazy_static::lazy_static! {
     static ref GRAPH_NODES: IntGauge = register_int_gauge!(opts!(
         "zincati_cincinnati_graph_nodes_count",
