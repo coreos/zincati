@@ -132,8 +132,8 @@ mod tests {
 
     #[test]
     fn test_check_duration() {
-        check_duration(&Duration::from_secs(std::u64::MIN)).unwrap_err();
-        check_duration(&Duration::from_secs(std::u64::MAX)).unwrap_err();
+        check_duration(&Duration::from_secs(u64::MIN)).unwrap_err();
+        check_duration(&Duration::from_secs(u64::MAX)).unwrap_err();
 
         let length = Duration::from_secs(42 * 60);
         check_duration(&length).unwrap();
@@ -148,8 +148,8 @@ mod tests {
 
     #[test]
     fn test_check_minutes() {
-        check_minutes(std::u32::MIN).unwrap_err();
-        check_minutes(std::u32::MAX).unwrap_err();
+        check_minutes(u32::MIN).unwrap_err();
+        check_minutes(u32::MAX).unwrap_err();
 
         let length = check_minutes(42).unwrap();
         assert_eq!(length.as_secs(), 42 * 60);
