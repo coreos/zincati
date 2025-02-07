@@ -1,8 +1,8 @@
 //! Interface to `rpm-ostree status --json`.
 
 use super::actor::{RpmOstreeClient, StatusCache};
-use super::Release;
-use anyhow::{anyhow, ensure, Context, Result};
+use super::{Payload, Release};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use filetime::FileTime;
 use log::trace;
 use ostree_ext::container::OstreeImageReference;
@@ -82,8 +82,13 @@ pub struct CustomOrigin {
 impl Deployment {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
+        let payload = if let Some(image) = self.container_image_reference {
+            Payload::Pullspec(image)
+        } else {
+            Payload::Checksum(self.base_revision())
+        };
         Release {
-            checksum: self.base_revision(),
+            payload,
             version: self.version,
             age_index: None,
         }
@@ -200,7 +205,7 @@ pub fn local_deployments(
 }
 
 /// Return JSON object for booted deployment.
-fn booted_status(status: &Status) -> Result<Deployment> {
+pub fn booted_status(status: &Status) -> Result<Deployment> {
     let booted = status
         .clone()
         .deployments
