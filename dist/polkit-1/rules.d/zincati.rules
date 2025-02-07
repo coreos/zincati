@@ -2,7 +2,8 @@
 polkit.addRule(function(action, subject) {
     if ((action.id == "org.projectatomic.rpmostree1.deploy" ||
          action.id == "org.projectatomic.rpmostree1.finalize-deployment") ||
-         action.id == "org.projectatomic.rpmostree1.cleanup" &&
+         action.id == "org.projectatomic.rpmostree1.cleanup" ||
+         action.id == "org.projectatomic.rpmostree1.rebase" &&
         subject.user == "zincati") {
         return polkit.Result.YES;
     }

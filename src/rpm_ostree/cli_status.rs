@@ -1,14 +1,14 @@
 //! Interface to `rpm-ostree status --json`.
 
 use super::actor::{RpmOstreeClient, StatusCache};
-use super::Release;
+use super::{Payload, Release};
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use filetime::FileTime;
 use log::trace;
 use ostree_ext::container::OstreeImageReference;
 use prometheus::IntCounter;
 use serde::Deserialize;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::fs;
 use std::rc::Rc;
 
@@ -64,7 +64,7 @@ pub struct Deployment {
     container_image_reference: Option<String>,
     custom_origin: Option<CustomOrigin>,
     base_checksum: Option<String>,
-    base_commit_meta: HashMap<String, serde_json::Value>,
+    base_commit_meta: BaseCommitMeta,
     checksum: String,
     // NOTE(lucab): missing field means "not staged".
     #[serde(default)]
@@ -79,11 +79,24 @@ pub struct CustomOrigin {
     pub description: String,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct BaseCommitMeta {
+    #[serde(rename = "fedora-coreos.stream")]
+    stream: Option<String>,
+    #[serde(rename = "ostree.manifest")]
+    oci_manifest: Option<String>,
+}
+
 impl Deployment {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
+        let payload = if let Some(image) = self.container_image_reference {
+            Payload::Pullspec(image)
+        } else {
+            Payload::Checksum(self.base_revision())
+        };
         Release {
-            checksum: self.base_revision(),
+            payload,
             version: self.version,
             age_index: None,
         }
@@ -117,39 +130,27 @@ pub fn parse_booted(status: &Status) -> Result<Release> {
 }
 
 fn fedora_coreos_stream_from_deployment(deploy: &Deployment) -> Result<String> {
-    let stream = if deploy.container_image_reference.is_some() {
-        // This is the edge case where we spoofed the origin file to make it looks like a container
-        // native deployment but it's still pure ostree.
-        // here, the base commit meta deserialize nicely and we don't need the "unstringify" operation.
-        if let Some(stream) = deploy.base_commit_meta.get("fedora-coreos.stream") {
-            serde_json::from_value(stream.clone())?
-
-        // in the OCI case, base commit meta is an escaped JSON string of
+    let stream = match (
+        deploy.base_commit_meta.stream.clone(),
+        deploy.base_commit_meta.oci_manifest.clone(),
+    ) {
+        (Some(stream), _) => stream.clone(), // in the OCI case, base commit meta is an escaped JSON string of
         // an OCI ImageManifest. Deserialize it properly.
-        } else if let Some(serde_json::Value::String(inner)) =
-            deploy.base_commit_meta.get("ostree.manifest")
-        {
-            let manifest: oci_spec::image::ImageManifest = serde_json::from_str(inner)?;
-            let stream = manifest
+        (_, Some(oci_manifest)) => {
+            let manifest: oci_spec::image::ImageManifest =
+                serde_json::from_str(oci_manifest.as_str())?;
+            manifest
                 .annotations()
                 .clone()
-                .and_then(|a| a.get("fedora-coreos.stream").cloned());
-            stream.ok_or_else(|| {
-                anyhow!("Missing `fedora-coreos.stream` in base image manifest annotations")
-            })?
-        } else {
-            bail!("Cannot deserialize ostree base image manifest")
+                .and_then(|a| a.get("fedora-coreos.stream").cloned())
+                .ok_or_else(|| {
+                    anyhow!("Missing `fedora-coreos.stream` in base image manifest annotations")
+                })?
         }
-    } else {
-        // In the regular OSTree case, just fetch "fedora-coreos.stream"
-        let stream = deploy
-            .base_commit_meta
-            .get("fedora-coreos.stream")
-            .ok_or_else(|| anyhow!("Missing `fedora-coreos.stream` in commit metadata"))?;
-        serde_json::from_value(stream.clone())?
+        (None, None) => bail!("Cannot deserialize ostree base image manifest"),
     };
     ensure!(!stream.is_empty(), "empty stream value");
-    Ok(stream.to_string())
+    Ok(stream)
 }
 
 /// Parse updates stream for booted deployment from status object.
@@ -200,7 +201,7 @@ pub fn local_deployments(
 }
 
 /// Return JSON object for booted deployment.
-fn booted_status(status: &Status) -> Result<Deployment> {
+pub fn booted_status(status: &Status) -> Result<Deployment> {
     let booted = status
         .clone()
         .deployments

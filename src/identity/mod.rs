@@ -1,7 +1,7 @@
 mod platform;
 
-use crate::config::inputs;
 use crate::rpm_ostree;
+use crate::{config::inputs, rpm_ostree::Payload};
 use anyhow::{anyhow, ensure, Context, Result};
 use fn_error_context::context;
 use lazy_static::lazy_static;
@@ -133,12 +133,20 @@ impl Identity {
     pub fn cincinnati_params(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
         vars.insert("basearch".to_string(), self.basearch.clone());
-        vars.insert("os_checksum".to_string(), self.current_os.checksum.clone());
         vars.insert("os_version".to_string(), self.current_os.version.clone());
         vars.insert("group".to_string(), self.group.clone());
         vars.insert("node_uuid".to_string(), self.node_uuid.lower_hex());
         vars.insert("platform".to_string(), self.platform.clone());
         vars.insert("stream".to_string(), self.stream.clone());
+        match &self.current_os.payload {
+            Payload::Checksum(checksum) => {
+                vars.insert("os_checksum".to_string(), checksum.clone());
+            }
+            Payload::Pullspec(image) => {
+                vars.insert("os_checksum".to_string(), image.clone());
+                vars.insert("oci".to_string(), "true".to_string());
+            }
+        }
         if let Some(rw) = self.rollout_wariness {
             vars.insert("rollout_wariness".to_string(), format!("{:.06}", rw));
         }
@@ -151,7 +159,7 @@ impl Identity {
             basearch: "mock-amd64".to_string(),
             current_os: rpm_ostree::Release {
                 version: "0.0.0-mock".to_string(),
-                checksum: "sha-mock".to_string(),
+                payload: Payload::Checksum("sha-mock".to_string()),
                 age_index: None,
             },
             group: "mock-workers".to_string(),
