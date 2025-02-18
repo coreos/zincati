@@ -2,7 +2,7 @@ mod cli_deploy;
 mod cli_finalize;
 mod cli_status;
 pub use cli_status::{
-    invoke_cli_status, parse_booted, parse_booted_updates_stream, SystemInoperable,
+    invoke_cli_status, parse_booted, parse_booted_updates_stream, CustomOrigin, SystemInoperable,
 };
 
 mod actor;
@@ -14,8 +14,9 @@ pub use actor::{
 #[cfg(test)]
 mod mock_tests;
 
-use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, SCHEME_KEY};
-use anyhow::{anyhow, ensure, Context, Result};
+use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, OCI_SCHEME, SCHEME_KEY};
+use anyhow::{anyhow, bail, ensure, Context, Result};
+use core::fmt;
 use serde::Serialize;
 use std::cmp::Ordering;
 
@@ -24,10 +25,28 @@ use std::cmp::Ordering;
 pub struct Release {
     /// OS version.
     pub version: String,
-    /// Image base checksum.
-    pub checksum: String,
+    /// Image base checksum or OCI pullspec.
+    pub payload: Payload,
     /// Release age (Cincinnati `age_index`).
     pub age_index: Option<u64>,
+}
+
+/// payload unique identifier can either be an ostree checksum or an OCI pullspec
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize)]
+pub enum Payload {
+    /// Represent a pure OSTree checksum
+    Checksum(String),
+    /// an OCI image name
+    Pullspec(String),
+}
+
+impl std::fmt::Display for Payload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Payload::Checksum(checksum) => write!(f, "{checksum}"),
+            Payload::Pullspec(image) => write!(f, "{image}"),
+        }
+    }
 }
 
 impl std::cmp::Ord for Release {
@@ -45,8 +64,17 @@ impl std::cmp::Ord for Release {
             return self.version.cmp(&other.version);
         }
 
-        if self.checksum != other.checksum {
-            return self.checksum.cmp(&other.checksum);
+        if self.payload != other.payload {
+            let self_payload = match &self.payload {
+                Payload::Checksum(str) => str,
+                Payload::Pullspec(str) => str,
+            };
+            let other_payload = match &other.payload {
+                Payload::Checksum(str) => str,
+                Payload::Pullspec(str) => str,
+            };
+
+            return self_payload.cmp(other_payload);
         }
 
         Ordering::Equal
@@ -69,11 +97,11 @@ impl Release {
             .get(SCHEME_KEY)
             .ok_or_else(|| anyhow!("missing metadata key: {}", SCHEME_KEY))?;
 
-        ensure!(
-            scheme == CHECKSUM_SCHEME,
-            "unexpected payload scheme: {}",
-            scheme
-        );
+        let payload = match scheme.as_str() {
+            CHECKSUM_SCHEME => Payload::Checksum(node.payload),
+            OCI_SCHEME => Payload::Pullspec(node.payload),
+            _ => bail!("unexpected payload scheme: {}", scheme),
+        };
 
         let age = {
             let val = node
@@ -87,10 +115,20 @@ impl Release {
 
         let rel = Self {
             version: node.version,
-            checksum: node.payload,
+            payload,
             age_index: Some(age),
         };
         Ok(rel)
+    }
+    pub fn get_image_reference(&self) -> Result<Option<String>> {
+        match &self.payload {
+            Payload::Checksum(_) => Ok(None),
+            Payload::Pullspec(imgref) => {
+                let ostree_imgref: ostree_ext::container::OstreeImageReference =
+                    imgref.as_str().try_into()?;
+                Ok(Some(ostree_imgref.imgref.name))
+            }
+        }
     }
 }
 
@@ -155,12 +193,12 @@ mod tests {
         {
             let n0 = Release {
                 version: "v0".to_string(),
-                checksum: "p0".to_string(),
+                payload: Payload::Checksum("p0".to_string()),
                 age_index: Some(0),
             };
             let n1 = Release {
                 version: "v1".to_string(),
-                checksum: "p1".to_string(),
+                payload: Payload::Checksum("p1".to_string()),
                 age_index: Some(1),
             };
             assert!(n0 < n1);
@@ -171,12 +209,12 @@ mod tests {
         {
             let n0 = Release {
                 version: "v0".to_string(),
-                checksum: "p0".to_string(),
+                payload: Payload::Checksum("p0".to_string()),
                 age_index: Some(0),
             };
             let n1 = Release {
                 version: "v1".to_string(),
-                checksum: "p1".to_string(),
+                payload: Payload::Checksum("p1".to_string()),
                 age_index: Some(0),
             };
             assert!(n0 < n1);
@@ -186,12 +224,12 @@ mod tests {
         {
             let n0 = Release {
                 version: "v0".to_string(),
-                checksum: "p0".to_string(),
+                payload: Payload::Checksum("p0".to_string()),
                 age_index: Some(0),
             };
             let n1 = Release {
                 version: "v0".to_string(),
-                checksum: "p1".to_string(),
+                payload: Payload::Checksum("p1".to_string()),
                 age_index: Some(0),
             };
             assert!(n0 < n1);
