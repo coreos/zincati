@@ -1,11 +1,12 @@
 // Allow Zincati to deploy, finalize, and cleanup a staged deployment through rpm-ostree.
 polkit.addRule(function(action, subject) {
-    if ((action.id == "org.projectatomic.rpmostree1.deploy" ||
-         action.id == "org.projectatomic.rpmostree1.finalize-deployment") ||
-         action.id == "org.projectatomic.rpmostree1.cleanup" ||
-         action.id == "org.projectatomic.rpmostree1.rebase" &&
-        subject.user == "zincati") {
-        return polkit.Result.YES;
+    if (action.id == "org.projectatomic.rpmostree1.deploy" ||
+        action.id == "org.projectatomic.rpmostree1.rebase" ||
+        action.id == "org.projectatomic.rpmostree1.finalize-deployment" ||
+        action.id == "org.projectatomic.rpmostree1.cleanup") {
+        if (subject.user == "zincati") {
+            return polkit.Result.YES;
+        }
     }
 });
 
