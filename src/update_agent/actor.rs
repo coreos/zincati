@@ -227,7 +227,7 @@ impl UpdateAgent {
         use rand::Rng;
 
         let secs = period.as_secs();
-        let rand: u8 = rand::thread_rng().gen_range(0..=10);
+        let rand: u8 = rand::rng().random_range(0..=10);
         let jitter = u64::max(secs / 100, 1).saturating_mul(u64::from(rand));
         std::time::Duration::from_secs(secs.saturating_add(jitter))
     }
