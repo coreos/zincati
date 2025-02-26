@@ -110,6 +110,11 @@ impl Deployment {
             .unwrap_or_else(|| self.checksum.clone())
     }
 
+    /// Return the deployment OSTree checksum
+    pub fn ostree_checksum(&self) -> String {
+        self.checksum.clone()
+    }
+
     /// return the custom origin fields
     pub fn custom_origin(&self) -> Option<CustomOrigin> {
         self.custom_origin.clone()
@@ -163,7 +168,7 @@ pub fn parse_booted_updates_stream(status: &Status) -> Result<String> {
 pub fn parse_pending_deployment(status: &Status) -> Result<Option<(Release, String)>> {
     // There can be at most one staged/pending rpm-ostree deployment,
     // thus we only consider the first matching entry (if any).
-    let staged = status.deployments.iter().find(|d| d.staged).cloned();
+    let staged = get_staged_deployment(status);
 
     match staged {
         None => Ok(None),
@@ -173,6 +178,13 @@ pub fn parse_pending_deployment(status: &Status) -> Result<Option<(Release, Stri
             Ok(Some((release, stream)))
         }
     }
+}
+
+/// Return the pending/staged deployment
+pub fn get_staged_deployment(status: &Status) -> Option<Deployment> {
+    // There can be at most one staged/pending rpm-ostree deployment,
+    // thus we only consider the first matching entry (if any).
+    status.deployments.iter().find(|d| d.staged).cloned()
 }
 
 /// Parse local deployments from a status object.
