@@ -102,8 +102,8 @@ mod tests {
 
     #[test]
     fn basic_dist_config_sample() {
-        let content = std::fs::read("tests/fixtures/00-config-sample.toml").unwrap();
-        let cfg: ConfigFragment = toml::from_slice(&content).unwrap();
+        let content = std::fs::read_to_string("tests/fixtures/00-config-sample.toml").unwrap();
+        let cfg: ConfigFragment = toml::from_str(&content).unwrap();
 
         let expected = ConfigFragment {
             agent: Some(AgentFragment {

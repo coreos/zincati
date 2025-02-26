@@ -28,10 +28,10 @@ impl ConfigInput {
         for (_, fpath) in liboverdrop::scan(dirs, common_path, extensions.as_slice(), true) {
             trace!("reading config fragment '{}'", fpath.display());
 
-            let content = std::fs::read(&fpath)
+            let content = std::fs::read_to_string(&fpath)
                 .with_context(|| format!("failed to read file '{}'", fpath.display()))?;
             let frag: fragments::ConfigFragment =
-                toml::from_slice(&content).context("failed to parse TOML")?;
+                toml::from_str(&content).context("failed to parse TOML")?;
 
             fragments.push(frag);
         }

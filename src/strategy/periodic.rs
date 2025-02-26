@@ -298,8 +298,8 @@ mod tests {
     }
 
     fn parse_config_input(config_path: &str) -> inputs::ConfigInput {
-        let content = std::fs::read(config_path).unwrap();
-        let frag: fragments::ConfigFragment = toml::from_slice(&content).unwrap();
+        let content = std::fs::read_to_string(config_path).unwrap();
+        let frag: fragments::ConfigFragment = toml::from_str(&content).unwrap();
         inputs::ConfigInput::merge_fragments(vec![frag])
     }
 }
