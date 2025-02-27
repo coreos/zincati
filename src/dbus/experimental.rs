@@ -4,14 +4,14 @@ use crate::update_agent::{LastRefresh, UpdateAgent};
 use actix::Addr;
 use futures::prelude::*;
 use tokio::runtime::Runtime;
-use zbus::{dbus_interface, fdo};
+use zbus::{fdo, interface};
 
 /// Experimental interface for testing.
 pub(crate) struct Experimental {
     pub(crate) agent_addr: Addr<UpdateAgent>,
 }
 
-#[dbus_interface(name = "org.coreos.zincati.Experimental")]
+#[interface(name = "org.coreos.zincati.Experimental")]
 impl Experimental {
     /// Just a test method.
     fn moo(&self, talkative: bool) -> String {
