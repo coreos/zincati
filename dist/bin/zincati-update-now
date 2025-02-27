@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "WARN: This command is experimental and subject to change." >&2
+
+# this should exist already, but in case
+mkdir -p /run/zincati/config.d
+cat > /run/zincati/config.d/99-update-now.toml << EOF
+[identity]
+rollout_wariness = 0.0
+[updates]
+strategy = "immediate"
+EOF
+
+touch /run/zincati/override-interactive-check
+
+systemctl daemon-reload
+systemctl restart zincati
+
+echo "INFO: Streaming Zincati and RPM-OSTree logs..." >&2
+exec journalctl -f -u zincati -u rpm-ostreed
