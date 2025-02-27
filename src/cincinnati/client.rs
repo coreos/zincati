@@ -210,10 +210,7 @@ impl ClientBuilder {
                 .timeout(DEFAULT_HTTP_COMPLETION_TIMEOUT)
                 .build()?,
         };
-        let query_params = match self.query_params {
-            Some(params) => params,
-            None => HashMap::new(),
-        };
+        let query_params = self.query_params.unwrap_or_default();
 
         let api_base = reqwest::Url::parse(&self.api_base)
             .context(format!("failed to parse '{}'", &self.api_base))?;

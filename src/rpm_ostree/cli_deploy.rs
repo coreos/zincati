@@ -1,7 +1,7 @@
 //! Interface to `rpm-ostree deploy --lock-finalization` and
 //! `rpm-ostree deploy --register-driver`.
 
-use super::Release;
+use crate::rpm_ostree::{CustomOrigin, Payload, Release};
 use anyhow::{bail, Context, Result};
 use once_cell::sync::Lazy;
 use prometheus::IntCounter;
@@ -32,10 +32,14 @@ static REGISTER_DRIVER_FAILURES: Lazy<IntCounter> = Lazy::new(|| {
 });
 
 /// Deploy an upgrade (by checksum) and leave the new deployment locked.
-pub fn deploy_locked(release: Release, allow_downgrade: bool) -> Result<Release> {
+pub fn deploy_locked(
+    release: Release,
+    allow_downgrade: bool,
+    custom_origin: Option<CustomOrigin>,
+) -> Result<Release> {
     DEPLOY_ATTEMPTS.inc();
 
-    let result = invoke_cli_deploy(release, allow_downgrade);
+    let result = invoke_cli_deploy(release, allow_downgrade, custom_origin);
     if result.is_err() {
         DEPLOY_FAILURES.inc();
     }
@@ -94,16 +98,35 @@ fn invoke_cli_register() -> Result<()> {
 }
 
 /// CLI executor for deploying upgrades.
-fn invoke_cli_deploy(release: Release, allow_downgrade: bool) -> Result<Release> {
+fn invoke_cli_deploy(
+    release: Release,
+    allow_downgrade: bool,
+    custom_origin: Option<CustomOrigin>,
+) -> Result<Release> {
     fail_point!("deploy_locked_err", |_| bail!("deploy_locked_err"));
     fail_point!("deploy_locked_ok", |_| Ok(release.clone()));
 
     let mut cmd = std::process::Command::new("rpm-ostree");
-    cmd.arg("deploy")
-        .arg("--lock-finalization")
-        .arg("--skip-branch-check")
-        .arg(format!("revision={}", release.checksum))
-        .env("RPMOSTREE_CLIENT_ID", "zincati");
+    match &release.payload {
+        Payload::Pullspec(image) => {
+            cmd.arg("rebase").arg(image).arg("--lock-finalization");
+            if let Some(origin) = custom_origin {
+                cmd.arg("--custom-origin-url")
+                    .arg(origin.url.clone())
+                    .arg("--custom-origin-description")
+                    .arg(origin.description.clone());
+            } else {
+                log::warn!("No custom-origin information to attach to deployment.")
+            }
+        }
+        Payload::Checksum(checksum) => {
+            cmd.arg("deploy")
+                .arg("--lock-finalization")
+                .arg("--skip-branch-check")
+                .arg(format!("revision={}", checksum));
+        }
+    }
+    cmd.env("RPMOSTREE_CLIENT_ID", "zincati");
     if !allow_downgrade {
         cmd.arg("--disallow-downgrade");
     }
@@ -146,10 +169,10 @@ mod tests {
 
         let release = Release {
             version: "foo".to_string(),
-            checksum: "bar".to_string(),
+            payload: Payload::Checksum("bar".to_string()),
             age_index: None,
         };
-        let result = deploy_locked(release, true);
+        let result = deploy_locked(release, true, None);
         assert!(result.is_err());
         assert!(DEPLOY_ATTEMPTS.get() >= 1);
         assert!(DEPLOY_FAILURES.get() >= 1);
@@ -163,10 +186,10 @@ mod tests {
 
         let release = Release {
             version: "foo".to_string(),
-            checksum: "bar".to_string(),
+            payload: Payload::Checksum("bar".to_string()),
             age_index: None,
         };
-        let result = deploy_locked(release.clone(), true).unwrap();
+        let result = deploy_locked(release.clone(), true, None).unwrap();
         assert_eq!(result, release);
         assert!(DEPLOY_ATTEMPTS.get() >= 1);
     }

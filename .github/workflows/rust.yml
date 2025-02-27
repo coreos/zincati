@@ -24,6 +24,7 @@ jobs:
   tests-stable:
     name: Tests, stable toolchain
     runs-on: ubuntu-latest
+    container: quay.io/coreos-assembler/fcos-buildroot:testing-devel
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -42,6 +43,7 @@ jobs:
   tests-release-stable:
     name: Tests (release), stable toolchain
     runs-on: ubuntu-latest
+    container: quay.io/coreos-assembler/fcos-buildroot:testing-devel
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -58,6 +60,7 @@ jobs:
   tests-release-msrv:
     name: Tests (release), minimum supported toolchain
     runs-on: ubuntu-latest
+    container: quay.io/coreos-assembler/fcos-buildroot:testing-devel
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -80,6 +83,7 @@ jobs:
   linting:
     name: Lints, pinned toolchain
     runs-on: ubuntu-latest
+    container: quay.io/coreos-assembler/fcos-buildroot:testing-devel
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -97,6 +101,7 @@ jobs:
   tests-other-channels:
     name: Tests, unstable toolchain
     runs-on: ubuntu-latest
+    container: quay.io/coreos-assembler/fcos-buildroot:testing-devel
     continue-on-error: true
     strategy:
       matrix:

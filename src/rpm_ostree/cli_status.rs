@@ -1,10 +1,11 @@
 //! Interface to `rpm-ostree status --json`.
 
 use super::actor::{RpmOstreeClient, StatusCache};
-use super::Release;
-use anyhow::{anyhow, ensure, Context, Result};
+use super::{Payload, Release};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use filetime::FileTime;
 use log::trace;
+use ostree_ext::container::OstreeImageReference;
 use prometheus::IntCounter;
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -61,9 +62,9 @@ pub struct Status {
 pub struct Deployment {
     booted: bool,
     container_image_reference: Option<String>,
+    custom_origin: Option<CustomOrigin>,
     base_checksum: Option<String>,
-    #[serde(rename = "base-commit-meta")]
-    base_metadata: BaseCommitMeta,
+    base_commit_meta: BaseCommitMeta,
     checksum: String,
     // NOTE(lucab): missing field means "not staged".
     #[serde(default)]
@@ -71,18 +72,31 @@ pub struct Deployment {
     version: String,
 }
 
-/// Metadata from base commit (only fields relevant to zincati).
+/// Custom origin fields
+#[derive(Clone, Debug, Deserialize)]
+pub struct CustomOrigin {
+    pub url: String,
+    pub description: String,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 struct BaseCommitMeta {
     #[serde(rename = "fedora-coreos.stream")]
     stream: Option<String>,
+    #[serde(rename = "ostree.manifest")]
+    oci_manifest: Option<String>,
 }
 
 impl Deployment {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
+        let payload = if let Some(image) = self.container_image_reference {
+            Payload::Pullspec(image)
+        } else {
+            Payload::Checksum(self.base_revision())
+        };
         Release {
-            checksum: self.base_revision(),
+            payload,
             version: self.version,
             age_index: None,
         }
@@ -90,32 +104,58 @@ impl Deployment {
 
     /// Return the deployment base revision.
     pub fn base_revision(&self) -> String {
-        self.base_checksum
+        self.container_image_reference
             .clone()
+            .or(self.base_checksum.clone())
             .unwrap_or_else(|| self.checksum.clone())
+    }
+
+    /// Return the deployment OSTree checksum
+    pub fn ostree_checksum(&self) -> String {
+        self.checksum.clone()
+    }
+
+    /// return the custom origin fields
+    pub fn custom_origin(&self) -> Option<CustomOrigin> {
+        self.custom_origin.clone()
+    }
+
+    /// return the deployed container image reference
+    pub fn container_image_reference(&self) -> Option<OstreeImageReference> {
+        self.container_image_reference
+            .as_ref()
+            .and_then(|s| s.as_str().try_into().ok())
     }
 }
 
 /// Parse the booted deployment from status object.
 pub fn parse_booted(status: &Status) -> Result<Release> {
     let status = booted_status(status)?;
-    if let Some(img) = status.container_image_reference.as_ref() {
-        let msg = format!("Automatic updates disabled; booted into container image {img}");
-        crate::utils::notify_ready();
-        crate::utils::update_unit_status(&msg);
-        return Err(anyhow::Error::new(SystemInoperable(msg)));
-    }
     Ok(status.into_release())
 }
 
 fn fedora_coreos_stream_from_deployment(deploy: &Deployment) -> Result<String> {
-    let stream = deploy
-        .base_metadata
-        .stream
-        .as_ref()
-        .ok_or_else(|| anyhow!("Missing `fedora-coreos.stream` in commit metadata"))?;
+    let stream = match (
+        deploy.base_commit_meta.stream.clone(),
+        deploy.base_commit_meta.oci_manifest.clone(),
+    ) {
+        (Some(stream), _) => stream.clone(), // in the OCI case, base commit meta is an escaped JSON string of
+        // an OCI ImageManifest. Deserialize it properly.
+        (_, Some(oci_manifest)) => {
+            let manifest: oci_spec::image::ImageManifest =
+                serde_json::from_str(oci_manifest.as_str())?;
+            manifest
+                .annotations()
+                .clone()
+                .and_then(|a| a.get("fedora-coreos.stream").cloned())
+                .ok_or_else(|| {
+                    anyhow!("Missing `fedora-coreos.stream` in base image manifest annotations")
+                })?
+        }
+        (None, None) => bail!("Cannot deserialize ostree base image manifest"),
+    };
     ensure!(!stream.is_empty(), "empty stream value");
-    Ok(stream.to_string())
+    Ok(stream)
 }
 
 /// Parse updates stream for booted deployment from status object.
@@ -128,7 +168,7 @@ pub fn parse_booted_updates_stream(status: &Status) -> Result<String> {
 pub fn parse_pending_deployment(status: &Status) -> Result<Option<(Release, String)>> {
     // There can be at most one staged/pending rpm-ostree deployment,
     // thus we only consider the first matching entry (if any).
-    let staged = status.deployments.iter().find(|d| d.staged).cloned();
+    let staged = get_staged_deployment(status);
 
     match staged {
         None => Ok(None),
@@ -138,6 +178,13 @@ pub fn parse_pending_deployment(status: &Status) -> Result<Option<(Release, Stri
             Ok(Some((release, stream)))
         }
     }
+}
+
+/// Return the pending/staged deployment
+pub fn get_staged_deployment(status: &Status) -> Option<Deployment> {
+    // There can be at most one staged/pending rpm-ostree deployment,
+    // thus we only consider the first matching entry (if any).
+    status.deployments.iter().find(|d| d.staged).cloned()
 }
 
 /// Parse local deployments from a status object.
@@ -166,7 +213,7 @@ pub fn local_deployments(
 }
 
 /// Return JSON object for booted deployment.
-fn booted_status(status: &Status) -> Result<Deployment> {
+pub fn booted_status(status: &Status) -> Result<Deployment> {
     let booted = status
         .clone()
         .deployments
@@ -234,6 +281,8 @@ pub fn invoke_cli_status(booted_only: bool) -> Result<Status> {
 
 #[cfg(test)]
 mod tests {
+    use ostree_ext::container::SignatureSource;
+
     use super::*;
 
     fn mock_status(path: &str) -> Result<Status> {
@@ -258,6 +307,11 @@ mod tests {
             let deployments = parse_local_deployments(&status, true);
             assert_eq!(deployments.len(), 1);
         }
+        {
+            let status = mock_status("tests/fixtures/rpm-ostree-oci-status.json").unwrap();
+            let deployments = parse_local_deployments(&status, false);
+            assert_eq!(deployments.len(), 1);
+        }
     }
 
     #[test]
@@ -266,5 +320,33 @@ mod tests {
         let booted = booted_status(&status).unwrap();
         let stream = fedora_coreos_stream_from_deployment(&booted).unwrap();
         assert_eq!(stream, "testing-devel");
+    }
+
+    #[test]
+    fn mock_booted_oci_deployment() {
+        let status = mock_status("tests/fixtures/rpm-ostree-oci-status.json").unwrap();
+        let booted = booted_status(&status).unwrap();
+        let stream = fedora_coreos_stream_from_deployment(&booted).unwrap();
+        assert_eq!(stream, "testing");
+        let img_ref = booted.container_image_reference();
+        assert!(img_ref.is_some());
+        let img_ref = img_ref.unwrap();
+        assert_eq!(
+            img_ref.sigverify,
+            SignatureSource::OstreeRemote("fedora".to_string())
+        );
+        assert_eq!(img_ref.imgref.name, "quay.io/fedora/fedora-coreos@sha256:c4a15145a232d882ccf2ed32d22c06c01a7cf62317eb966a98340ae4bd56dfa6".to_string());
+
+        let custom_origin = booted.custom_origin();
+        assert!(custom_origin.is_some());
+        let custom_origin = custom_origin.unwrap();
+        assert_eq!(
+            custom_origin.url,
+            "quay.io/fedora/fedora-coreos@sha256:c4a15145a232d882ccf2ed32d22c06c01a7cf62317eb966a98340ae4bd56dfa6"
+        );
+        assert_eq!(
+            custom_origin.description,
+            "Fedora CoreOS Testing stream through OCI images"
+        );
     }
 }

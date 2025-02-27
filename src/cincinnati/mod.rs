@@ -9,11 +9,12 @@ mod mock_tests;
 
 use crate::config::inputs;
 use crate::identity::Identity;
-use crate::rpm_ostree::Release;
+use crate::rpm_ostree::{Payload, Release};
 use anyhow::{Context, Result};
 use fn_error_context::context;
 use futures::prelude::*;
 use futures::TryFutureExt;
+use ostree_ext::container::OstreeImageReference;
 use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -33,7 +34,10 @@ pub static DEADEND_KEY: &str = "org.fedoraproject.coreos.updates.deadend";
 pub static DEADEND_REASON_KEY: &str = "org.fedoraproject.coreos.updates.deadend_reason";
 
 /// Metadata value for "checksum" payload scheme.
-pub static CHECKSUM_SCHEME: &str = "checksum";
+pub const CHECKSUM_SCHEME: &str = "checksum";
+
+/// Metadata value for "oci" payload scheme.
+pub const OCI_SCHEME: &str = "oci";
 
 lazy_static::lazy_static! {
     static ref GRAPH_NODES: IntGauge = register_int_gauge!(opts!(
@@ -229,10 +233,16 @@ fn find_update(
         .nodes
         .iter()
         .enumerate()
-        .find(|(_, node)| is_same_checksum(node, &booted_depl.checksum))
+        .find(|(_, node)| is_same_checksum(node, &booted_depl))
     {
         Some(current) => current,
-        None => return Ok(None),
+        None => {
+            log::warn!(
+                "booted deployment {} not found in the update graph",
+                &booted_depl.payload
+            );
+            return Ok(None);
+        }
     };
     drop(booted_depl);
     let cur_release = Release::from_cincinnati(cur_node.clone())
@@ -313,15 +323,29 @@ fn find_denylisted_releases(graph: &client::Graph, depls: BTreeSet<Release>) -> 
     use std::collections::HashSet;
 
     let mut local_releases = BTreeSet::new();
-    let checksums: HashSet<String> = depls.into_iter().map(|rel| rel.checksum).collect();
+    let payloads: HashSet<Payload> = depls
+        .into_iter()
+        // in the OCI case, the local deployment payload is a full OSTree image reference
+        // while the cincinnati payload only contains the OCI pullspec
+        // Extract the local image reference before comparing
+        .map(|rel| match rel.payload {
+            Payload::Checksum(_) => rel.payload,
+            Payload::Pullspec(imgref) => {
+                let ostree_imgref: Result<OstreeImageReference> = imgref.as_str().try_into();
+                // ostree_imgref here is `ostree-remote-image:fedora:docker://quay.io.....`
+                // while the cincinnati payload only contains `quay.io:///....`
+                Payload::Pullspec(
+                    ostree_imgref.map_or(imgref, |ostree_imgref| ostree_imgref.imgref.name),
+                )
+            }
+        })
+        .collect();
 
     for entry in &graph.nodes {
-        if !checksums.contains(&entry.payload) {
-            continue;
-        }
-
         if let Ok(release) = Release::from_cincinnati(entry.clone()) {
-            local_releases.insert(release);
+            if payloads.contains(&release.payload) {
+                local_releases.insert(release);
+            }
         }
     }
 
@@ -329,14 +353,24 @@ fn find_denylisted_releases(graph: &client::Graph, depls: BTreeSet<Release>) -> 
 }
 
 /// Check whether input node matches current checksum.
-fn is_same_checksum(node: &Node, checksum: &str) -> bool {
-    let payload_is_checksum = node
-        .metadata
-        .get(SCHEME_KEY)
-        .map(|v| v == CHECKSUM_SCHEME)
-        .unwrap_or(false);
-
-    payload_is_checksum && node.payload == checksum
+fn is_same_checksum(node: &Node, deploy: &Release) -> bool {
+    match node.metadata.get(SCHEME_KEY) {
+        Some(scheme) if scheme == OCI_SCHEME => {
+            if let Ok(Some(local_digest)) = deploy.get_image_reference() {
+                local_digest == node.payload
+            } else {
+                false
+            }
+        }
+        Some(scheme) if scheme == CHECKSUM_SCHEME => {
+            if let Payload::Checksum(checksum) = &deploy.payload {
+                checksum == &node.payload
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
 }
 
 /// Check whether input node is a dead-end; if so, return the reason.
@@ -373,23 +407,27 @@ mod tests {
 
     #[test]
     fn source_node_comparison() {
-        let current = "current-sha";
+        let current = Release {
+            version: String::new(),
+            payload: Payload::Checksum("current-sha".to_string()),
+            age_index: None,
+        };
 
         let mut metadata = HashMap::new();
         metadata.insert(SCHEME_KEY.to_string(), CHECKSUM_SCHEME.to_string());
         let matching = Node {
             version: "v0".to_string(),
-            payload: current.to_string(),
+            payload: "current-sha".to_string(),
             metadata,
         };
-        assert!(is_same_checksum(&matching, current));
+        assert!(is_same_checksum(&matching, &current));
 
         let mismatch = Node {
             version: "v0".to_string(),
             payload: "mismatch".to_string(),
             metadata: HashMap::new(),
         };
-        assert!(!is_same_checksum(&mismatch, current));
+        assert!(!is_same_checksum(&mismatch, &current));
     }
 
     #[test]

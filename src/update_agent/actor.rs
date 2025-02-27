@@ -253,7 +253,7 @@ impl UpdateAgent {
                 log::info!(
                     "deployment {} ({}) will be excluded from being a future update target",
                     release.version,
-                    release.checksum
+                    release.payload
                 );
             }
         } else {
@@ -484,11 +484,11 @@ impl UpdateAgentInfo {
                 pending.version
             );
         }
-        if pending.checksum != release.checksum {
+        if pending.payload != release.payload {
             bail!(
                 "detected checksum mismatch for pending deployment '{}', got unexpected value '{}'",
                 release.version,
-                release.checksum,
+                release.payload,
             );
         }
 
@@ -594,7 +594,7 @@ mod tests {
         // Dummy `Release`.
         let update = Release {
             version: "v1".to_string(),
-            checksum: "ostree-checksum".to_string(),
+            payload: rpm_ostree::Payload::Checksum("ostree-checksum".to_string()),
             age_index: None,
         };
 
