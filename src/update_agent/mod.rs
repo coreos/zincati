@@ -508,7 +508,7 @@ fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
 
     // Filter out sessions that aren't interactive (don't have a tty), and map
     // these sessions into an `InteractiveSession` struct.
-    let interactive_session: Vec<InteractiveSession> = sessions
+    let interactive_sessions: Vec<InteractiveSession> = sessions
         .into_iter()
         .filter_map(|session| match session.tty {
             Some(mut tty) => {
@@ -528,7 +528,7 @@ fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
         })
         .collect();
 
-    Ok(interactive_session)
+    Ok(interactive_sessions)
 }
 
 /// Returns a warning string about the time until reboot and the release
