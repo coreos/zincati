@@ -12,7 +12,7 @@ use actix::Addr;
 use anyhow::{Context, Result};
 use chrono::prelude::*;
 use prometheus::{IntCounter, IntGauge};
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::fs;
@@ -69,11 +69,10 @@ lazy_static::lazy_static! {
     )).unwrap();
 }
 
-/// JSON output from `loginctl list-sessions --output=json`.
+/// JSON output from `loginctl list-sessions --json=short`.
 #[derive(Debug, Deserialize)]
 pub struct SessionJson {
     user: String,
-    #[serde(deserialize_with = "deserialize_systemd_tty_canonicalized")]
     tty: Option<String>,
 }
 
@@ -82,24 +81,6 @@ pub struct InteractiveSession {
     user: String,
     /// Device file of session's tty.
     tty_dev: String,
-}
-
-/// Function to deserialize field to `Option<String>`, where empty strings or
-/// `n/a` (not applicable) strings are deserialized into `None`. In systemd v254+
-/// loginctl list-sessions --json started outputting `n/a` instead of an empty
-/// string for tty.
-fn deserialize_systemd_tty_canonicalized<'de, D>(
-    deserializer: D,
-) -> Result<Option<String>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    if s.is_empty() || s == "n/a" {
-        Ok(None)
-    } else {
-        Ok(Some(s))
-    }
 }
 
 /// State machine for the agent.
@@ -492,7 +473,7 @@ fn broadcast(msg: &str, sessions: &[InteractiveSession]) {
 fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
     let cmdrun = std::process::Command::new("loginctl")
         .arg("list-sessions")
-        .arg("--output=json")
+        .arg("--json=short")
         .output()
         .context("failed to run `loginctl` binary")?;
 
@@ -508,7 +489,7 @@ fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
 
     // Filter out sessions that aren't interactive (don't have a tty), and map
     // these sessions into an `InteractiveSession` struct.
-    let interactive_session: Vec<InteractiveSession> = sessions
+    let interactive_sessions: Vec<InteractiveSession> = sessions
         .into_iter()
         .filter_map(|session| match session.tty {
             Some(mut tty) => {
@@ -528,7 +509,7 @@ fn get_interactive_user_sessions() -> Result<Vec<InteractiveSession>> {
         })
         .collect();
 
-    Ok(interactive_session)
+    Ok(interactive_sessions)
 }
 
 /// Returns a warning string about the time until reboot and the release
