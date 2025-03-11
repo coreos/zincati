@@ -132,7 +132,7 @@ impl StrategyPeriodic {
             Some(minute_in_week) => {
                 let (weekday, hour, minute) = utils::weekly_minute_as_weekday_time(minute_in_week);
                 format!(
-                    "at {}:{} on {} ({}), subject to time zone caveats.",
+                    "at {}:{:0>2} on {} ({}), subject to time zone caveats.",
                     hour, minute, weekday, self.tz_name
                 )
             }
