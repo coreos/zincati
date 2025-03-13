@@ -1,9 +1,10 @@
 //! Interface to `rpm-ostree deploy --lock-finalization` and
 //! `rpm-ostree deploy --register-driver`.
 
-use crate::rpm_ostree::{CustomOrigin, Payload, Release};
-use anyhow::{bail, Context, Result};
+use crate::rpm_ostree::{Payload, Release};
+use anyhow::{anyhow, bail, Context, Result};
 use once_cell::sync::Lazy;
+use ostree_ext::container::OstreeImageReference;
 use prometheus::IntCounter;
 use std::time::Duration;
 
@@ -35,11 +36,11 @@ static REGISTER_DRIVER_FAILURES: Lazy<IntCounter> = Lazy::new(|| {
 pub fn deploy_locked(
     release: Release,
     allow_downgrade: bool,
-    custom_origin: Option<CustomOrigin>,
+    rebase: Option<OstreeImageReference>,
 ) -> Result<Release> {
     DEPLOY_ATTEMPTS.inc();
 
-    let result = invoke_cli_deploy(release, allow_downgrade, custom_origin);
+    let result = invoke_cli_deploy(release, allow_downgrade, rebase);
     if result.is_err() {
         DEPLOY_FAILURES.inc();
     }
@@ -101,22 +102,24 @@ fn invoke_cli_register() -> Result<()> {
 fn invoke_cli_deploy(
     release: Release,
     allow_downgrade: bool,
-    custom_origin: Option<CustomOrigin>,
+    rebase: Option<OstreeImageReference>,
 ) -> Result<Release> {
     fail_point!("deploy_locked_err", |_| bail!("deploy_locked_err"));
     fail_point!("deploy_locked_ok", |_| Ok(release.clone()));
 
     let mut cmd = std::process::Command::new("rpm-ostree");
     match &release.payload {
-        Payload::Pullspec(image) => {
-            cmd.arg("rebase").arg(image).arg("--lock-finalization");
-            if let Some(origin) = custom_origin {
-                cmd.arg("--custom-origin-url")
-                    .arg(origin.url.clone())
-                    .arg("--custom-origin-description")
-                    .arg(origin.description.clone());
+        Payload::Pullspec(reference) => {
+            if let Some(rebase_target) = rebase {
+                cmd.arg("rebase").arg("--lock-finalization");
+                let digest = reference
+                    .digest()
+                    .ok_or_else(|| anyhow!("Missing digest in Cincinnati payload"))?;
+                cmd.arg(rebase_target.to_string()).arg(digest);
             } else {
-                log::warn!("No custom-origin information to attach to deployment.")
+                cmd.arg("deploy")
+                    .arg("--lock-finalization")
+                    .arg(reference.digest().unwrap());
             }
         }
         Payload::Checksum(checksum) => {
@@ -130,6 +133,10 @@ fn invoke_cli_deploy(
     if !allow_downgrade {
         cmd.arg("--disallow-downgrade");
     }
+    log::trace!(
+        "Requesting rpm ostree deploy with arguments: {:?}",
+        cmd.get_args()
+    );
 
     let out = cmd.output().context("failed to run 'rpm-ostree' binary")?;
 
@@ -172,7 +179,7 @@ mod tests {
             payload: Payload::Checksum("bar".to_string()),
             age_index: None,
         };
-        let result = deploy_locked(release, true, None);
+        let result = deploy_locked(release, false, None);
         assert!(result.is_err());
         assert!(DEPLOY_ATTEMPTS.get() >= 1);
         assert!(DEPLOY_FAILURES.get() >= 1);
@@ -189,7 +196,7 @@ mod tests {
             payload: Payload::Checksum("bar".to_string()),
             age_index: None,
         };
-        let result = deploy_locked(release.clone(), true, None).unwrap();
+        let result = deploy_locked(release.clone(), false, None).unwrap();
         assert_eq!(result, release);
         assert!(DEPLOY_ATTEMPTS.get() >= 1);
     }

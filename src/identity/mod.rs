@@ -143,7 +143,7 @@ impl Identity {
                 vars.insert("os_checksum".to_string(), checksum.clone());
             }
             Payload::Pullspec(image) => {
-                vars.insert("os_checksum".to_string(), image.clone());
+                vars.insert("os_checksum".to_string(), image.whole());
                 vars.insert("oci".to_string(), "true".to_string());
             }
         }
