@@ -32,7 +32,6 @@ libsystemd = "0.7"
 log = "0.4"
 maplit = "1.0"
 num-traits = "0.2"
-oci-spec = "0.7.1"
 once_cell = ">= 1.19, < 1.30"
 ordered-float = { version = "4.5", features = ["serde"] }
 ostree-ext = "0.15.3"

@@ -5,8 +5,8 @@ use super::{Payload, Release};
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use filetime::FileTime;
 use log::trace;
-use oci_spec::distribution::Reference;
 use ostree_ext::container::OstreeImageReference;
+use ostree_ext::oci_spec::distribution::Reference;
 use prometheus::IntCounter;
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -154,7 +154,7 @@ fn fedora_coreos_stream_from_deployment(deploy: &Deployment) -> Result<String> {
         (Some(stream), _) => stream.clone(), // in the OCI case, base commit meta is an escaped JSON string of
         // an OCI ImageManifest. Deserialize it properly.
         (_, Some(oci_manifest)) => {
-            let manifest: oci_spec::image::ImageManifest =
+            let manifest: ostree_ext::oci_spec::image::ImageManifest =
                 serde_json::from_str(oci_manifest.as_str())?;
             manifest
                 .annotations()

@@ -6,8 +6,8 @@ use actix::prelude::*;
 use anyhow::{Context, Result};
 use filetime::FileTime;
 use log::trace;
-use oci_spec::distribution::Reference;
 use ostree_ext::container::OstreeImageReference;
+use ostree_ext::oci_spec::distribution::Reference;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 

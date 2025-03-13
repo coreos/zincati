@@ -10,7 +10,7 @@ pub use actor::{
     CleanupPendingDeployment, FinalizeDeployment, QueryLocalDeployments,
     QueryPendingDeploymentStream, RegisterAsDriver, RpmOstreeClient, StageDeployment,
 };
-use oci_spec::distribution::Reference;
+use ostree_ext::oci_spec::distribution::Reference;
 
 #[cfg(test)]
 mod mock_tests;
