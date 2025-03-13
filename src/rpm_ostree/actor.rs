@@ -56,8 +56,16 @@ impl Handler<StageDeployment> for RpmOstreeClient {
     fn handle(&mut self, msg: StageDeployment, _ctx: &mut Self::Context) -> Self::Result {
         let rebase_target = match &msg.release.payload {
             Payload::Pullspec(target_pullspec) => {
-                let booted = super::cli_status::invoke_cli_status(true)?;
-                let local_deploy = super::cli_status::booted_status(&booted)?;
+                // If there is staged deployment we use that to determine if we should rebase or deploy
+                // Otherwise, fallback to booted.
+                // This is because if we already staged a rebase, rebasing again won't work
+                // as "Old and new refs are equal"
+                // see https://github.com/coreos/szincati/pull/1273#issuecomment-2721531804
+                let status = super::cli_status::invoke_cli_status(false)?;
+                let local_deploy = match super::cli_status::get_staged_deployment(&status) {
+                    Some(staged_deploy) => staged_deploy,
+                    None => super::cli_status::booted_status(&status)?,
+                };
 
                 if let Some(booted_imgref) = local_deploy.get_container_image_reference() {
                     let booted_oci_ref: Reference = booted_imgref.imgref.name.parse()?;
