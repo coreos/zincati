@@ -18,6 +18,12 @@ use std::rc::Rc;
 /// of the current state of deployments.
 const OSTREE_DEPLS_PATH: &str = "/ostree/deploy";
 
+/// Path to the fake deployment to use when migrating to OCI transport.
+/// Using this fake deployment instead of the booted one, zincati
+/// will get the next update from the OCI graph and rebase to the OCI image.
+/// See https://github.com/coreos/fedora-coreos-tracker/issues/1823
+static BOOTED_STATUS_OVERRIDE_FILE: &str = "/run/zincati/booted-status-override.json";
+
 lazy_static::lazy_static! {
     static ref STATUS_CACHE_ATTEMPTS: IntCounter = register_int_counter!(opts!(
         "zincati_rpm_ostree_status_cache_requests_total",
@@ -281,7 +287,31 @@ pub fn invoke_cli_status(booted_only: bool) -> Result<Status> {
             String::from_utf8_lossy(&cmdrun.stderr)
         );
     }
-    let status: Status = serde_json::from_slice(&cmdrun.stdout)?;
+    let mut status: Status = serde_json::from_slice(&cmdrun.stdout)?;
+
+    // if the oci_migration file exist we want to graft it into the
+    // output of rpm-ostree status.
+    // Replace the booted status with the content of the override file
+    let status_override_file = std::path::Path::new(BOOTED_STATUS_OVERRIDE_FILE);
+    if status_override_file.exists() {
+        let rdr = std::fs::File::open(status_override_file).map(std::io::BufReader::new)?;
+        let override_boot_depl: Deployment = serde_json::from_reader(rdr)?;
+
+        // Keep the actual status info and just replace the booted deployement.
+        // We need other deployements info to know if we rollbacked
+        // or if a deployment is staged.
+        status.deployments = status
+            .deployments
+            .into_iter()
+            .map(|d| {
+                if d.booted {
+                    override_boot_depl.clone()
+                } else {
+                    d
+                }
+            })
+            .collect();
+    }
     Ok(status)
 }
 
