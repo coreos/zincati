@@ -23,4 +23,4 @@ systemctl daemon-reload
 systemctl restart zincati --no-block
 
 echo "INFO: Streaming Zincati and RPM-OSTree logs..." >&2
-exec journalctl -f -u zincati -u rpm-ostreed
+exec journalctl -f -u zincati -u rpm-ostreed --since now
