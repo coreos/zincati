@@ -3,6 +3,11 @@ set -euo pipefail
 
 echo "WARN: This command is experimental and subject to change." >&2
 
+if [ "$EUID" != "0" ]; then
+    echo "ERROR: Must be root to run zincati-update-now" >&2
+    exit 1
+fi
+
 # this should exist already, but in case
 mkdir -p /run/zincati/config.d
 cat > /run/zincati/config.d/99-update-now.toml << EOF
@@ -15,7 +20,7 @@ EOF
 touch /run/zincati/override-interactive-check
 
 systemctl daemon-reload
-systemctl restart zincati
+systemctl restart zincati --no-block
 
 echo "INFO: Streaming Zincati and RPM-OSTree logs..." >&2
-exec journalctl -f -u zincati -u rpm-ostreed
+exec journalctl -f -u zincati -u rpm-ostreed --since now
