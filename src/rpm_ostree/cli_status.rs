@@ -6,6 +6,7 @@ use anyhow::{anyhow, bail, ensure, Context, Result};
 use filetime::FileTime;
 use log::trace;
 use ostree_ext::container::OstreeImageReference;
+use ostree_ext::oci_spec::distribution::Reference;
 use prometheus::IntCounter;
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -16,6 +17,12 @@ use std::rc::Rc;
 /// to local deployments that might warrant querying `rpm-ostree status` again to update our knowledge
 /// of the current state of deployments.
 const OSTREE_DEPLS_PATH: &str = "/ostree/deploy";
+
+/// Path to the fake deployment to use when migrating to OCI transport.
+/// Using this fake deployment instead of the booted one, zincati
+/// will get the next update from the OCI graph and rebase to the OCI image.
+/// See https://github.com/coreos/fedora-coreos-tracker/issues/1823
+static BOOTED_STATUS_OVERRIDE_FILE: &str = "/run/zincati/booted-status-override.json";
 
 lazy_static::lazy_static! {
     static ref STATUS_CACHE_ATTEMPTS: IntCounter = register_int_counter!(opts!(
@@ -62,7 +69,7 @@ pub struct Status {
 pub struct Deployment {
     booted: bool,
     container_image_reference: Option<String>,
-    custom_origin: Option<CustomOrigin>,
+    container_image_reference_digest: Option<String>,
     base_checksum: Option<String>,
     base_commit_meta: BaseCommitMeta,
     checksum: String,
@@ -70,13 +77,6 @@ pub struct Deployment {
     #[serde(default)]
     staged: bool,
     version: String,
-}
-
-/// Custom origin fields
-#[derive(Clone, Debug, Deserialize)]
-pub struct CustomOrigin {
-    pub url: String,
-    pub description: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -90,8 +90,8 @@ struct BaseCommitMeta {
 impl Deployment {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
-        let payload = if let Some(image) = self.container_image_reference {
-            Payload::Pullspec(image)
+        let payload = if let Some(reference) = self.get_container_image_reference_digest() {
+            Payload::Pullspec(reference)
         } else {
             Payload::Checksum(self.base_revision())
         };
@@ -110,21 +110,33 @@ impl Deployment {
             .unwrap_or_else(|| self.checksum.clone())
     }
 
-    /// Return the deployment OSTree checksum
-    pub fn ostree_checksum(&self) -> String {
-        self.checksum.clone()
-    }
-
-    /// return the custom origin fields
-    pub fn custom_origin(&self) -> Option<CustomOrigin> {
-        self.custom_origin.clone()
-    }
-
     /// return the deployed container image reference
-    pub fn container_image_reference(&self) -> Option<OstreeImageReference> {
+    /// e.g. ostree-remote-image:fedora:registry:quay.io/fedora/fedora-coreos:stable
+    pub fn get_container_image_reference(&self) -> Option<OstreeImageReference> {
         self.container_image_reference
             .as_ref()
             .and_then(|s| s.as_str().try_into().ok())
+    }
+
+    /// Return the deployed container image as an oci image reference
+    /// but with the digest instead of the tag
+    /// e.g. quay.io/fedora/fedora-coreos@sha256:c4a15145a232d882ccf2ed32d22c06c01a7cf62317eb966a98340ae4bd56dfa6
+    pub fn get_container_image_reference_digest(&self) -> Option<Reference> {
+        match (
+            &self.get_container_image_reference(),
+            &self.container_image_reference_digest,
+        ) {
+            (Some(imgref), Some(digest)) => {
+                let oci_ref: Option<Reference> = imgref.imgref.name.parse().ok();
+                oci_ref.map(|reference| reference.clone_with_digest(digest.clone()))
+            }
+            _ => None,
+        }
+    }
+
+    /// return the fedora-coreos update stream
+    pub fn get_fcos_update_stream(&self) -> Result<String> {
+        fedora_coreos_stream_from_deployment(self)
     }
 }
 
@@ -142,7 +154,7 @@ fn fedora_coreos_stream_from_deployment(deploy: &Deployment) -> Result<String> {
         (Some(stream), _) => stream.clone(), // in the OCI case, base commit meta is an escaped JSON string of
         // an OCI ImageManifest. Deserialize it properly.
         (_, Some(oci_manifest)) => {
-            let manifest: oci_spec::image::ImageManifest =
+            let manifest: ostree_ext::oci_spec::image::ImageManifest =
                 serde_json::from_str(oci_manifest.as_str())?;
             manifest
                 .annotations()
@@ -275,7 +287,31 @@ pub fn invoke_cli_status(booted_only: bool) -> Result<Status> {
             String::from_utf8_lossy(&cmdrun.stderr)
         );
     }
-    let status: Status = serde_json::from_slice(&cmdrun.stdout)?;
+    let mut status: Status = serde_json::from_slice(&cmdrun.stdout)?;
+
+    // if the oci_migration file exist we want to graft it into the
+    // output of rpm-ostree status.
+    // Replace the booted status with the content of the override file
+    let status_override_file = std::path::Path::new(BOOTED_STATUS_OVERRIDE_FILE);
+    if status_override_file.exists() {
+        let rdr = std::fs::File::open(status_override_file).map(std::io::BufReader::new)?;
+        let override_boot_depl: Deployment = serde_json::from_reader(rdr)?;
+
+        // Keep the actual status info and just replace the booted deployement.
+        // We need other deployements info to know if we rollbacked
+        // or if a deployment is staged.
+        status.deployments = status
+            .deployments
+            .into_iter()
+            .map(|d| {
+                if d.booted {
+                    override_boot_depl.clone()
+                } else {
+                    d
+                }
+            })
+            .collect();
+    }
     Ok(status)
 }
 
@@ -328,25 +364,20 @@ mod tests {
         let booted = booted_status(&status).unwrap();
         let stream = fedora_coreos_stream_from_deployment(&booted).unwrap();
         assert_eq!(stream, "testing");
-        let img_ref = booted.container_image_reference();
+        let img_ref = booted.get_container_image_reference();
         assert!(img_ref.is_some());
         let img_ref = img_ref.unwrap();
         assert_eq!(
             img_ref.sigverify,
             SignatureSource::OstreeRemote("fedora".to_string())
         );
-        assert_eq!(img_ref.imgref.name, "quay.io/fedora/fedora-coreos@sha256:c4a15145a232d882ccf2ed32d22c06c01a7cf62317eb966a98340ae4bd56dfa6".to_string());
-
-        let custom_origin = booted.custom_origin();
-        assert!(custom_origin.is_some());
-        let custom_origin = custom_origin.unwrap();
         assert_eq!(
-            custom_origin.url,
-            "quay.io/fedora/fedora-coreos@sha256:c4a15145a232d882ccf2ed32d22c06c01a7cf62317eb966a98340ae4bd56dfa6"
+            img_ref.imgref.name,
+            "quay.io/fedora/fedora-coreos:testing".to_string()
         );
-        assert_eq!(
-            custom_origin.description,
-            "Fedora CoreOS Testing stream through OCI images"
-        );
+        let imgref_with_digest = booted.get_container_image_reference_digest();
+        assert!(imgref_with_digest.is_some());
+        let imgref_with_digest = imgref_with_digest.unwrap();
+        assert_eq!(imgref_with_digest.to_string(), "quay.io/fedora/fedora-coreos@sha256:c4a15145a232d882ccf2ed32d22c06c01a7cf62317eb966a98340ae4bd56dfa6".to_string());
     }
 }

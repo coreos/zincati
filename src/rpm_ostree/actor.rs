@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use filetime::FileTime;
 use log::trace;
 use ostree_ext::container::OstreeImageReference;
+use ostree_ext::oci_spec::distribution::Reference;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
@@ -53,55 +54,67 @@ impl Handler<StageDeployment> for RpmOstreeClient {
     type Result = Result<Release>;
 
     fn handle(&mut self, msg: StageDeployment, _ctx: &mut Self::Context) -> Self::Result {
-        let booted = super::cli_status::invoke_cli_status(true)?;
-        let local_deploy = super::cli_status::booted_status(&booted)?;
+        let rebase_target = match &msg.release.payload {
+            Payload::Pullspec(target_pullspec) => {
+                // If there is staged deployment we use that to determine if we should rebase or deploy
+                // Otherwise, fallback to booted.
+                // This is because if we already staged a rebase, rebasing again won't work
+                // as "Old and new refs are equal"
+                // see https://github.com/coreos/szincati/pull/1273#issuecomment-2721531804
+                let status = super::cli_status::invoke_cli_status(false)?;
+                let local_deploy = match super::cli_status::get_staged_deployment(&status) {
+                    Some(staged_deploy) => staged_deploy,
+                    None => super::cli_status::booted_status(&status)?,
+                };
 
-        let release = if let Payload::Pullspec(release_payload) = msg.release.payload {
-            if let Some(local_imgref) = local_deploy.container_image_reference() {
-                // re-use the custom origin info to the new deployment
-                // while updating custom-url to match the new image digest
-                // XXX: when moving to update graph V2 we want to remove this and
-                // have custom-url pointing to the OCI artifact containing the graph
-                // See https://github.com/coreos/fedora-coreos-tracker/issues/1872
-                let custom_origin = if let Some(mut custom_origin) = local_deploy.custom_origin() {
-                    custom_origin.url = release_payload.clone();
-                    Some(custom_origin)
+                if let Some(booted_imgref) = local_deploy.get_container_image_reference() {
+                    let booted_oci_ref: Reference = booted_imgref.imgref.name.parse()?;
+                    let stream = local_deploy.get_fcos_update_stream()?;
+
+                    // The cinncinati payload contains the container image pullspec, pinned to a digest.
+                    // There are two cases where we want to rebase to a OSTree OCI refspec.
+                    // 1 - The image we are booted on does not match a stream tag, e.g. the node was manually
+                    //     rebased to a version tag or a pinned digest. Here deploy would work but would lead
+                    //     to a weird UX:
+                    //     rpm-ostree status would show the version tag in the origin after we moved on to
+                    //     another version.
+                    // 2 - The image name we are following has changed (new registry, new name)
+                    //     In that case `deploy` won't work and we need to rebase to the new refspec.
+
+                    // The oci reference we want to end up with
+                    let tagged_rebase_ref = Reference::with_tag(
+                        target_pullspec.registry().to_string(),
+                        target_pullspec.repository().to_string(),
+                        stream,
+                    );
+
+                    // if those don't match we need to rebase
+                    if booted_oci_ref != tagged_rebase_ref {
+                        // craft a new ostree imgref object with the tagged oci reference we'll use for
+                        // the rebase command so rpm-ostree will verify the signature of the OSTree commit
+                        // wrapped inside the container:
+                        let rebase_target = OstreeImageReference {
+                            sigverify: booted_imgref.sigverify,
+                            imgref: ostree_ext::container::ImageReference {
+                                transport: booted_imgref.imgref.transport,
+                                name: tagged_rebase_ref.whole(),
+                            },
+                        };
+                        Some(rebase_target)
+                    } else {
+                        None
+                    }
                 } else {
-                    log::warn!("Missing custom origin information for local OCI deployment.");
-                    None
-                };
-
-                // Cinncinati payload contains the container image pullspec, but we need
-                // to prepend the OSTree signature source so rpm-ostree will verify the signature of
-                // the OSTree commit wrapped inside the container.
-
-                // let's craft a propper ostree imgref object
-                let rebase_target = OstreeImageReference {
-                    sigverify: local_imgref.sigverify,
-                    imgref: ostree_ext::container::ImageReference {
-                        transport: ostree_ext::container::Transport::Registry,
-                        name: release_payload,
-                    },
-                };
-
-                // re-craft a release object with the pullspec
-                let oci_release = Release {
-                    version: msg.release.version.clone(),
-                    payload: Payload::Pullspec(rebase_target.to_string()),
-                    age_index: msg.release.age_index,
-                };
-
-                trace!("request to stage release: {:?}", oci_release);
-                super::cli_deploy::deploy_locked(oci_release, msg.allow_downgrade, custom_origin)
-            } else {
-                // This should never happen as requesting the OCI graph only happens after we detected the local deployment is OCI.
-                // But let's fail gracefuly just in case.
-                anyhow::bail!("Zincati does not support OCI updates if the current deployment is not already an OCI image reference.")
+                    // This should never happen as requesting the OCI graph only happens after we detected the local deployment is OCI.
+                    // But let's fail gracefuly just in case.
+                    anyhow::bail!("Zincati does not support OCI updates if the current deployment is not already an OCI image reference.")
+                }
             }
-        } else {
-            trace!("request to stage release: {:?}", msg.release);
-            super::cli_deploy::deploy_locked(msg.release, msg.allow_downgrade, None)
+            Payload::Checksum(_) => None,
         };
+        trace!("request to stage release: {:?}", &msg.release);
+        let release =
+            super::cli_deploy::deploy_locked(msg.release, msg.allow_downgrade, rebase_target);
         trace!("rpm-ostree CLI returned: {:?}", release);
         release
     }

@@ -2,7 +2,7 @@ mod cli_deploy;
 mod cli_finalize;
 mod cli_status;
 pub use cli_status::{
-    invoke_cli_status, parse_booted, parse_booted_updates_stream, CustomOrigin, SystemInoperable,
+    invoke_cli_status, parse_booted, parse_booted_updates_stream, SystemInoperable,
 };
 
 mod actor;
@@ -10,6 +10,7 @@ pub use actor::{
     CleanupPendingDeployment, FinalizeDeployment, QueryLocalDeployments,
     QueryPendingDeploymentStream, RegisterAsDriver, RpmOstreeClient, StageDeployment,
 };
+use ostree_ext::oci_spec::distribution::Reference;
 
 #[cfg(test)]
 mod mock_tests;
@@ -20,7 +21,7 @@ use core::fmt;
 use serde::Serialize;
 use std::cmp::Ordering;
 
-/// An OS release.
+/// An OS release, as described by the cincinnati graph.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Release {
     /// OS version.
@@ -36,15 +37,15 @@ pub struct Release {
 pub enum Payload {
     /// Represent a pure OSTree checksum
     Checksum(String),
-    /// an OCI image name
-    Pullspec(String),
+    /// an OCI image reference
+    Pullspec(Reference),
 }
 
 impl std::fmt::Display for Payload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Payload::Checksum(checksum) => write!(f, "{checksum}"),
-            Payload::Pullspec(image) => write!(f, "{image}"),
+            Payload::Pullspec(image) => write!(f, "{}", image.whole()),
         }
     }
 }
@@ -65,16 +66,8 @@ impl std::cmp::Ord for Release {
         }
 
         if self.payload != other.payload {
-            let self_payload = match &self.payload {
-                Payload::Checksum(str) => str,
-                Payload::Pullspec(str) => str,
-            };
-            let other_payload = match &other.payload {
-                Payload::Checksum(str) => str,
-                Payload::Pullspec(str) => str,
-            };
-
-            return self_payload.cmp(other_payload);
+            let self_payload = self.payload.to_string();
+            return self_payload.cmp(&other.payload.to_string());
         }
 
         Ordering::Equal
@@ -99,7 +92,7 @@ impl Release {
 
         let payload = match scheme.as_str() {
             CHECKSUM_SCHEME => Payload::Checksum(node.payload),
-            OCI_SCHEME => Payload::Pullspec(node.payload),
+            OCI_SCHEME => Payload::Pullspec(node.payload.parse()?),
             _ => bail!("unexpected payload scheme: {}", scheme),
         };
 
@@ -123,11 +116,7 @@ impl Release {
     pub fn get_image_reference(&self) -> Result<Option<String>> {
         match &self.payload {
             Payload::Checksum(_) => Ok(None),
-            Payload::Pullspec(imgref) => {
-                let ostree_imgref: ostree_ext::container::OstreeImageReference =
-                    imgref.as_str().try_into()?;
-                Ok(Some(ostree_imgref.imgref.name))
-            }
+            Payload::Pullspec(imgref) => Ok(Some(imgref.whole())),
         }
     }
 }

@@ -3897,7 +3897,6 @@ dependencies = [
  "maplit",
  "mockito",
  "num-traits",
- "oci-spec",
  "once_cell",
  "ordered-float",
  "ostree-ext",
