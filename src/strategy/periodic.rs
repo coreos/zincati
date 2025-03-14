@@ -277,6 +277,14 @@ mod tests {
         if read_link(local_time_path).is_err() {
             expected_tz = Some(Tz::named("UTC").unwrap());
         } else if let Ok(tz_path) = local_time_path.canonicalize() {
+            if tz_path.starts_with("/run/host") {
+                // Likely running in a toolbx container on a dev machine, where
+                // `/etc/localtime` symlinks into the host mounts. There's
+                // no point trying to work around this; the periodic strategy
+                // itself will also try to resolve it and fail and it feels
+                // awkward to add a toolbx specific hack there too.
+                return;
+            }
             let tz_str = tz_path
                 .strip_prefix(Path::new("/usr/share/zoneinfo"))
                 .unwrap()
