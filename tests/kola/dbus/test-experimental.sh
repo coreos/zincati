@@ -9,7 +9,7 @@ set -xeuo pipefail
 cd $(mktemp -d)
 
 # Ensure that methods in this interface can only be called by root.
-if sudo -u core busctl call org.coreos.zincati /org/coreos/zincati org.coreos.zincati.Experimental LastRefresh 2> err.txt; then
+if sudo -u core busctl call org.coreos.zincati /org/coreos/zincati org.coreos.zincati.Experimental LastRefreshTime 2> err.txt; then
   fatal "Non-root user calling Experimental interface unexpectedly succeeded"
 fi
 assert_file_has_content err.txt "Access denied"
