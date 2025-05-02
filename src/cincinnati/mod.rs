@@ -319,11 +319,14 @@ fn find_update(
 
 /// Try to match a set of (denylisted) deployments to their graph entries.
 fn find_denylisted_releases(graph: &client::Graph, depls: BTreeSet<Release>) -> BTreeSet<Release> {
+    use std::collections::HashSet;
+
     let mut local_releases = BTreeSet::new();
+    let local_payloads: HashSet<Payload> = depls.into_iter().map(|rel| rel.payload).collect();
 
     for entry in &graph.nodes {
         if let Ok(release) = Release::from_cincinnati(entry.clone()) {
-            if depls.contains(&release) {
+            if local_payloads.contains(&release.payload) {
                 local_releases.insert(release);
             }
         }
