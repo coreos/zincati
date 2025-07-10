@@ -8,15 +8,18 @@ properties([
 buildPod {
     checkout scm
     stage("Build") {
-        shwrap("make && make install DESTDIR=install")
+        shwrap("make build RELEASE=1")
+    }
+
+    stage("Unit Test") {
+        shwrap("make check RELEASE=1")
+    }
+
+    stage("Install") {
+        shwrap("make install RELEASE=1 DESTDIR=install")
         stash name: 'build', includes: 'install/**'
     }
 
-    // XXX: uncomment once we have
-    // https://github.com/coreos/fedora-coreos-config/pull/917
-    // stage("Unit Test") {
-    //     shwrap("cargo test")
-    // }
 }
 
 cosaPod(buildroot: true) {

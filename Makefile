@@ -30,4 +30,4 @@ install: build
 
 .PHONY: check
 check:
-	cargo test "--target-dir=${TARGETDIR}"
+	cargo test "--target-dir=${TARGETDIR}" ${CARGO_ARGS}

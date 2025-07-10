@@ -59,10 +59,6 @@ tempfile = ">= 3.7, < 4.0"
 [features]
 failpoints = [ "fail/failpoints" ]
 
-[profile.release]
-# We assume we're being delivered via e.g. RPM which supports split debuginfo
-debug = true
-
 [package.metadata.release]
 publish = false
 push = false
