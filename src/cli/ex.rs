@@ -4,7 +4,7 @@ use super::ensure_user;
 use anyhow::Result;
 use clap::Subcommand;
 use fn_error_context::context;
-use zbus::dbus_proxy;
+use zbus::proxy;
 
 #[derive(Debug, Subcommand)]
 pub enum Cmd {
@@ -44,7 +44,7 @@ impl Cmd {
     }
 }
 
-#[dbus_proxy(
+#[proxy(
     interface = "org.coreos.zincati.Experimental",
     default_service = "org.coreos.zincati",
     default_path = "/org/coreos/zincati"
