@@ -277,13 +277,13 @@ mod tests {
         let fut_rejection = Client::map_response(response.into());
         let rejection = runtime.block_on(fut_rejection).unwrap_err();
         let expected_rejection = CincinnatiError::FailedJsonDecoding(
-            "failed to decode graph: error decoding response body: missing field `nodes` at line 1 column 2".to_string(),
+            "failed to decode graph: error decoding response body".to_string(),
         );
         assert_eq!(&rejection, &expected_rejection);
 
         let msg = rejection.to_string();
         let expected_msg =
-            "client-side error: failed to decode graph: error decoding response body: missing field `nodes` at line 1 column 2";
+            "client-side error: failed to decode graph: error decoding response body";
         assert_eq!(&msg, expected_msg);
     }
 }
