@@ -2,7 +2,7 @@
 
 use super::ensure_user;
 use crate::{config, dbus, metrics, rpm_ostree, update_agent, utils};
-use actix::Actor;
+use actix::{Actor, Addr};
 use anyhow::{Context, Result};
 use clap::{crate_name, crate_version};
 use log::{info, trace};
@@ -55,7 +55,11 @@ pub(crate) fn run_agent() -> Result<()> {
     trace!("creating actor system");
     let sys = actix::System::new();
 
-    sys.block_on(async {
+    // Lift the dbus_service_addr ref to a higher scope to prevent drop() from
+    // being called on it, else we'll lose the listener as soon as we create it.
+    // This previously worked without doing so because of a connection leak in zbus:
+    // https://github.com/dbus2/zbus/commit/ba2a40752dcb45a034eeda6902b59e1ac437cdcb
+    let _dbus_service_addr = sys.block_on(async {
         trace!("creating metrics service");
         let _metrics_addr = metrics::MetricsService::bind_socket()?.start();
 
@@ -67,9 +71,9 @@ pub(crate) fn run_agent() -> Result<()> {
         let agent_addr = agent.start();
 
         trace!("creating D-Bus service");
-        let _dbus_service_addr = dbus::DBusService::start(1, agent_addr);
+        let dbus_service_addr = dbus::DBusService::start(1, agent_addr);
 
-        Ok::<(), anyhow::Error>(())
+        Ok::<Addr<dbus::DBusService>, anyhow::Error>(dbus_service_addr)
     })?;
 
     trace!("starting actor system");
