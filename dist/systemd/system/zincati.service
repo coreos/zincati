@@ -3,6 +3,9 @@ Description=Zincati Update Agent
 Documentation=https://github.com/coreos/zincati
 # Skip live systems not meant to be auto-updated (e.g. live PXE, live ISO)
 ConditionPathExists=!/run/ostree-live
+# This ensures compatibility with `bcvk ephemeral` today; compatibility
+# with a bootc+composefs future is still TBD.
+ConditionKernelCommandLine=ostree
 After=network.target
 # Wait for the boot to be marked as successful. In cluster contexts,
 # this prevents rolling out broken updates to all nodes in the fleet.
