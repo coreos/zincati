@@ -4,7 +4,7 @@ use super::actor::{RpmOstreeClient, StatusCache};
 use super::{Payload, Release};
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use filetime::FileTime;
-use log::trace;
+use log::{debug, trace};
 use ostree_ext::container::OstreeImageReference;
 use ostree_ext::oci_spec::distribution::Reference;
 use prometheus::IntCounter;
@@ -81,10 +81,10 @@ pub struct Deployment {
 
 #[derive(Clone, Debug, Deserialize)]
 struct BaseCommitMeta {
-    #[serde(rename = "fedora-coreos.stream")]
-    stream: Option<String>,
     #[serde(rename = "ostree.manifest")]
     oci_manifest: Option<String>,
+    #[serde(rename = "ostree.container.image-config")]
+    oci_image_configuration: Option<String>,
 }
 
 impl Deployment {
@@ -147,27 +147,50 @@ pub fn parse_booted(status: &Status) -> Result<Release> {
 }
 
 fn fedora_coreos_stream_from_deployment(deploy: &Deployment) -> Result<String> {
-    let stream = match (
-        deploy.base_commit_meta.stream.clone(),
-        deploy.base_commit_meta.oci_manifest.clone(),
-    ) {
-        (Some(stream), _) => stream.clone(), // in the OCI case, base commit meta is an escaped JSON string of
-        // an OCI ImageManifest. Deserialize it properly.
-        (_, Some(oci_manifest)) => {
-            let manifest: ostree_ext::oci_spec::image::ImageManifest =
-                serde_json::from_str(oci_manifest.as_str())?;
-            manifest
-                .annotations()
-                .clone()
-                .and_then(|a| a.get("fedora-coreos.stream").cloned())
-                .ok_or_else(|| {
-                    anyhow!("Missing `fedora-coreos.stream` in base image manifest annotations")
-                })?
+    if deploy.base_commit_meta.oci_image_configuration.is_none()
+        && deploy.base_commit_meta.oci_manifest.is_none()
+    {
+        bail!("Cannot deserialize ostree base image manifest");
+    }
+
+    // Check for `com.coreos.stream` label in OCI ImageConfiguration
+    if let Some(oci_image_configuration) = deploy.base_commit_meta.oci_image_configuration.as_ref()
+    {
+        let image_configuration: ostree_ext::oci_spec::image::ImageConfiguration =
+            serde_json::from_str(oci_image_configuration.as_str())?;
+        if let Some(stream) = image_configuration.config().as_ref().and_then(|cfg| {
+            cfg.labels()
+                .as_ref()
+                .and_then(|labels| labels.get("com.coreos.stream"))
+        }) {
+            ensure!(!stream.is_empty(), "empty stream value");
+            debug!("Detected stream '{}' from com.coreos.stream label", stream);
+            return Ok(stream.clone());
         }
-        (None, None) => bail!("Cannot deserialize ostree base image manifest"),
-    };
-    ensure!(!stream.is_empty(), "empty stream value");
-    Ok(stream)
+    }
+
+    // Fallback to `fedora-coreos.stream` annotation in OCI ImageManifest
+    if let Some(oci_manifest) = deploy.base_commit_meta.oci_manifest.as_ref() {
+        let manifest: ostree_ext::oci_spec::image::ImageManifest =
+            serde_json::from_str(oci_manifest.as_str())?;
+        if let Some(stream) = manifest
+            .annotations()
+            .as_ref()
+            .and_then(|a| a.get("fedora-coreos.stream"))
+        {
+            ensure!(!stream.is_empty(), "empty stream value");
+            debug!(
+                "Detected stream '{}' from fedora-coreos.stream annotation",
+                stream
+            );
+            return Ok(stream.clone());
+        }
+    }
+
+    Err(anyhow!(
+        "Missing `com.coreos.stream` label in the base image configuration,
+        or `fedora-coreos.stream` annotation in the base image manifest"
+    ))
 }
 
 /// Parse updates stream for booted deployment from status object.
@@ -344,7 +367,7 @@ mod tests {
             assert_eq!(deployments.len(), 1);
         }
         {
-            let status = mock_status("tests/fixtures/rpm-ostree-oci-status.json").unwrap();
+            let status = mock_status("tests/fixtures/rpm-ostree-status-annotation.json").unwrap();
             let deployments = parse_local_deployments(&status, false);
             assert_eq!(deployments.len(), 1);
         }
@@ -352,32 +375,37 @@ mod tests {
 
     #[test]
     fn mock_booted_updates_stream() {
-        let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
-        let booted = booted_status(&status).unwrap();
-        let stream = fedora_coreos_stream_from_deployment(&booted).unwrap();
-        assert_eq!(stream, "testing-devel");
+        {
+            let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
+            let booted = booted_status(&status).unwrap();
+            let stream = fedora_coreos_stream_from_deployment(&booted).unwrap();
+            assert_eq!(stream, "stable");
+        }
+        {
+            let status = mock_status("tests/fixtures/rpm-ostree-status-annotation.json").unwrap();
+            let booted = booted_status(&status).unwrap();
+            let stream = fedora_coreos_stream_from_deployment(&booted).unwrap();
+            assert_eq!(stream, "stable");
+        }
     }
 
     #[test]
     fn mock_booted_oci_deployment() {
-        let status = mock_status("tests/fixtures/rpm-ostree-oci-status.json").unwrap();
+        let status = mock_status("tests/fixtures/rpm-ostree-status.json").unwrap();
         let booted = booted_status(&status).unwrap();
         let stream = fedora_coreos_stream_from_deployment(&booted).unwrap();
-        assert_eq!(stream, "testing");
+        assert_eq!(stream, "stable");
         let img_ref = booted.get_container_image_reference();
         assert!(img_ref.is_some());
         let img_ref = img_ref.unwrap();
-        assert_eq!(
-            img_ref.sigverify,
-            SignatureSource::OstreeRemote("fedora".to_string())
-        );
+        assert_eq!(img_ref.sigverify, SignatureSource::ContainerPolicy);
         assert_eq!(
             img_ref.imgref.name,
-            "quay.io/fedora/fedora-coreos:testing".to_string()
+            "quay.io/fedora/fedora-coreos:stable".to_string()
         );
         let imgref_with_digest = booted.get_container_image_reference_digest();
         assert!(imgref_with_digest.is_some());
         let imgref_with_digest = imgref_with_digest.unwrap();
-        assert_eq!(imgref_with_digest.to_string(), "quay.io/fedora/fedora-coreos@sha256:c4a15145a232d882ccf2ed32d22c06c01a7cf62317eb966a98340ae4bd56dfa6".to_string());
+        assert_eq!(imgref_with_digest.to_string(), "quay.io/fedora/fedora-coreos@sha256:ca99893c80a7b84dd84d4143bd27538207c2f38ab6647a58d9c8caa251f9a087".to_string());
     }
 }
