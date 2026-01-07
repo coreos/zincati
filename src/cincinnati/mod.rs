@@ -32,9 +32,6 @@ pub static DEADEND_KEY: &str = "org.fedoraproject.coreos.updates.deadend";
 /// Metadata key for dead-end reason.
 pub static DEADEND_REASON_KEY: &str = "org.fedoraproject.coreos.updates.deadend_reason";
 
-/// Metadata value for "checksum" payload scheme.
-pub const CHECKSUM_SCHEME: &str = "checksum";
-
 /// Metadata value for "oci" payload scheme.
 pub const OCI_SCHEME: &str = "oci";
 
@@ -341,13 +338,6 @@ fn is_same_checksum(node: &Node, deploy: &Release) -> bool {
         Some(scheme) if scheme == OCI_SCHEME => {
             if let Ok(Some(ref local_imgref)) = deploy.get_image_reference() {
                 local_imgref == &node.payload
-            } else {
-                false
-            }
-        }
-        Some(scheme) if scheme == CHECKSUM_SCHEME => {
-            if let Payload::Checksum(checksum) = &deploy.payload {
-                checksum == &node.payload
             } else {
                 false
             }

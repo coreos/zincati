@@ -139,9 +139,6 @@ impl Identity {
         vars.insert("platform".to_string(), self.platform.clone());
         vars.insert("stream".to_string(), self.stream.clone());
         match &self.current_os.payload {
-            Payload::Checksum(checksum) => {
-                vars.insert("os_checksum".to_string(), checksum.clone());
-            }
             Payload::Pullspec(image) => {
                 vars.insert("os_checksum".to_string(), image.whole());
                 vars.insert("oci".to_string(), "true".to_string());

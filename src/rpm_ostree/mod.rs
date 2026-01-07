@@ -15,7 +15,7 @@ use ostree_ext::oci_spec::distribution::Reference;
 #[cfg(test)]
 mod mock_tests;
 
-use crate::cincinnati::{Node, AGE_INDEX_KEY, CHECKSUM_SCHEME, OCI_SCHEME, SCHEME_KEY};
+use crate::cincinnati::{Node, AGE_INDEX_KEY, OCI_SCHEME, SCHEME_KEY};
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use core::fmt;
 use serde::Serialize;
@@ -35,8 +35,6 @@ pub struct Release {
 /// payload unique identifier can either be an ostree checksum or an OCI pullspec
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize)]
 pub enum Payload {
-    /// Represent a pure OSTree checksum
-    Checksum(String),
     /// an OCI image reference
     Pullspec(Reference),
 }
@@ -44,7 +42,6 @@ pub enum Payload {
 impl std::fmt::Display for Payload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Payload::Checksum(checksum) => write!(f, "{checksum}"),
             Payload::Pullspec(image) => write!(f, "{}", image.whole()),
         }
     }
@@ -91,7 +88,6 @@ impl Release {
             .ok_or_else(|| anyhow!("missing metadata key: {}", SCHEME_KEY))?;
 
         let payload = match scheme.as_str() {
-            CHECKSUM_SCHEME => Payload::Checksum(node.payload),
             OCI_SCHEME => Payload::Pullspec(node.payload.parse()?),
             _ => bail!("unexpected payload scheme: {}", scheme),
         };
@@ -115,7 +111,6 @@ impl Release {
     }
     pub fn get_image_reference(&self) -> Result<Option<String>> {
         match &self.payload {
-            Payload::Checksum(_) => Ok(None),
             Payload::Pullspec(imgref) => Ok(Some(imgref.whole())),
         }
     }

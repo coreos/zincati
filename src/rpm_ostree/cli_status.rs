@@ -90,11 +90,9 @@ struct BaseCommitMeta {
 impl Deployment {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
-        let payload = if let Some(reference) = self.get_container_image_reference_digest() {
-            Payload::Pullspec(reference)
-        } else {
-            Payload::Checksum(self.base_revision())
-        };
+        // TODO: change the unwrap to something else
+        let reference = self.get_container_image_reference_digest().unwrap();
+        let payload = Payload::Pullspec(reference);
         Release {
             payload,
             version: self.version,

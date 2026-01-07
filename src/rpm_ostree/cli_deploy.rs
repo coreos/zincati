@@ -122,12 +122,6 @@ fn invoke_cli_deploy(
                     .arg(reference.digest().unwrap());
             }
         }
-        Payload::Checksum(checksum) => {
-            cmd.arg("deploy")
-                .arg("--lock-finalization")
-                .arg("--skip-branch-check")
-                .arg(format!("revision={}", checksum));
-        }
     }
     cmd.env("RPMOSTREE_CLIENT_ID", "zincati");
     if !allow_downgrade {
