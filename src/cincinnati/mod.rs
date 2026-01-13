@@ -380,17 +380,19 @@ mod tests {
 
     #[test]
     fn source_node_comparison() {
+        use ostree_ext::oci_spec::distribution::Reference;
+
         let current = Release {
             version: String::new(),
-            payload: Payload::Checksum("current-sha".to_string()),
+            payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap()),
             age_index: None,
         };
 
         let mut metadata = HashMap::new();
-        metadata.insert(SCHEME_KEY.to_string(), CHECKSUM_SCHEME.to_string());
+        metadata.insert(SCHEME_KEY.to_string(), OCI_SCHEME.to_string());
         let matching = Node {
             version: "v0".to_string(),
-            payload: "current-sha".to_string(),
+            payload: "quay.io/fedora/fedora-coreos:oci-mock".to_string(),
             metadata,
         };
         assert!(is_same_checksum(&matching, &current));

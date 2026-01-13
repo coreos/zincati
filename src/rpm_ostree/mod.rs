@@ -127,7 +127,7 @@ mod tests {
             version: "mock-version".to_string(),
             payload: "mock-payload".to_string(),
             metadata: hashmap! {
-                SCHEME_KEY.to_string() => CHECKSUM_SCHEME.to_string(),
+                SCHEME_KEY.to_string() => OCI_SCHEME.to_string(),
                 AGE_INDEX_KEY.to_string() => "0".to_string(),
             },
         };
@@ -140,7 +140,7 @@ mod tests {
             version: "".to_string(),
             payload: "mock-payload".to_string(),
             metadata: hashmap! {
-                SCHEME_KEY.to_string() => CHECKSUM_SCHEME.to_string(),
+                SCHEME_KEY.to_string() => OCI_SCHEME.to_string(),
             },
         };
         Release::from_cincinnati(node1).unwrap_err();
@@ -149,7 +149,7 @@ mod tests {
             version: "mock-version".to_string(),
             payload: "".to_string(),
             metadata: hashmap! {
-                SCHEME_KEY.to_string() => CHECKSUM_SCHEME.to_string(),
+                SCHEME_KEY.to_string() => OCI_SCHEME.to_string(),
             },
         };
         Release::from_cincinnati(node2).unwrap_err();
@@ -158,7 +158,7 @@ mod tests {
             version: "mock-version".to_string(),
             payload: "mock-payload".to_string(),
             metadata: hashmap! {
-                SCHEME_KEY.to_string() => CHECKSUM_SCHEME.to_string(),
+                SCHEME_KEY.to_string() => OCI_SCHEME.to_string(),
             },
         };
         Release::from_cincinnati(node3).unwrap_err();
@@ -177,12 +177,12 @@ mod tests {
         {
             let n0 = Release {
                 version: "v0".to_string(),
-                payload: Payload::Checksum("p0".to_string()),
+                payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap()),
                 age_index: Some(0),
             };
             let n1 = Release {
                 version: "v1".to_string(),
-                payload: Payload::Checksum("p1".to_string()),
+                payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:latest").unwrap()),
                 age_index: Some(1),
             };
             assert!(n0 < n1);
@@ -193,27 +193,12 @@ mod tests {
         {
             let n0 = Release {
                 version: "v0".to_string(),
-                payload: Payload::Checksum("p0".to_string()),
+                payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap()),
                 age_index: Some(0),
             };
             let n1 = Release {
                 version: "v1".to_string(),
-                payload: Payload::Checksum("p1".to_string()),
-                age_index: Some(0),
-            };
-            assert!(n0 < n1);
-            assert!(!(n0 < n0));
-            assert!(!(n0 > n0));
-        }
-        {
-            let n0 = Release {
-                version: "v0".to_string(),
-                payload: Payload::Checksum("p0".to_string()),
-                age_index: Some(0),
-            };
-            let n1 = Release {
-                version: "v0".to_string(),
-                payload: Payload::Checksum("p1".to_string()),
+                payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:latest").unwrap()),
                 age_index: Some(0),
             };
             assert!(n0 < n1);

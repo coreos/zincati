@@ -362,7 +362,7 @@ mod tests {
         {
             let status = mock_status("tests/fixtures/rpm-ostree-staged.json").unwrap();
             let deployments = parse_local_deployments(&status, true);
-            assert_eq!(deployments.len(), 1);
+            assert_eq!(deployments.len(), 2);
         }
         {
             let status = mock_status("tests/fixtures/rpm-ostree-status-annotation.json").unwrap();

@@ -152,11 +152,12 @@ impl Identity {
 
     #[cfg(test)]
     pub(crate) fn mock_default() -> Self {
+        use ostree_ext::oci_spec::distribution::Reference;
         Self {
             basearch: "mock-amd64".to_string(),
             current_os: rpm_ostree::Release {
                 version: "0.0.0-mock".to_string(),
-                payload: Payload::Checksum("sha-mock".to_string()),
+                payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap()),
                 age_index: None,
             },
             group: "mock-workers".to_string(),
