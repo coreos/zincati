@@ -171,7 +171,9 @@ mod tests {
 
         let release = Release {
             version: "foo".to_string(),
-            payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos").unwrap()),
+            payload: Payload::Pullspec(
+                Reference::try_from("quay.io/fedora/fedora-coreos").unwrap(),
+            ),
             age_index: None,
         };
         let result = deploy_locked(release, false, None);
@@ -189,7 +191,9 @@ mod tests {
 
         let release = Release {
             version: "foo".to_string(),
-            payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos").unwrap()),
+            payload: Payload::Pullspec(
+                Reference::try_from("quay.io/fedora/fedora-coreos").unwrap(),
+            ),
             age_index: None,
         };
         let result = deploy_locked(release.clone(), false, None).unwrap();

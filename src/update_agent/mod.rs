@@ -555,8 +555,8 @@ fn format_seconds(seconds: u64) -> String {
 mod tests {
     use super::*;
     use crate::rpm_ostree::{Payload, Release};
-    use std::{thread, time};
     use ostree_ext::oci_spec::distribution::Reference;
+    use std::{thread, time};
 
     #[test]
     fn default_state() {
@@ -600,7 +600,9 @@ mod tests {
 
         let update = Release {
             version: "v1".to_string(),
-            payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap()),
+            payload: Payload::Pullspec(
+                Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
+            ),
             age_index: None,
         };
         machine.update_available(update.clone());
@@ -636,7 +638,9 @@ mod tests {
     fn test_fsm_abandon_update() {
         let update = Release {
             version: "v1".to_string(),
-            payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap()),
+            payload: Payload::Pullspec(
+                Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
+            ),
             age_index: None,
         };
         let mut machine = UpdateAgentMachineState::NoNewUpdate;
@@ -670,7 +674,9 @@ mod tests {
         let postponement_interval = Duration::from_secs(DEFAULT_POSTPONEMENT_TIME_SECS);
         let update = Release {
             version: "v1".to_string(),
-            payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap()),
+            payload: Payload::Pullspec(
+                Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
+            ),
             age_index: None,
         };
         let mut machine = UpdateAgentMachineState::UpdateAvailable((update.clone(), 0));

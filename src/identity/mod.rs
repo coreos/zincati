@@ -157,7 +157,9 @@ impl Identity {
             basearch: "mock-amd64".to_string(),
             current_os: rpm_ostree::Release {
                 version: "0.0.0-mock".to_string(),
-                payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap()),
+                payload: Payload::Pullspec(
+                    Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
+                ),
                 age_index: None,
             },
             group: "mock-workers".to_string(),

@@ -384,7 +384,9 @@ mod tests {
 
         let current = Release {
             version: String::new(),
-            payload: Payload::Pullspec(Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap()),
+            payload: Payload::Pullspec(
+                Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
+            ),
             age_index: None,
         };
 
