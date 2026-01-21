@@ -535,12 +535,16 @@ fn format_seconds(seconds: u64) -> String {
             "{} minute{}{}",
             seconds / 60,
             if seconds / 60 == 1 { "" } else { "s" },
-            if seconds % 60 > 0 { " and " } else { "" }
+            if !seconds.is_multiple_of(60) {
+                " and "
+            } else {
+                ""
+            }
         )
     } else {
         String::from("")
     };
-    if seconds % 60 > 0 {
+    if !seconds.is_multiple_of(60) {
         time_till_reboot.push_str(&format!(
             "{} second{}",
             seconds % 60,
