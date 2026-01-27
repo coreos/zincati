@@ -29,9 +29,6 @@ pub fn finalize_deployment(release: Release) -> Result<Release> {
                 .ok_or_else(|| anyhow!("Missing digest in Cincinnati payload"))?;
             cmd.arg(digest);
         }
-        super::Payload::Checksum(checksum) => {
-            cmd.arg(checksum);
-        }
     };
 
     let cmd_result = cmd.output().context("failed to run 'rpm-ostree' binary")?;

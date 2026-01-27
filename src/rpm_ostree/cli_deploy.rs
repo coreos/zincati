@@ -122,12 +122,6 @@ fn invoke_cli_deploy(
                     .arg(reference.digest().unwrap());
             }
         }
-        Payload::Checksum(checksum) => {
-            cmd.arg("deploy")
-                .arg("--lock-finalization")
-                .arg("--skip-branch-check")
-                .arg(format!("revision={}", checksum));
-        }
     }
     cmd.env("RPMOSTREE_CLIENT_ID", "zincati");
     if !allow_downgrade {
@@ -171,12 +165,15 @@ mod tests {
     #[cfg(feature = "failpoints")]
     #[test]
     fn deploy_locked_err() {
+        use ostree_ext::oci_spec::distribution::Reference;
         let _guard = fail::FailScenario::setup();
         fail::cfg("deploy_locked_err", "return").unwrap();
 
         let release = Release {
             version: "foo".to_string(),
-            payload: Payload::Checksum("bar".to_string()),
+            payload: Payload::Pullspec(
+                Reference::try_from("quay.io/fedora/fedora-coreos").unwrap(),
+            ),
             age_index: None,
         };
         let result = deploy_locked(release, false, None);
@@ -188,12 +185,15 @@ mod tests {
     #[cfg(feature = "failpoints")]
     #[test]
     fn deploy_locked_ok() {
+        use ostree_ext::oci_spec::distribution::Reference;
         let _guard = fail::FailScenario::setup();
         fail::cfg("deploy_locked_ok", "return").unwrap();
 
         let release = Release {
             version: "foo".to_string(),
-            payload: Payload::Checksum("bar".to_string()),
+            payload: Payload::Pullspec(
+                Reference::try_from("quay.io/fedora/fedora-coreos").unwrap(),
+            ),
             age_index: None,
         };
         let result = deploy_locked(release.clone(), false, None).unwrap();

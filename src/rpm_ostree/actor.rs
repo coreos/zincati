@@ -110,7 +110,6 @@ impl Handler<StageDeployment> for RpmOstreeClient {
                     anyhow::bail!("Zincati does not support OCI updates if the current deployment is not already an OCI image reference.")
                 }
             }
-            Payload::Checksum(_) => None,
         };
         trace!("request to stage release: {:?}", &msg.release);
         let release =
