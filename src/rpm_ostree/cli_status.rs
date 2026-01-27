@@ -90,8 +90,12 @@ struct BaseCommitMeta {
 impl Deployment {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
-        // TODO: change the unwrap to something else
-        let reference = self.get_container_image_reference_digest().unwrap();
+        let reference = self
+        .get_container_image_reference_digest()
+        .expect(
+            "Failed to find OCI image reference. \n\
+            Note: Zincati now requires OCI payloads and no longer supports legacy OSTree-only systems."
+        );
         let payload = Payload::Pullspec(reference);
         Release {
             payload,
