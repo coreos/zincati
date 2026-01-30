@@ -32,9 +32,6 @@ pub static DEADEND_KEY: &str = "org.fedoraproject.coreos.updates.deadend";
 /// Metadata key for dead-end reason.
 pub static DEADEND_REASON_KEY: &str = "org.fedoraproject.coreos.updates.deadend_reason";
 
-/// Metadata value for "checksum" payload scheme.
-pub const CHECKSUM_SCHEME: &str = "checksum";
-
 /// Metadata value for "oci" payload scheme.
 pub const OCI_SCHEME: &str = "oci";
 
@@ -345,13 +342,6 @@ fn is_same_checksum(node: &Node, deploy: &Release) -> bool {
                 false
             }
         }
-        Some(scheme) if scheme == CHECKSUM_SCHEME => {
-            if let Payload::Checksum(checksum) = &deploy.payload {
-                checksum == &node.payload
-            } else {
-                false
-            }
-        }
         _ => false,
     }
 }
@@ -390,17 +380,21 @@ mod tests {
 
     #[test]
     fn source_node_comparison() {
+        use ostree_ext::oci_spec::distribution::Reference;
+
         let current = Release {
             version: String::new(),
-            payload: Payload::Checksum("current-sha".to_string()),
+            payload: Payload::Pullspec(
+                Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
+            ),
             age_index: None,
         };
 
         let mut metadata = HashMap::new();
-        metadata.insert(SCHEME_KEY.to_string(), CHECKSUM_SCHEME.to_string());
+        metadata.insert(SCHEME_KEY.to_string(), OCI_SCHEME.to_string());
         let matching = Node {
             version: "v0".to_string(),
-            payload: "current-sha".to_string(),
+            payload: "quay.io/fedora/fedora-coreos:oci-mock".to_string(),
             metadata,
         };
         assert!(is_same_checksum(&matching, &current));

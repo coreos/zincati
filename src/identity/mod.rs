@@ -139,9 +139,6 @@ impl Identity {
         vars.insert("platform".to_string(), self.platform.clone());
         vars.insert("stream".to_string(), self.stream.clone());
         match &self.current_os.payload {
-            Payload::Checksum(checksum) => {
-                vars.insert("os_checksum".to_string(), checksum.clone());
-            }
             Payload::Pullspec(image) => {
                 vars.insert("os_checksum".to_string(), image.whole());
                 vars.insert("oci".to_string(), "true".to_string());
@@ -155,11 +152,14 @@ impl Identity {
 
     #[cfg(test)]
     pub(crate) fn mock_default() -> Self {
+        use ostree_ext::oci_spec::distribution::Reference;
         Self {
             basearch: "mock-amd64".to_string(),
             current_os: rpm_ostree::Release {
                 version: "0.0.0-mock".to_string(),
-                payload: Payload::Checksum("sha-mock".to_string()),
+                payload: Payload::Pullspec(
+                    Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
+                ),
                 age_index: None,
             },
             group: "mock-workers".to_string(),

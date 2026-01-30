@@ -90,11 +90,13 @@ struct BaseCommitMeta {
 impl Deployment {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
-        let payload = if let Some(reference) = self.get_container_image_reference_digest() {
-            Payload::Pullspec(reference)
-        } else {
-            Payload::Checksum(self.base_revision())
-        };
+        let reference = self
+        .get_container_image_reference_digest()
+        .expect(
+            "Failed to find OCI image reference. \n\
+            Note: Zincati now requires OCI payloads and no longer supports legacy OSTree-only systems."
+        );
+        let payload = Payload::Pullspec(reference);
         Release {
             payload,
             version: self.version,
@@ -364,7 +366,7 @@ mod tests {
         {
             let status = mock_status("tests/fixtures/rpm-ostree-staged.json").unwrap();
             let deployments = parse_local_deployments(&status, true);
-            assert_eq!(deployments.len(), 1);
+            assert_eq!(deployments.len(), 2);
         }
         {
             let status = mock_status("tests/fixtures/rpm-ostree-status-annotation.json").unwrap();
