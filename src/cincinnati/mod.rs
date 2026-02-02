@@ -380,13 +380,9 @@ mod tests {
 
     #[test]
     fn source_node_comparison() {
-        use ostree_ext::oci_spec::distribution::Reference;
-
         let current = Release {
             version: String::new(),
-            payload: Payload::Pullspec(
-                Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
-            ),
+            payload: Payload::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
             age_index: None,
         };
 

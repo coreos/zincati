@@ -1,7 +1,7 @@
 mod platform;
 
+use crate::config::inputs;
 use crate::rpm_ostree;
-use crate::{config::inputs, rpm_ostree::Payload};
 use anyhow::{anyhow, ensure, Context, Result};
 use fn_error_context::context;
 use lazy_static::lazy_static;
@@ -138,12 +138,8 @@ impl Identity {
         vars.insert("node_uuid".to_string(), self.node_uuid.lower_hex());
         vars.insert("platform".to_string(), self.platform.clone());
         vars.insert("stream".to_string(), self.stream.clone());
-        match &self.current_os.payload {
-            Payload::Pullspec(image) => {
-                vars.insert("os_checksum".to_string(), image.whole());
-                vars.insert("oci".to_string(), "true".to_string());
-            }
-        }
+        vars.insert("os_checksum".to_string(), self.current_os.payload.whole());
+        vars.insert("oci".to_string(), "true".to_string());
         if let Some(rw) = self.rollout_wariness {
             vars.insert("rollout_wariness".to_string(), format!("{:.06}", rw));
         }
@@ -152,14 +148,12 @@ impl Identity {
 
     #[cfg(test)]
     pub(crate) fn mock_default() -> Self {
-        use ostree_ext::oci_spec::distribution::Reference;
+        use rpm_ostree::Payload;
         Self {
             basearch: "mock-amd64".to_string(),
             current_os: rpm_ostree::Release {
                 version: "0.0.0-mock".to_string(),
-                payload: Payload::Pullspec(
-                    Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
-                ),
+                payload: Payload::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
                 age_index: None,
             },
             group: "mock-workers".to_string(),

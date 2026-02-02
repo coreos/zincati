@@ -17,7 +17,6 @@ mod mock_tests;
 
 use crate::cincinnati::{Node, AGE_INDEX_KEY, OCI_SCHEME, SCHEME_KEY};
 use anyhow::{anyhow, bail, ensure, Context, Result};
-use core::fmt;
 use serde::Serialize;
 use std::cmp::Ordering;
 
@@ -32,20 +31,7 @@ pub struct Release {
     pub age_index: Option<u64>,
 }
 
-/// payload unique identifier can either be an ostree checksum or an OCI pullspec
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize)]
-pub enum Payload {
-    /// an OCI image reference
-    Pullspec(Reference),
-}
-
-impl std::fmt::Display for Payload {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Payload::Pullspec(image) => write!(f, "{}", image.whole()),
-        }
-    }
-}
+pub type Payload = Reference;
 
 impl std::cmp::Ord for Release {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -88,7 +74,7 @@ impl Release {
             .ok_or_else(|| anyhow!("missing metadata key: {}", SCHEME_KEY))?;
 
         let payload = match scheme.as_str() {
-            OCI_SCHEME => Payload::Pullspec(node.payload.parse()?),
+            OCI_SCHEME => node.payload.parse()?,
             _ => bail!("unexpected payload scheme: {}", scheme),
         };
 
@@ -109,10 +95,10 @@ impl Release {
         };
         Ok(rel)
     }
+    // TODO: remove the result since it will always give a
+    // valid thing now
     pub fn get_image_reference(&self) -> Result<Option<String>> {
-        match &self.payload {
-            Payload::Pullspec(imgref) => Ok(Some(imgref.whole())),
-        }
+        Ok(Some(self.payload.whole()))
     }
 }
 
@@ -177,16 +163,12 @@ mod tests {
         {
             let n0 = Release {
                 version: "v0".to_string(),
-                payload: Payload::Pullspec(
-                    Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
-                ),
+                payload: Payload::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
                 age_index: Some(0),
             };
             let n1 = Release {
                 version: "v1".to_string(),
-                payload: Payload::Pullspec(
-                    Reference::try_from("quay.io/fedora/fedora-coreos:latest").unwrap(),
-                ),
+                payload: Payload::try_from("quay.io/fedora/fedora-coreos:latest").unwrap(),
                 age_index: Some(1),
             };
             assert!(n0 < n1);
@@ -197,16 +179,12 @@ mod tests {
         {
             let n0 = Release {
                 version: "v0".to_string(),
-                payload: Payload::Pullspec(
-                    Reference::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
-                ),
+                payload: Payload::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
                 age_index: Some(0),
             };
             let n1 = Release {
                 version: "v1".to_string(),
-                payload: Payload::Pullspec(
-                    Reference::try_from("quay.io/fedora/fedora-coreos:latest").unwrap(),
-                ),
+                payload: Payload::try_from("quay.io/fedora/fedora-coreos:latest").unwrap(),
                 age_index: Some(0),
             };
             assert!(n0 < n1);

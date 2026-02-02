@@ -22,14 +22,11 @@ pub fn finalize_deployment(release: Release) -> Result<Release> {
     cmd.env("RPMOSTREE_CLIENT_ID", "zincati")
         .arg("finalize-deployment");
 
-    match &release.payload {
-        super::Payload::Pullspec(reference) => {
-            let digest = reference
-                .digest()
-                .ok_or_else(|| anyhow!("Missing digest in Cincinnati payload"))?;
-            cmd.arg(digest);
-        }
-    };
+    let digest = release
+        .payload
+        .digest()
+        .ok_or_else(|| anyhow!("Missing digest in Cincinnati payload"))?;
+    cmd.arg(digest);
 
     let cmd_result = cmd.output().context("failed to run 'rpm-ostree' binary")?;
     if !cmd_result.status.success() {
