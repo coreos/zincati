@@ -95,11 +95,6 @@ impl Release {
         };
         Ok(rel)
     }
-    // TODO: remove the result since it will always give a
-    // valid thing now
-    pub fn get_image_reference(&self) -> Result<Option<String>> {
-        Ok(Some(self.payload.whole()))
-    }
 }
 
 #[cfg(test)]

@@ -90,11 +90,9 @@ struct BaseCommitMeta {
 impl Deployment {
     /// Convert into `Release`.
     pub fn into_release(self) -> Release {
-        let payload = self
-        .get_container_image_reference_digest()
-        .expect(
+        let payload = self.get_container_image_reference_digest().expect(
             "Failed to find OCI image reference. \n\
-            Note: Zincati now requires OCI payloads and no longer supports legacy OSTree-only systems."
+            Zincati only support bootable OCI containers and not ostree remotes.",
         );
         Release {
             payload,

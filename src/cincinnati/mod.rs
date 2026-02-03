@@ -335,13 +335,7 @@ fn find_denylisted_releases(graph: &client::Graph, depls: BTreeSet<Release>) -> 
 /// Check whether input node matches current checksum.
 fn is_same_checksum(node: &Node, deploy: &Release) -> bool {
     match node.metadata.get(SCHEME_KEY) {
-        Some(scheme) if scheme == OCI_SCHEME => {
-            if let Ok(Some(ref local_imgref)) = deploy.get_image_reference() {
-                local_imgref == &node.payload
-            } else {
-                false
-            }
-        }
+        Some(scheme) if scheme == OCI_SCHEME => deploy.payload.whole() == node.payload,
         _ => false,
     }
 }
