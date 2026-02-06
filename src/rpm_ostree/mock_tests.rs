@@ -13,18 +13,18 @@ fn test_simple_graph() {
     {
       "version": "0.0.0-mock",
       "metadata": {
-        "org.fedoraproject.coreos.scheme": "checksum",
+        "org.fedoraproject.coreos.scheme": "oci",
         "org.fedoraproject.coreos.releases.age_index": "0"
       },
-      "payload": "sha-mock"
+      "payload": "quay.io/fedora/fedora-coreos:oci-mock"
     },
     {
-      "version": "30.20190725.0",
+      "version": "43.20251120.3.0",
       "metadata": {
-        "org.fedoraproject.coreos.scheme": "checksum",
+        "org.fedoraproject.coreos.scheme": "oci",
         "org.fedoraproject.coreos.releases.age_index": "1"
       },
-      "payload": "8b79877efa7ac06becd8637d95f8ca83aa385f89f383288bf3c2c31ca53216c7"
+    "payload": "quay.io/fedora/fedora-coreos:latest"
     }
   ],
   "edges": [
@@ -52,7 +52,7 @@ fn test_simple_graph() {
     m_graph.assert();
 
     let next = update.unwrap();
-    assert_eq!(next.version, "30.20190725.0")
+    assert_eq!(next.version, "43.20251120.3.0")
 }
 
 #[test]
@@ -62,20 +62,20 @@ fn test_downgrade() {
 {
   "nodes": [
     {
-      "version": "30.20190725.0",
+      "version": "43.20251120.3.0",
       "metadata": {
-        "org.fedoraproject.coreos.scheme": "checksum",
+        "org.fedoraproject.coreos.scheme": "oci",
         "org.fedoraproject.coreos.releases.age_index": "0"
       },
-      "payload": "8b79877efa7ac06becd8637d95f8ca83aa385f89f383288bf3c2c31ca53216c7"
+    "payload": "quay.io/fedora/fedora-coreos:downgrade"
     },
     {
       "version": "0.0.0-mock",
       "metadata": {
-        "org.fedoraproject.coreos.scheme": "checksum",
+        "org.fedoraproject.coreos.scheme": "oci",
         "org.fedoraproject.coreos.releases.age_index": "1"
       },
-      "payload": "sha-mock"
+      "payload": "quay.io/fedora/fedora-coreos:oci-mock"
     }
   ],
   "edges": [
@@ -110,5 +110,5 @@ fn test_downgrade() {
 
     m_graph.assert();
     let next = downgrade.unwrap();
-    assert_eq!(next.version, "30.20190725.0")
+    assert_eq!(next.version, "43.20251120.3.0")
 }
