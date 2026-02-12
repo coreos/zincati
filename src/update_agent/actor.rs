@@ -589,12 +589,12 @@ mod tests {
 
     #[test]
     fn test_should_tick_immediately() {
+        use crate::rpm_ostree::Payload;
         use crate::update_agent::MAX_FINALIZE_POSTPONEMENTS;
-
         // Dummy `Release`.
         let update = Release {
             version: "v1".to_string(),
-            payload: rpm_ostree::Payload::Checksum("ostree-checksum".to_string()),
+            payload: Payload::try_from("quay.io/fedora/fedora-coreos:oci-mock").unwrap(),
             age_index: None,
         };
 

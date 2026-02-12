@@ -1,7 +1,7 @@
 //! Interface to `rpm-ostree deploy --lock-finalization` and
 //! `rpm-ostree deploy --register-driver`.
 
-use crate::rpm_ostree::{Payload, Release};
+use crate::rpm_ostree::Release;
 use anyhow::{anyhow, bail, Context, Result};
 use once_cell::sync::Lazy;
 use ostree_ext::container::OstreeImageReference;
@@ -108,26 +108,17 @@ fn invoke_cli_deploy(
     fail_point!("deploy_locked_ok", |_| Ok(release.clone()));
 
     let mut cmd = std::process::Command::new("rpm-ostree");
-    match &release.payload {
-        Payload::Pullspec(reference) => {
-            if let Some(rebase_target) = rebase {
-                cmd.arg("rebase").arg("--lock-finalization");
-                let digest = reference
-                    .digest()
-                    .ok_or_else(|| anyhow!("Missing digest in Cincinnati payload"))?;
-                cmd.arg(rebase_target.to_string()).arg(digest);
-            } else {
-                cmd.arg("deploy")
-                    .arg("--lock-finalization")
-                    .arg(reference.digest().unwrap());
-            }
-        }
-        Payload::Checksum(checksum) => {
-            cmd.arg("deploy")
-                .arg("--lock-finalization")
-                .arg("--skip-branch-check")
-                .arg(format!("revision={}", checksum));
-        }
+    if let Some(rebase_target) = rebase {
+        cmd.arg("rebase").arg("--lock-finalization");
+        let digest = release
+            .payload
+            .digest()
+            .ok_or_else(|| anyhow!("Missing digest in Cincinnati payload"))?;
+        cmd.arg(rebase_target.to_string()).arg(digest);
+    } else {
+        cmd.arg("deploy")
+            .arg("--lock-finalization")
+            .arg(release.payload.digest().unwrap());
     }
     cmd.env("RPMOSTREE_CLIENT_ID", "zincati");
     if !allow_downgrade {
@@ -171,12 +162,13 @@ mod tests {
     #[cfg(feature = "failpoints")]
     #[test]
     fn deploy_locked_err() {
+        use crate::rpm_ostree::Payload;
         let _guard = fail::FailScenario::setup();
         fail::cfg("deploy_locked_err", "return").unwrap();
 
         let release = Release {
             version: "foo".to_string(),
-            payload: Payload::Checksum("bar".to_string()),
+            payload: Payload::try_from("quay.io/fedora/fedora-coreos").unwrap(),
             age_index: None,
         };
         let result = deploy_locked(release, false, None);
@@ -188,12 +180,13 @@ mod tests {
     #[cfg(feature = "failpoints")]
     #[test]
     fn deploy_locked_ok() {
+        use crate::rpm_ostree::Payload;
         let _guard = fail::FailScenario::setup();
         fail::cfg("deploy_locked_ok", "return").unwrap();
 
         let release = Release {
             version: "foo".to_string(),
-            payload: Payload::Checksum("bar".to_string()),
+            payload: Payload::try_from("quay.io/fedora/fedora-coreos").unwrap(),
             age_index: None,
         };
         let result = deploy_locked(release.clone(), false, None).unwrap();

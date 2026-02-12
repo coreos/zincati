@@ -1,7 +1,7 @@
 //! rpm-ostree client actor.
 
 use super::cli_status::Status;
-use super::{Payload, Release};
+use super::Release;
 use actix::prelude::*;
 use anyhow::{Context, Result};
 use filetime::FileTime;
@@ -54,63 +54,60 @@ impl Handler<StageDeployment> for RpmOstreeClient {
     type Result = Result<Release>;
 
     fn handle(&mut self, msg: StageDeployment, _ctx: &mut Self::Context) -> Self::Result {
-        let rebase_target = match &msg.release.payload {
-            Payload::Pullspec(target_pullspec) => {
-                // If there is staged deployment we use that to determine if we should rebase or deploy
-                // Otherwise, fallback to booted.
-                // This is because if we already staged a rebase, rebasing again won't work
-                // as "Old and new refs are equal"
-                // see https://github.com/coreos/szincati/pull/1273#issuecomment-2721531804
-                let status = super::cli_status::invoke_cli_status(false)?;
-                let local_deploy = match super::cli_status::get_staged_deployment(&status) {
-                    Some(staged_deploy) => staged_deploy,
-                    None => super::cli_status::booted_status(&status)?,
-                };
+        let rebase_target = {
+            // If there is staged deployment we use that to determine if we should rebase or deploy
+            // Otherwise, fallback to booted.
+            // This is because if we already staged a rebase, rebasing again won't work
+            // as "Old and new refs are equal"
+            // see https://github.com/coreos/szincati/pull/1273#issuecomment-2721531804
+            let status = super::cli_status::invoke_cli_status(false)?;
+            let local_deploy = match super::cli_status::get_staged_deployment(&status) {
+                Some(staged_deploy) => staged_deploy,
+                None => super::cli_status::booted_status(&status)?,
+            };
 
-                if let Some(booted_imgref) = local_deploy.get_container_image_reference() {
-                    let booted_oci_ref: Reference = booted_imgref.imgref.name.parse()?;
-                    let stream = local_deploy.get_fcos_update_stream()?;
+            if let Some(booted_imgref) = local_deploy.get_container_image_reference() {
+                let booted_oci_ref: Reference = booted_imgref.imgref.name.parse()?;
+                let stream = local_deploy.get_fcos_update_stream()?;
 
-                    // The cinncinati payload contains the container image pullspec, pinned to a digest.
-                    // There are two cases where we want to rebase to a OSTree OCI refspec.
-                    // 1 - The image we are booted on does not match a stream tag, e.g. the node was manually
-                    //     rebased to a version tag or a pinned digest. Here deploy would work but would lead
-                    //     to a weird UX:
-                    //     rpm-ostree status would show the version tag in the origin after we moved on to
-                    //     another version.
-                    // 2 - The image name we are following has changed (new registry, new name)
-                    //     In that case `deploy` won't work and we need to rebase to the new refspec.
+                // The cinncinati payload contains the container image pullspec, pinned to a digest.
+                // There are two cases where we want to rebase to a OSTree OCI refspec.
+                // 1 - The image we are booted on does not match a stream tag, e.g. the node was manually
+                //     rebased to a version tag or a pinned digest. Here deploy would work but would lead
+                //     to a weird UX:
+                //     rpm-ostree status would show the version tag in the origin after we moved on to
+                //     another version.
+                // 2 - The image name we are following has changed (new registry, new name)
+                //     In that case `deploy` won't work and we need to rebase to the new refspec.
 
-                    // The oci reference we want to end up with
-                    let tagged_rebase_ref = Reference::with_tag(
-                        target_pullspec.registry().to_string(),
-                        target_pullspec.repository().to_string(),
-                        stream,
-                    );
+                // The oci reference we want to end up with
+                let tagged_rebase_ref = Reference::with_tag(
+                    msg.release.payload.registry().to_string(),
+                    msg.release.payload.repository().to_string(),
+                    stream,
+                );
 
-                    // if those don't match we need to rebase
-                    if booted_oci_ref != tagged_rebase_ref {
-                        // craft a new ostree imgref object with the tagged oci reference we'll use for
-                        // the rebase command so rpm-ostree will verify the signature of the OSTree commit
-                        // wrapped inside the container:
-                        let rebase_target = OstreeImageReference {
-                            sigverify: booted_imgref.sigverify,
-                            imgref: ostree_ext::container::ImageReference {
-                                transport: booted_imgref.imgref.transport,
-                                name: tagged_rebase_ref.whole(),
-                            },
-                        };
-                        Some(rebase_target)
-                    } else {
-                        None
-                    }
+                // if those don't match we need to rebase
+                if booted_oci_ref != tagged_rebase_ref {
+                    // craft a new ostree imgref object with the tagged oci reference we'll use for
+                    // the rebase command so rpm-ostree will verify the signature of the OSTree commit
+                    // wrapped inside the container:
+                    let rebase_target = OstreeImageReference {
+                        sigverify: booted_imgref.sigverify,
+                        imgref: ostree_ext::container::ImageReference {
+                            transport: booted_imgref.imgref.transport,
+                            name: tagged_rebase_ref.whole(),
+                        },
+                    };
+                    Some(rebase_target)
                 } else {
-                    // This should never happen as requesting the OCI graph only happens after we detected the local deployment is OCI.
-                    // But let's fail gracefuly just in case.
-                    anyhow::bail!("Zincati does not support OCI updates if the current deployment is not already an OCI image reference.")
+                    None
                 }
+            } else {
+                // This should never happen as requesting the OCI graph only happens after we detected the local deployment is OCI.
+                // But let's fail gracefuly just in case.
+                anyhow::bail!("Zincati does not support OCI updates if the current deployment is not already an OCI image reference.")
             }
-            Payload::Checksum(_) => None,
         };
         trace!("request to stage release: {:?}", &msg.release);
         let release =
