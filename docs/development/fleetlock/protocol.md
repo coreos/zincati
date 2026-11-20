@@ -55,6 +55,8 @@ By default, Zincati uses the group name "`default`" unless explicitly configured
 
 Locking and unlocking requests must contain a `fleet-lock-protocol` header with a fixed value of `true` to ensure that the actual request was directly intended and not a part of unintentional redirection.
 
+Since the body is JSON, requests also carry a `Content-Type: application/json` header.
+
 ### Response
 
 If the operation is succesful, a 200 status code is returned. Every other code is considered as a failed operation.
@@ -80,7 +82,7 @@ POST request:
 
 ```shell
 
-curl -H "fleet-lock-protocol: true" -d @body.json http://example.com/base/v1/pre-reboot
+curl -H "fleet-lock-protocol: true" -H "Content-Type: application/json" -d @body.json http://example.com/base/v1/pre-reboot
 
 ```
 
