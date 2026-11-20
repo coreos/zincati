@@ -18,6 +18,7 @@ fn test_pre_reboot_lock() {
     let m_pre_reboot = server
         .mock("POST", Matcher::Exact(format!("/{}", V1_PRE_REBOOT)))
         .match_header("fleet-lock-protocol", "true")
+        .match_header("content-type", "application/json")
         .match_body(Matcher::PartialJsonString(body.to_string()))
         .with_status(200)
         .create();
@@ -44,6 +45,7 @@ fn test_pre_reboot_error() {
     let m_pre_reboot = server
         .mock("POST", Matcher::Exact(format!("/{}", V1_PRE_REBOOT)))
         .match_header("fleet-lock-protocol", "true")
+        .match_header("content-type", "application/json")
         .with_status(404)
         .with_body(body)
         .create();
@@ -71,6 +73,7 @@ fn test_steady_state_lock() {
     let m_steady_state = server
         .mock("POST", Matcher::Exact(format!("/{}", V1_STEADY_STATE)))
         .match_header("fleet-lock-protocol", "true")
+        .match_header("content-type", "application/json")
         .match_body(Matcher::PartialJsonString(body.to_string()))
         .with_status(200)
         .create();
@@ -97,6 +100,7 @@ fn test_steady_state_error() {
     let m_steady_state = server
         .mock("POST", Matcher::Exact(format!("/{}", V1_STEADY_STATE)))
         .match_header("fleet-lock-protocol", "true")
+        .match_header("content-type", "application/json")
         .with_status(404)
         .with_body(body)
         .create();

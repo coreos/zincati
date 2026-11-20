@@ -147,6 +147,7 @@ impl Client {
             .hclient
             .request(method, url)
             .body(self.body.clone())
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
             .header("fleet-lock-protocol", "true");
         Ok(builder)
     }
